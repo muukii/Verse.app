@@ -1,6 +1,15 @@
 {
-  "originHash" : "90f682c91628a67f8974144226605dde87efdc977e88bae02b8f60657a914e4a",
+  "originHash" : "88b74a9ca4a1d3c75b7da9b2a42a779c5af6fa85ed4b6973609f08143e3a4151",
   "pins" : [
+    {
+      "identity" : "swift-youtube-transcript",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/spaceman1412/swift-youtube-transcript",
+      "state" : {
+        "revision" : "e6fb610ee78d5dff8c8c81589875d43cbc9ef856",
+        "version" : "1.0.0"
+      }
+    },
     {
       "identity" : "youtubekit",
       "kind" : "remoteSourceControl",
