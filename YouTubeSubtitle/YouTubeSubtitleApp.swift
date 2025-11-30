@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct YouTubeSubtitleApp: App {
@@ -14,5 +15,6 @@ struct YouTubeSubtitleApp: App {
       ContentView()
     }
     .defaultSize(width: 800, height: 600)
+    .modelContainer(for: VideoHistoryItem.self)
   }
 }
