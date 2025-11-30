@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild:*)",
+      "mcp__XcodeBuildMCP__list_sims",
+      "mcp__XcodeBuildMCP__list_schemes",
+      "mcp__XcodeBuildMCP__build_sim",
+      "mcp__deepwiki__ask_question"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
