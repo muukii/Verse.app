@@ -6,11 +6,11 @@
 //
 
 import SwiftUI
-import WebKit
+import YouTubePlayerKit
 
 struct ContentView: View {
   @State private var urlText: String = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  
-  @State private var currentURL: URL?
+  @State private var youtubePlayer: YouTubePlayer?
   
   var body: some View {
     VStack(spacing: 0) {
@@ -29,9 +29,9 @@ struct ContentView: View {
       }
       .padding()
       
-      // WebView Section
-      if let url = currentURL {
-        WebKit.WebView(url: url)
+      // YouTube Player Section
+      if let player = youtubePlayer {
+        YouTubePlayerView(player)
           .frame(minWidth: 400, minHeight: 300)
       } else {
         ContentUnavailableView(
@@ -47,7 +47,11 @@ struct ContentView: View {
     guard let url = URL(string: urlText), !urlText.isEmpty else {
       return
     }
-    currentURL = url
+    
+    // Extract video ID and create YouTubePlayer
+    if let videoID = YouTubeURLParser.extractVideoID(from: url) {
+      youtubePlayer = YouTubePlayer(source: .video(id: videoID))
+    }
   }
 }
 
