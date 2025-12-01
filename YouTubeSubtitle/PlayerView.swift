@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftSubtitles
 import YouTubePlayerKit
 import YoutubeTranscript
 
@@ -47,10 +48,11 @@ struct PlayerView: View {
   @State private var currentTime: Double = 0
   @State private var duration: Double = 0
   @State private var isTrackingTime: Bool = false
-  @State private var transcripts: [TranscriptResponse] = []
+  @State private var subtitleEntries: [SubtitleEntry] = []
+  @State private var currentSubtitles: Subtitles?
   @State private var isLoadingTranscripts: Bool = false
   @State private var transcriptError: String?
-  @State private var scrollPosition: Double?
+  @State private var scrollPosition: ScrollPosition = .init()
   @State private var isDraggingSlider: Bool = false
   @State private var dragTime: Double = 0
   @State private var isPlaying: Bool = false
@@ -59,6 +61,7 @@ struct PlayerView: View {
   @State private var repeatEndTime: Double?
   @State private var isRepeating: Bool = false
   @State private var playbackRate: Double = 1.0
+  @State private var subtitleSource: SubtitleSource = .youtube
 
   private let availablePlaybackRates: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
@@ -400,8 +403,15 @@ struct PlayerView: View {
         Text("Subtitles")
           .font(.headline)
 
+        // Source indicator
+        if subtitleSource != .youtube {
+          Text("(\(subtitleSource.displayName))")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        }
+
         Spacer()
-        
+
         // Subtitle Tracking Toggle
         Button {
           isSubtitleTrackingEnabled.toggle()
@@ -416,11 +426,22 @@ struct PlayerView: View {
         .buttonStyle(.plain)
         .help(isSubtitleTrackingEnabled ? "Disable auto-scroll" : "Enable auto-scroll")
 
-        if !transcripts.isEmpty {
-          Text("\(transcripts.count) items")
+        if !subtitleEntries.isEmpty {
+          Text("\(subtitleEntries.count) items")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
+
+        // Subtitle Management Menu
+        SubtitleManagementView(
+          videoID: videoID,
+          subtitles: currentSubtitles,
+          onSubtitlesImported: { entries in
+            subtitleEntries = entries
+            currentSubtitles = entries.toSwiftSubtitles()
+            subtitleSource = .imported
+          }
+        )
       }
       .padding(.horizontal, 16)
       .padding(.vertical, 12)
@@ -447,10 +468,19 @@ struct PlayerView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
+
+          // Show import option when YouTube subtitles fail
+          Button {
+            // Trigger import via SubtitleManagementView
+          } label: {
+            Label("Import Subtitle File", systemImage: "doc.badge.plus")
+          }
+          .buttonStyle(.borderedProminent)
+          .padding(.top, 8)
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else if transcripts.isEmpty {
+      } else if subtitleEntries.isEmpty {
         ContentUnavailableView(
           "No Subtitles",
           systemImage: "text.bubble",
@@ -459,15 +489,15 @@ struct PlayerView: View {
       } else {
         ScrollView {
           LazyVStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(transcripts.enumerated()), id: \.offset) { index, transcript in
-              subtitleRow(transcript: transcript, index: index)
+            ForEach(subtitleEntries) { entry in
+              subtitleRow(entry: entry)
             }
           }
           .padding(12)
         }
-        .scrollPosition(id: $scrollPosition, anchor: .center)
+        .scrollPosition($scrollPosition)
         .onScrollPhaseChange { oldPhase, newPhase in
-          // ユーザーが手動でスクロールを開始したらトラッキングをOFF
+          // Disable tracking when user manually scrolls
           if newPhase == .interacting {
             isSubtitleTrackingEnabled = false
           }
@@ -481,12 +511,12 @@ struct PlayerView: View {
   }
 
   @ViewBuilder
-  private func subtitleRow(transcript: TranscriptResponse, index: Int) -> some View {
-    let isCurrent = isCurrentSubtitle(offset: transcript.offset)
+  private func subtitleRow(entry: SubtitleEntry) -> some View {
+    let isCurrent = isCurrentSubtitle(entry: entry)
 
     HStack(alignment: .top, spacing: 12) {
       // Time badge
-      Text(formatTime(transcript.offset))
+      Text(formatTime(entry.startTime))
         .font(.system(.caption2, design: .monospaced))
         .foregroundStyle(isCurrent ? .white : .secondary)
         .padding(.horizontal, 6)
@@ -495,7 +525,7 @@ struct PlayerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 4))
 
       // Text content
-      Text(transcript.text.htmlDecoded)
+      Text(entry.text.htmlDecoded)
         .font(.subheadline)
         .foregroundStyle(isCurrent ? .primary : .secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -513,10 +543,10 @@ struct PlayerView: View {
     .contentShape(Rectangle())
     .onTapGesture {
       if let player = youtubePlayer {
-        jumpToSubtitle(player: player, offset: transcript.offset)
+        jumpToSubtitle(player: player, offset: entry.startTime)
       }
     }
-    .id(transcript.offset)
+    .id(entry.id)
     .animation(.easeInOut(duration: 0.2), value: isCurrent)
   }
 
@@ -543,15 +573,22 @@ struct PlayerView: View {
   private func fetchTranscripts(videoID: String) {
     isLoadingTranscripts = true
     transcriptError = nil
-    transcripts = []
-    
+    subtitleEntries = []
+    currentSubtitles = nil
+
     Task {
       do {
-        let config = TranscriptConfig(lang: "en")
+        let config = TranscriptConfig(lang: nil)
         let fetchedTranscripts = try await YoutubeTranscript.fetchTranscript(for: videoID, config: config)
-        
+
+        // Convert to SubtitleEntry and SwiftSubtitles
+        let entries = fetchedTranscripts.toSubtitleEntries()
+        let subtitles = fetchedTranscripts.toSwiftSubtitles()
+
         await MainActor.run {
-          transcripts = fetchedTranscripts
+          subtitleEntries = entries
+          currentSubtitles = subtitles
+          subtitleSource = .youtube
           isLoadingTranscripts = false
         }
       } catch {
@@ -667,31 +704,47 @@ struct PlayerView: View {
     }
   }
   
-  private func isCurrentSubtitle(offset: Double) -> Bool {
-    guard !transcripts.isEmpty else { return false }
-    
-    if let currentIndex = transcripts.firstIndex(where: { $0.offset > currentTime }) {
+  private func isCurrentSubtitle(entry: SubtitleEntry) -> Bool {
+    guard !subtitleEntries.isEmpty else { return false }
+
+    if let currentIndex = subtitleEntries.firstIndex(where: { $0.startTime > currentTime }) {
       if currentIndex > 0 {
-        let previousTranscript = transcripts[currentIndex - 1]
-        return previousTranscript.offset == offset
+        let previousEntry = subtitleEntries[currentIndex - 1]
+        return previousEntry.id == entry.id
       }
       return false
     } else {
-      if let lastTranscript = transcripts.last {
-        return lastTranscript.offset == offset && currentTime >= offset
+      if let lastEntry = subtitleEntries.last {
+        return lastEntry.id == entry.id && currentTime >= entry.startTime
       }
       return false
     }
   }
-  
-  private func updateScrollPosition() {
-    guard !transcripts.isEmpty, isSubtitleTrackingEnabled else { return }
 
-    if let currentIndex = transcripts.firstIndex(where: { $0.offset > currentTime }), currentIndex > 0 {
-      let currentTranscript = transcripts[currentIndex - 1]
-      scrollPosition = currentTranscript.offset
-    } else if let lastTranscript = transcripts.last, currentTime >= lastTranscript.offset {
-      scrollPosition = lastTranscript.offset
+  private func updateScrollPosition() {
+    guard !subtitleEntries.isEmpty, isSubtitleTrackingEnabled else { return }
+
+    if let currentIndex = subtitleEntries.firstIndex(where: { $0.startTime > currentTime }), currentIndex > 0 {
+      let currentEntry = subtitleEntries[currentIndex - 1]
+      scrollPosition.scrollTo(id: currentEntry.id, anchor: .center)
+    } else if let lastEntry = subtitleEntries.last, currentTime >= lastEntry.startTime {
+      scrollPosition.scrollTo(id: lastEntry.id, anchor: .center)
+    }
+  }
+}
+
+// MARK: - Subtitle Source
+
+enum SubtitleSource {
+  case youtube
+  case imported
+  case saved
+
+  var displayName: String {
+    switch self {
+    case .youtube: return "YouTube"
+    case .imported: return "Imported"
+    case .saved: return "Saved"
     }
   }
 }

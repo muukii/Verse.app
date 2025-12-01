@@ -14,31 +14,59 @@ struct HomeView: View {
   
   @State private var urlText: String = ""
   @State private var selectedVideoID: String?
+  @State private var showWebView: Bool = false
   @ObservedObject private var deepLinkManager = DeepLinkManager.shared
   
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
-        // URL Input Section
-        VStack(spacing: 12) {
-          HStack {
-            TextField("Enter YouTube URL", text: $urlText)
-              .textFieldStyle(.roundedBorder)
+        // Search Bar Style URL Input
+        HStack(spacing: 12) {
+          HStack(spacing: 8) {
+            Image(systemName: "link")
+              .foregroundStyle(.secondary)
+              .font(.system(size: 16, weight: .medium))
+
+            TextField("Paste YouTube URL", text: $urlText)
+              .textContentType(.URL)
+              #if os(iOS)
+              .keyboardType(.URL)
+              .autocapitalization(.none)
+              #endif
               .onSubmit {
                 loadURL()
               }
-            
-            Button("Load") {
-              loadURL()
+
+            if !urlText.isEmpty {
+              Button {
+                urlText = ""
+              } label: {
+                Image(systemName: "xmark.circle.fill")
+                  .foregroundStyle(.secondary)
+              }
+              .buttonStyle(.plain)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(urlText.isEmpty)
           }
-          .padding()
+          .padding(.horizontal, 12)
+          .padding(.vertical, 10)
+          .background(Color.gray.opacity(0.15))
+          .clipShape(RoundedRectangle(cornerRadius: 12))
+
+          if !urlText.isEmpty {
+            Button {
+              loadURL()
+            } label: {
+              Image(systemName: "arrow.right.circle.fill")
+                .font(.system(size: 28))
+                .foregroundStyle(.tint)
+            }
+            .buttonStyle(.plain)
+            .transition(.scale.combined(with: .opacity))
+          }
         }
-        .background(Color(white: 0.95))
-        
-        Divider()
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .animation(.easeInOut(duration: 0.2), value: urlText.isEmpty)
         
         // History List
         if history.isEmpty {
@@ -49,11 +77,11 @@ struct HomeView: View {
               .font(.system(size: 60))
               .foregroundStyle(.blue)
             
-            Text("YouTube Subtitle Player")
+            Text("Verse")
               .font(.largeTitle)
               .fontWeight(.bold)
-            
-            Text("Enter a YouTube URL to get started")
+
+            Text("YouTube videos with synced subtitles")
               .font(.subheadline)
               .foregroundStyle(.secondary)
             
@@ -123,11 +151,18 @@ struct HomeView: View {
           .listStyle(.inset)
         }
       }
-      .navigationTitle("YouTube Subtitle")
+      .navigationTitle("Verse")
       .toolbar {
+        ToolbarItem(placement: .primaryAction) {
+          Button {
+            showWebView = true
+          } label: {
+            Label("Browse YouTube", systemImage: "safari")
+          }
+        }
         if !history.isEmpty {
-          ToolbarItem(placement: .primaryAction) {
-            Button {
+          ToolbarItem(placement: .secondaryAction) {
+            Button(role: .destructive) {
               clearHistory()
             } label: {
               Label("Clear History", systemImage: "trash")
@@ -137,6 +172,19 @@ struct HomeView: View {
       }
       .navigationDestination(item: $selectedVideoID) { videoID in
         PlayerView(videoID: videoID)
+      }
+      .navigationDestination(isPresented: $showWebView) {
+        YouTubeWebView { videoID in
+          Task {
+            await addToHistory(videoID: videoID, url: "https://www.youtube.com/watch?v=\(videoID)")
+          }
+          showWebView = false
+          selectedVideoID = videoID
+        }
+        .navigationTitle("YouTube")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
       }
       .onChange(of: deepLinkManager.pendingVideoID) { _, newVideoID in
         if let videoID = newVideoID {

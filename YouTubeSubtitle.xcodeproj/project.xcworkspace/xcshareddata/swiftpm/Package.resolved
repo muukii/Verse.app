@@ -1,6 +1,15 @@
 {
-  "originHash" : "88b74a9ca4a1d3c75b7da9b2a42a779c5af6fa85ed4b6973609f08143e3a4151",
+  "originHash" : "07aa6f1bb7eee81a16f1991ac6f332110ad1fe32b7408a7707482f2f92a324a2",
   "pins" : [
+    {
+      "identity" : "dsfregex",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dagronf/DSFRegex",
+      "state" : {
+        "revision" : "e0e64805519b23b08dcca9c83ca2d4a2b3de4c33",
+        "version" : "3.4.0"
+      }
+    },
     {
       "identity" : "swift-youtube-transcript",
       "kind" : "remoteSourceControl",
@@ -8,6 +17,24 @@
       "state" : {
         "revision" : "e6fb610ee78d5dff8c8c81589875d43cbc9ef856",
         "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "swiftsubtitles",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dagronf/SwiftSubtitles",
+      "state" : {
+        "revision" : "2c3d282cda97ce49adb196700404d8e46df9778c",
+        "version" : "1.9.0"
+      }
+    },
+    {
+      "identity" : "tinycsv",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dagronf/TinyCSV",
+      "state" : {
+        "revision" : "05d691ee7bab64f5ff075b97f47ef41d36a81f6f",
+        "version" : "1.0.1"
       }
     },
     {
