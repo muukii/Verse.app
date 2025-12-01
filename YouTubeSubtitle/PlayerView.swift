@@ -54,6 +54,7 @@ struct PlayerView: View {
   @State private var isDraggingSlider: Bool = false
   @State private var dragTime: Double = 0
   @State private var isPlaying: Bool = false
+  @State private var isSubtitleTrackingEnabled: Bool = true
   @State private var repeatStartTime: Double?
   @State private var repeatEndTime: Double?
   @State private var isRepeating: Bool = false
@@ -400,6 +401,20 @@ struct PlayerView: View {
           .font(.headline)
 
         Spacer()
+        
+        // Subtitle Tracking Toggle
+        Button {
+          isSubtitleTrackingEnabled.toggle()
+        } label: {
+          Label(
+            isSubtitleTrackingEnabled ? "Tracking On" : "Tracking Off",
+            systemImage: isSubtitleTrackingEnabled ? "eye" : "eye.slash"
+          )
+          .font(.caption)
+          .foregroundStyle(isSubtitleTrackingEnabled ? .blue : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help(isSubtitleTrackingEnabled ? "Disable auto-scroll" : "Enable auto-scroll")
 
         if !transcripts.isEmpty {
           Text("\(transcripts.count) items")
@@ -451,6 +466,12 @@ struct PlayerView: View {
           .padding(12)
         }
         .scrollPosition(id: $scrollPosition, anchor: .center)
+        .onScrollPhaseChange { oldPhase, newPhase in
+          // ユーザーが手動でスクロールを開始したらトラッキングをOFF
+          if newPhase == .interacting {
+            isSubtitleTrackingEnabled = false
+          }
+        }
         .onChange(of: currentTime) { _, _ in
           updateScrollPosition()
         }
@@ -664,7 +685,7 @@ struct PlayerView: View {
   }
   
   private func updateScrollPosition() {
-    guard !transcripts.isEmpty else { return }
+    guard !transcripts.isEmpty, isSubtitleTrackingEnabled else { return }
 
     if let currentIndex = transcripts.firstIndex(where: { $0.offset > currentTime }), currentIndex > 0 {
       let currentTranscript = transcripts[currentIndex - 1]
