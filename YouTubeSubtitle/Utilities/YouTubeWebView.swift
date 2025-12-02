@@ -7,12 +7,18 @@
 
 import SwiftUI
 import WebKit
+import AuthenticationServices
 
 struct YouTubeWebView: View {
   let onOpenPlayer: (String) -> Void
 
   @State private var webView: WKWebView?
   @State private var currentURL: URL?
+  #if os(iOS)
+  @State private var isAuthenticating = false
+  @State private var authSession: ASWebAuthenticationSession?
+  @State private var presentationContext: WebAuthPresentationContext?
+  #endif
 
   private var isVideoPage: Bool {
     guard let url = currentURL else { return false }
@@ -80,6 +86,13 @@ struct YouTubeWebView: View {
         Spacer()
 
         Button {
+          startGoogleSignIn()
+        } label: {
+          Image(systemName: "person.circle")
+        }
+        .disabled(isAuthenticating)
+
+        Button {
           webView?.reload()
         } label: {
           Image(systemName: "arrow.clockwise")
@@ -112,7 +125,58 @@ struct YouTubeWebView: View {
     }
     #endif
   }
+
+  #if os(iOS)
+  private func startGoogleSignIn() {
+    // YouTube's sign in URL
+    guard let authURL = URL(string: "https://accounts.google.com/ServiceLogin?continue=https://m.youtube.com") else {
+      return
+    }
+
+    isAuthenticating = true
+
+    let session = ASWebAuthenticationSession(
+      url: authURL,
+      callbackURLScheme: nil  // nil means it will complete when user navigates back
+    ) { [self] callbackURL, error in
+      isAuthenticating = false
+      authSession = nil
+      presentationContext = nil
+
+      // Reload the webview to pick up the new session
+      webView?.reload()
+    }
+
+    // Use shared Safari cookies (not ephemeral)
+    session.prefersEphemeralWebBrowserSession = false
+
+    // Get the presentation anchor and store references to prevent deallocation
+    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+       let window = windowScene.windows.first {
+      let context = WebAuthPresentationContext(anchor: window)
+      presentationContext = context
+      session.presentationContextProvider = context
+    }
+
+    authSession = session
+    session.start()
+  }
+  #endif
 }
+
+#if os(iOS)
+private class WebAuthPresentationContext: NSObject, ASWebAuthenticationPresentationContextProviding {
+  let anchor: ASPresentationAnchor
+
+  init(anchor: ASPresentationAnchor) {
+    self.anchor = anchor
+  }
+
+  func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+    anchor
+  }
+}
+#endif
 
 #if os(iOS)
 private struct YouTubeWebViewRepresentable: UIViewRepresentable {
@@ -130,6 +194,7 @@ private struct YouTubeWebViewRepresentable: UIViewRepresentable {
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
     webView.navigationDelegate = context.coordinator
+    webView.uiDelegate = context.coordinator
     webView.allowsBackForwardNavigationGestures = true
     context.coordinator.observeURL(of: webView)
 
@@ -162,6 +227,7 @@ private struct YouTubeWebViewRepresentable: NSViewRepresentable {
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
     webView.navigationDelegate = context.coordinator
+    webView.uiDelegate = context.coordinator
     webView.allowsBackForwardNavigationGestures = true
     context.coordinator.observeURL(of: webView)
 
@@ -181,7 +247,7 @@ private struct YouTubeWebViewRepresentable: NSViewRepresentable {
 }
 #endif
 
-private class Coordinator: NSObject, WKNavigationDelegate {
+private class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
   let onURLChanged: (URL?) -> Void
   private var urlObservation: NSKeyValueObservation?
 
@@ -196,6 +262,85 @@ private class Coordinator: NSObject, WKNavigationDelegate {
       }
     }
   }
+
+  // MARK: - WKUIDelegate
+
+  // Handle new window requests (for popups, authentication flows)
+  func webView(
+    _ webView: WKWebView,
+    createWebViewWith configuration: WKWebViewConfiguration,
+    for navigationAction: WKNavigationAction,
+    windowFeatures: WKWindowFeatures
+  ) -> WKWebView? {
+    // Load popup URLs in the same webview
+    if navigationAction.targetFrame == nil {
+      webView.load(navigationAction.request)
+    }
+    return nil
+  }
+
+  #if os(iOS)
+  // Handle JavaScript alerts
+  func webView(
+    _ webView: WKWebView,
+    runJavaScriptAlertPanelWithMessage message: String,
+    initiatedByFrame frame: WKFrameInfo,
+    completionHandler: @escaping () -> Void
+  ) {
+    let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+      completionHandler()
+    })
+    UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .first?.windows.first?.rootViewController?
+      .present(alert, animated: true)
+  }
+
+  // Handle JavaScript confirms
+  func webView(
+    _ webView: WKWebView,
+    runJavaScriptConfirmPanelWithMessage message: String,
+    initiatedByFrame frame: WKFrameInfo,
+    completionHandler: @escaping (Bool) -> Void
+  ) {
+    let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+      completionHandler(false)
+    })
+    alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+      completionHandler(true)
+    })
+    UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .first?.windows.first?.rootViewController?
+      .present(alert, animated: true)
+  }
+
+  // Handle JavaScript text input
+  func webView(
+    _ webView: WKWebView,
+    runJavaScriptTextInputPanelWithPrompt prompt: String,
+    defaultText: String?,
+    initiatedByFrame frame: WKFrameInfo,
+    completionHandler: @escaping (String?) -> Void
+  ) {
+    let alert = UIAlertController(title: nil, message: prompt, preferredStyle: .alert)
+    alert.addTextField { textField in
+      textField.text = defaultText
+    }
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+      completionHandler(nil)
+    })
+    alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+      completionHandler(alert.textFields?.first?.text)
+    })
+    UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .first?.windows.first?.rootViewController?
+      .present(alert, animated: true)
+  }
+  #endif
 }
 
 #Preview {
