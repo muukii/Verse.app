@@ -33,8 +33,6 @@ struct PlayerView: View {
   @State private var playbackRate: Double = 1.0
   @State private var subtitleSource: SubtitleSource = .youtube
 
-  private let availablePlaybackRates: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
-
   @Environment(\.colorScheme) private var colorScheme
 
   private var backgroundColor: Color {
@@ -46,7 +44,6 @@ struct PlayerView: View {
       let isWide = geometry.size.width > 900
 
       if isWide {
-        // Wide layout: side by side
         HStack(spacing: 0) {
           playerSection
             .frame(maxWidth: .infinity)
@@ -55,7 +52,6 @@ struct PlayerView: View {
             .frame(width: min(400, geometry.size.width * 0.35))
         }
       } else {
-        // Narrow layout: stacked
         VStack(spacing: 0) {
           playerSection
 
@@ -75,7 +71,6 @@ struct PlayerView: View {
   private var playerSection: some View {
     VStack(spacing: 0) {
       if let player = youtubePlayer {
-        // Video Player
         YouTubePlayerView(player)
           .aspectRatio(16/9, contentMode: .fit)
           .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -83,38 +78,48 @@ struct PlayerView: View {
           .padding(.horizontal, 16)
           .padding(.top, 16)
 
-        // Progress Bar
-        progressBar(player: player)
-          .padding(.horizontal, 16)
-          .padding(.top, 12)
+        ProgressBar(
+          currentTime: currentTime,
+          duration: duration,
+          onSeek: { time in
+            seek(player: player, to: time)
+          }
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
 
-        // Time Display
-        HStack {
-          Text(formatTime(isDraggingSlider ? dragTime : currentTime))
-            .font(.system(.caption, design: .monospaced))
-            .foregroundStyle(.secondary)
-
-          Spacer()
-
-          Text(formatTime(duration))
-            .font(.system(.caption, design: .monospaced))
-            .foregroundStyle(.secondary)
-        }
+        TimeDisplay(
+          currentTime: isDraggingSlider ? dragTime : currentTime,
+          duration: duration
+        )
         .padding(.horizontal, 20)
         .padding(.top, 4)
 
-        // Playback Controls
-        playbackControls(player: player)
-          .padding(.top, 8)
+        PlaybackControls(
+          isPlaying: isPlaying,
+          onBackward: { seekBackward(player: player) },
+          onForward: { seekForward(player: player) },
+          onTogglePlayPause: { togglePlayPause(player: player) }
+        )
+        .padding(.top, 8)
 
-        // Repeat Controls & Speed Controls
         HStack(spacing: 24) {
-          repeatControls(player: player)
+          RepeatControls(
+            currentTime: currentTime,
+            repeatStartTime: $repeatStartTime,
+            repeatEndTime: $repeatEndTime,
+            isRepeating: $isRepeating
+          )
 
           Divider()
             .frame(height: 24)
 
-          speedControls(player: player)
+          SpeedControls(
+            playbackRate: playbackRate,
+            onRateChange: { rate in
+              setPlaybackRate(player: player, rate: rate)
+            }
+          )
         }
         .padding(.top, 8)
         .padding(.bottom, 16)
@@ -127,263 +132,25 @@ struct PlayerView: View {
     }
   }
 
-  // MARK: - Progress Bar
-
-  @ViewBuilder
-  private func progressBar(player: YouTubePlayer) -> some View {
-    let normalizedValue = Binding<Double>(
-      get: {
-        guard duration > 0 else { return 0 }
-        return currentTime / duration
-      },
-      set: { newValue in
-        let clampedValue = max(0, min(1, newValue))
-        let seekTime = clampedValue * duration
-        Task.detached {
-          try? await player.seek(
-            to: Measurement(value: seekTime, unit: UnitDuration.seconds),
-            allowSeekAhead: true
-          )
-        }
-      }
-    )
-
-    TouchSlider(
-      direction: .horizontal,
-      value: normalizedValue,
-      speed: 0.5,
-      foregroundColor: .red,
-      backgroundColor: Color.gray.opacity(0.3),
-      cornerRadius: 8
-    )
-    .frame(height: 44)
-  }
-
-  // MARK: - Playback Controls
-
-  @ViewBuilder
-  private func playbackControls(player: YouTubePlayer) -> some View {
-    HStack(spacing: 32) {
-      // Backward 10s
-      Button {
-        seekBackward(player: player)
-      } label: {
-        Image(systemName: "gobackward.10")
-          .font(.system(size: 24))
-          .foregroundStyle(.primary)
-      }
-      .buttonStyle(.plain)
-
-      // Play/Pause
-      Button {
-        togglePlayPause(player: player)
-      } label: {
-        Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-          .font(.system(size: 48))
-          .foregroundStyle(.primary)
-      }
-      .buttonStyle(.plain)
-
-      // Forward 10s
-      Button {
-        seekForward(player: player)
-      } label: {
-        Image(systemName: "goforward.10")
-          .font(.system(size: 24))
-          .foregroundStyle(.primary)
-      }
-      .buttonStyle(.plain)
-    }
-  }
-
-  // MARK: - Repeat Controls
-
-  @ViewBuilder
-  private func repeatControls(player: YouTubePlayer) -> some View {
-    HStack(spacing: 16) {
-      // Set A (start) button
-      Button {
-        repeatStartTime = currentTime
-        if repeatEndTime == nil {
-          isRepeating = false
-        } else if let end = repeatEndTime, currentTime < end {
-          isRepeating = true
-        }
-      } label: {
-        HStack(spacing: 4) {
-          Text("A")
-            .font(.system(.caption, design: .rounded).bold())
-          Text(repeatStartTime.map { formatTime($0) } ?? "--:--")
-            .font(.system(.caption, design: .monospaced))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(repeatStartTime != nil ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-      }
-      .buttonStyle(.plain)
-
-      // Set B (end) button
-      Button {
-        repeatEndTime = currentTime
-        if repeatStartTime == nil {
-          isRepeating = false
-        } else if let start = repeatStartTime, currentTime > start {
-          isRepeating = true
-        }
-      } label: {
-        HStack(spacing: 4) {
-          Text("B")
-            .font(.system(.caption, design: .rounded).bold())
-          Text(repeatEndTime.map { formatTime($0) } ?? "--:--")
-            .font(.system(.caption, design: .monospaced))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(repeatEndTime != nil ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-      }
-      .buttonStyle(.plain)
-
-      // Repeat toggle
-      Button {
-        if repeatStartTime != nil && repeatEndTime != nil {
-          isRepeating.toggle()
-        }
-      } label: {
-        Image(systemName: isRepeating ? "repeat.circle.fill" : "repeat.circle")
-          .font(.system(size: 24))
-          .foregroundStyle(isRepeating ? .orange : .secondary)
-      }
-      .buttonStyle(.plain)
-      .disabled(repeatStartTime == nil || repeatEndTime == nil)
-
-      // Clear button
-      if repeatStartTime != nil || repeatEndTime != nil {
-        Button {
-          repeatStartTime = nil
-          repeatEndTime = nil
-          isRepeating = false
-        } label: {
-          Image(systemName: "xmark.circle")
-            .font(.system(size: 20))
-            .foregroundStyle(.secondary)
-        }
-        .buttonStyle(.plain)
-      }
-    }
-  }
-
-  // MARK: - Speed Controls
-
-  @ViewBuilder
-  private func speedControls(player: YouTubePlayer) -> some View {
-    HStack(spacing: 8) {
-      Image(systemName: "speedometer")
-        .foregroundStyle(.secondary)
-        .font(.system(size: 14))
-
-      Menu {
-        ForEach(availablePlaybackRates, id: \.self) { rate in
-          Button {
-            setPlaybackRate(player: player, rate: rate)
-          } label: {
-            HStack {
-              Text(formatPlaybackRate(rate))
-              if rate == playbackRate {
-                Image(systemName: "checkmark")
-              }
-            }
-          }
-        }
-      } label: {
-        Text(formatPlaybackRate(playbackRate))
-          .font(.system(.caption, design: .monospaced))
-          .padding(.horizontal, 8)
-          .padding(.vertical, 4)
-          .background(Color.gray.opacity(0.15))
-          .clipShape(RoundedRectangle(cornerRadius: 6))
-      }
-      .buttonStyle(.plain)
-    }
-  }
-
-  private func formatPlaybackRate(_ rate: Double) -> String {
-    if rate == 1.0 {
-      return "1x"
-    } else if rate == floor(rate) {
-      return String(format: "%.0fx", rate)
-    } else {
-      return String(format: "%.2gx", rate)
-    }
-  }
-
-  private func setPlaybackRate(player: YouTubePlayer, rate: Double) {
-    Task {
-      try? await player.set(playbackRate: rate)
-      await MainActor.run {
-        playbackRate = rate
-      }
-    }
-  }
-
   // MARK: - Subtitle Section
 
   private var subtitleSection: some View {
     VStack(alignment: .leading, spacing: 0) {
-      // Header
-      HStack {
-        Image(systemName: "captions.bubble")
-          .foregroundStyle(.secondary)
-        Text("Subtitles")
-          .font(.headline)
-
-        // Source indicator
-        if subtitleSource != .youtube {
-          Text("(\(subtitleSource.displayName))")
-            .font(.caption)
-            .foregroundStyle(.orange)
+      SubtitleHeader(
+        subtitleSource: subtitleSource,
+        entryCount: subtitleEntries.count,
+        isTrackingEnabled: $isSubtitleTrackingEnabled,
+        videoID: videoID,
+        currentSubtitles: currentSubtitles,
+        onSubtitlesImported: { entries in
+          subtitleEntries = entries
+          currentSubtitles = entries.toSwiftSubtitles()
+          subtitleSource = .imported
         }
-
-        Spacer()
-
-        // Subtitle Tracking Toggle
-        Button {
-          isSubtitleTrackingEnabled.toggle()
-        } label: {
-          Label(
-            isSubtitleTrackingEnabled ? "Tracking On" : "Tracking Off",
-            systemImage: isSubtitleTrackingEnabled ? "eye" : "eye.slash"
-          )
-          .font(.caption)
-          .foregroundStyle(isSubtitleTrackingEnabled ? .blue : .secondary)
-        }
-        .buttonStyle(.plain)
-        .help(isSubtitleTrackingEnabled ? "Disable auto-scroll" : "Enable auto-scroll")
-
-        if !subtitleEntries.isEmpty {
-          Text("\(subtitleEntries.count) items")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-
-        // Subtitle Management Menu
-        SubtitleManagementView(
-          videoID: videoID,
-          subtitles: currentSubtitles,
-          onSubtitlesImported: { entries in
-            subtitleEntries = entries
-            currentSubtitles = entries.toSwiftSubtitles()
-            subtitleSource = .imported
-          }
-        )
-      }
-      .padding(.horizontal, 16)
-      .padding(.vertical, 12)
+      )
 
       Divider()
 
-      // Content
       SubtitleListView(
         entries: subtitleEntries,
         currentTime: currentTime,
@@ -391,7 +158,7 @@ struct PlayerView: View {
         error: transcriptError,
         onTap: { time in
           if let player = youtubePlayer {
-            jumpToSubtitle(player: player, offset: time)
+            seek(player: player, to: time)
           }
         },
         isTrackingEnabled: $isSubtitleTrackingEnabled,
@@ -412,14 +179,11 @@ struct PlayerView: View {
       configuration: configuration
     )
     youtubePlayer = player
-    
-    // Start tracking time
+
     startTrackingTime(player: player)
-    
-    // Fetch transcripts
     fetchTranscripts(videoID: videoID)
   }
-  
+
   private func fetchTranscripts(videoID: String) {
     isLoadingTranscripts = true
     transcriptError = nil
@@ -431,7 +195,6 @@ struct PlayerView: View {
         let config = TranscriptConfig(lang: nil)
         let fetchedTranscripts = try await YoutubeTranscript.fetchTranscript(for: videoID, config: config)
 
-        // Convert to SubtitleEntry and SwiftSubtitles
         let entries = fetchedTranscripts.toSubtitleEntries()
         let subtitles = fetchedTranscripts.toSwiftSubtitles()
 
@@ -449,13 +212,11 @@ struct PlayerView: View {
       }
     }
   }
-  
+
   private func startTrackingTime(player: YouTubePlayer) {
     isTrackingTime = true
 
-    // Fetch duration once when video loads
     Task {
-      // Wait a bit for video to load
       try? await Task.sleep(for: .seconds(1))
 
       if let videoDuration = try? await player.getDuration() {
@@ -465,7 +226,6 @@ struct PlayerView: View {
       }
     }
 
-    // Start periodic updates for current time and playback state
     Task {
       while isTrackingTime {
         if let time = try? await player.getCurrentTime() {
@@ -474,7 +234,6 @@ struct PlayerView: View {
             currentTime = timeValue
           }
 
-          // Check for repeat loop-back
           if isRepeating,
              let startTime = repeatStartTime,
              let endTime = repeatEndTime,
@@ -486,31 +245,25 @@ struct PlayerView: View {
           }
         }
 
-        // Track playback state
         let state = player.playbackState
         await MainActor.run {
           isPlaying = (state == .playing)
         }
 
-        // Update every 0.5 seconds
         try? await Task.sleep(for: .milliseconds(500))
       }
     }
   }
-  
-  private func formatTime(_ seconds: Double) -> String {
-    let totalSeconds = Int(seconds)
-    let hours = totalSeconds / 3600
-    let minutes = (totalSeconds % 3600) / 60
-    let secs = totalSeconds % 60
-    
-    if hours > 0 {
-      return String(format: "%d:%02d:%02d", hours, minutes, secs)
-    } else {
-      return String(format: "%d:%02d", minutes, secs)
+
+  private func seek(player: YouTubePlayer, to time: Double) {
+    Task {
+      try? await player.seek(
+        to: Measurement(value: time, unit: UnitDuration.seconds),
+        allowSeekAhead: true
+      )
     }
   }
-  
+
   private func seekBackward(player: YouTubePlayer) {
     Task {
       if let currentTime = try? await player.getCurrentTime() {
@@ -520,7 +273,7 @@ struct PlayerView: View {
       }
     }
   }
-  
+
   private func seekForward(player: YouTubePlayer) {
     Task {
       if let currentTime = try? await player.getCurrentTime() {
@@ -530,7 +283,7 @@ struct PlayerView: View {
       }
     }
   }
-  
+
   private func togglePlayPause(player: YouTubePlayer) {
     Task {
       let state = player.playbackState
@@ -547,10 +300,316 @@ struct PlayerView: View {
       }
     }
   }
-  
-  private func jumpToSubtitle(player: YouTubePlayer, offset: Double) {
+
+  private func setPlaybackRate(player: YouTubePlayer, rate: Double) {
     Task {
-      try? await player.seek(to: Measurement(value: offset, unit: UnitDuration.seconds), allowSeekAhead: true)
+      try? await player.set(playbackRate: rate)
+      await MainActor.run {
+        playbackRate = rate
+      }
+    }
+  }
+}
+
+// MARK: - Nested Components
+
+extension PlayerView {
+
+  // MARK: - ProgressBar
+
+  struct ProgressBar: View {
+    let currentTime: Double
+    let duration: Double
+    let onSeek: (Double) -> Void
+
+    var body: some View {
+      let normalizedValue = Binding<Double>(
+        get: {
+          guard duration > 0 else { return 0 }
+          return currentTime / duration
+        },
+        set: { newValue in
+          let clampedValue = max(0, min(1, newValue))
+          let seekTime = clampedValue * duration
+          onSeek(seekTime)
+        }
+      )
+
+      TouchSlider(
+        direction: .horizontal,
+        value: normalizedValue,
+        speed: 0.5,
+        foregroundColor: .red,
+        backgroundColor: Color.gray.opacity(0.3),
+        cornerRadius: 8
+      )
+      .frame(height: 44)
+    }
+  }
+
+  // MARK: - TimeDisplay
+
+  struct TimeDisplay: View {
+    let currentTime: Double
+    let duration: Double
+
+    var body: some View {
+      HStack {
+        Text(formatTime(currentTime))
+          .font(.system(.caption, design: .monospaced))
+          .foregroundStyle(.secondary)
+
+        Spacer()
+
+        Text(formatTime(duration))
+          .font(.system(.caption, design: .monospaced))
+          .foregroundStyle(.secondary)
+      }
+    }
+
+    private func formatTime(_ seconds: Double) -> String {
+      let totalSeconds = Int(seconds)
+      let hours = totalSeconds / 3600
+      let minutes = (totalSeconds % 3600) / 60
+      let secs = totalSeconds % 60
+
+      if hours > 0 {
+        return String(format: "%d:%02d:%02d", hours, minutes, secs)
+      } else {
+        return String(format: "%d:%02d", minutes, secs)
+      }
+    }
+  }
+
+  // MARK: - PlaybackControls
+
+  struct PlaybackControls: View {
+    let isPlaying: Bool
+    let onBackward: () -> Void
+    let onForward: () -> Void
+    let onTogglePlayPause: () -> Void
+
+    var body: some View {
+      HStack(spacing: 32) {
+        Button(action: onBackward) {
+          Image(systemName: "gobackward.10")
+            .font(.system(size: 24))
+            .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
+
+        Button(action: onTogglePlayPause) {
+          Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+            .font(.system(size: 48))
+            .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
+
+        Button(action: onForward) {
+          Image(systemName: "goforward.10")
+            .font(.system(size: 24))
+            .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
+      }
+    }
+  }
+
+  // MARK: - RepeatControls
+
+  struct RepeatControls: View {
+    let currentTime: Double
+    @Binding var repeatStartTime: Double?
+    @Binding var repeatEndTime: Double?
+    @Binding var isRepeating: Bool
+
+    var body: some View {
+      HStack(spacing: 16) {
+        Button {
+          repeatStartTime = currentTime
+          if repeatEndTime == nil {
+            isRepeating = false
+          } else if let end = repeatEndTime, currentTime < end {
+            isRepeating = true
+          }
+        } label: {
+          HStack(spacing: 4) {
+            Text("A")
+              .font(.system(.caption, design: .rounded).bold())
+            Text(repeatStartTime.map { formatTime($0) } ?? "--:--")
+              .font(.system(.caption, design: .monospaced))
+          }
+          .padding(.horizontal, 10)
+          .padding(.vertical, 6)
+          .background(repeatStartTime != nil ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15))
+          .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+
+        Button {
+          repeatEndTime = currentTime
+          if repeatStartTime == nil {
+            isRepeating = false
+          } else if let start = repeatStartTime, currentTime > start {
+            isRepeating = true
+          }
+        } label: {
+          HStack(spacing: 4) {
+            Text("B")
+              .font(.system(.caption, design: .rounded).bold())
+            Text(repeatEndTime.map { formatTime($0) } ?? "--:--")
+              .font(.system(.caption, design: .monospaced))
+          }
+          .padding(.horizontal, 10)
+          .padding(.vertical, 6)
+          .background(repeatEndTime != nil ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15))
+          .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+
+        Button {
+          if repeatStartTime != nil && repeatEndTime != nil {
+            isRepeating.toggle()
+          }
+        } label: {
+          Image(systemName: isRepeating ? "repeat.circle.fill" : "repeat.circle")
+            .font(.system(size: 24))
+            .foregroundStyle(isRepeating ? .orange : .secondary)
+        }
+        .buttonStyle(.plain)
+        .disabled(repeatStartTime == nil || repeatEndTime == nil)
+
+        if repeatStartTime != nil || repeatEndTime != nil {
+          Button {
+            repeatStartTime = nil
+            repeatEndTime = nil
+            isRepeating = false
+          } label: {
+            Image(systemName: "xmark.circle")
+              .font(.system(size: 20))
+              .foregroundStyle(.secondary)
+          }
+          .buttonStyle(.plain)
+        }
+      }
+    }
+
+    private func formatTime(_ seconds: Double) -> String {
+      let totalSeconds = Int(seconds)
+      let hours = totalSeconds / 3600
+      let minutes = (totalSeconds % 3600) / 60
+      let secs = totalSeconds % 60
+
+      if hours > 0 {
+        return String(format: "%d:%02d:%02d", hours, minutes, secs)
+      } else {
+        return String(format: "%d:%02d", minutes, secs)
+      }
+    }
+  }
+
+  // MARK: - SpeedControls
+
+  struct SpeedControls: View {
+    let playbackRate: Double
+    let onRateChange: (Double) -> Void
+
+    private let availableRates: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+
+    var body: some View {
+      HStack(spacing: 8) {
+        Image(systemName: "speedometer")
+          .foregroundStyle(.secondary)
+          .font(.system(size: 14))
+
+        Menu {
+          ForEach(availableRates, id: \.self) { rate in
+            Button {
+              onRateChange(rate)
+            } label: {
+              HStack {
+                Text(formatRate(rate))
+                if rate == playbackRate {
+                  Image(systemName: "checkmark")
+                }
+              }
+            }
+          }
+        } label: {
+          Text(formatRate(playbackRate))
+            .font(.system(.caption, design: .monospaced))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.gray.opacity(0.15))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+      }
+    }
+
+    private func formatRate(_ rate: Double) -> String {
+      if rate == 1.0 {
+        return "1x"
+      } else if rate == floor(rate) {
+        return String(format: "%.0fx", rate)
+      } else {
+        return String(format: "%.2gx", rate)
+      }
+    }
+  }
+
+  // MARK: - SubtitleHeader
+
+  struct SubtitleHeader: View {
+    let subtitleSource: SubtitleSource
+    let entryCount: Int
+    @Binding var isTrackingEnabled: Bool
+    let videoID: String
+    let currentSubtitles: Subtitles?
+    let onSubtitlesImported: ([SubtitleEntry]) -> Void
+
+    var body: some View {
+      HStack {
+        Image(systemName: "captions.bubble")
+          .foregroundStyle(.secondary)
+        Text("Subtitles")
+          .font(.headline)
+
+        if subtitleSource != .youtube {
+          Text("(\(subtitleSource.displayName))")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        }
+
+        Spacer()
+
+        Button {
+          isTrackingEnabled.toggle()
+        } label: {
+          Label(
+            isTrackingEnabled ? "Tracking On" : "Tracking Off",
+            systemImage: isTrackingEnabled ? "eye" : "eye.slash"
+          )
+          .font(.caption)
+          .foregroundStyle(isTrackingEnabled ? .blue : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help(isTrackingEnabled ? "Disable auto-scroll" : "Enable auto-scroll")
+
+        if entryCount > 0 {
+          Text("\(entryCount) items")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+
+        SubtitleManagementView(
+          videoID: videoID,
+          subtitles: currentSubtitles,
+          onSubtitlesImported: onSubtitlesImported
+        )
+      }
+      .padding(.horizontal, 16)
+      .padding(.vertical, 12)
     }
   }
 }
