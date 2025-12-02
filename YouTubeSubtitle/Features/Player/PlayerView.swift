@@ -7,39 +7,9 @@
 
 import SwiftUI
 import SwiftSubtitles
+import TouchSlider
 import YouTubePlayerKit
 import YoutubeTranscript
-
-// MARK: - HTML Entity Decoding
-
-private extension String {
-  var htmlDecoded: String {
-    var result = self
-      .replacingOccurrences(of: "&amp;", with: "&")
-      .replacingOccurrences(of: "&lt;", with: "<")
-      .replacingOccurrences(of: "&gt;", with: ">")
-      .replacingOccurrences(of: "&quot;", with: "\"")
-      .replacingOccurrences(of: "&apos;", with: "'")
-      .replacingOccurrences(of: "&#39;", with: "'")
-      .replacingOccurrences(of: "&#x27;", with: "'")
-      .replacingOccurrences(of: "&#x2F;", with: "/")
-      .replacingOccurrences(of: "&nbsp;", with: " ")
-
-    // Decode numeric entities like &#8217;
-    let pattern = "&#([0-9]+);"
-    while let range = result.range(of: pattern, options: .regularExpression) {
-      let matched = String(result[range])
-      let numStr = matched.dropFirst(2).dropLast(1)
-      if let code = UInt32(numStr), let scalar = Unicode.Scalar(code) {
-        result.replaceSubrange(range, with: String(scalar))
-      } else {
-        break
-      }
-    }
-
-    return result
-  }
-}
 
 struct PlayerView: View {
   let videoID: String
@@ -69,10 +39,6 @@ struct PlayerView: View {
 
   private var backgroundColor: Color {
     colorScheme == .dark ? Color(white: 0.1) : Color(white: 0.96)
-  }
-
-  private var subtitleBackgroundColor: Color {
-    colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.92)
   }
 
   var body: some View {
@@ -165,63 +131,32 @@ struct PlayerView: View {
 
   @ViewBuilder
   private func progressBar(player: YouTubePlayer) -> some View {
-    GeometryReader { geometry in
-      let width = geometry.size.width
-      let progress = duration > 0 ? (isDraggingSlider ? dragTime : currentTime) / duration : 0
-
-      ZStack(alignment: .leading) {
-        // Background track
-        Capsule()
-          .fill(Color.gray.opacity(0.3))
-          .frame(height: 4)
-
-        // Repeat range indicator
-        if let startTime = repeatStartTime,
-           let endTime = repeatEndTime,
-           duration > 0 {
-          let startProgress = startTime / duration
-          let endProgress = endTime / duration
-          RoundedRectangle(cornerRadius: 2)
-            .fill(Color.orange.opacity(0.4))
-            .frame(width: max(0, width * (endProgress - startProgress)), height: 6)
-            .offset(x: width * startProgress)
+    let normalizedValue = Binding<Double>(
+      get: {
+        guard duration > 0 else { return 0 }
+        return currentTime / duration
+      },
+      set: { newValue in
+        let clampedValue = max(0, min(1, newValue))
+        let seekTime = clampedValue * duration
+        Task.detached {
+          try? await player.seek(
+            to: Measurement(value: seekTime, unit: UnitDuration.seconds),
+            allowSeekAhead: true
+          )
         }
-
-        // Progress fill
-        Capsule()
-          .fill(Color.red)
-          .frame(width: max(0, width * progress), height: 4)
-
-        // Thumb
-        Circle()
-          .fill(Color.red)
-          .frame(width: isDraggingSlider ? 16 : 12, height: isDraggingSlider ? 16 : 12)
-          .offset(x: max(0, width * progress - (isDraggingSlider ? 8 : 6)))
-          .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
       }
-      .frame(height: 20)
-      .contentShape(Rectangle())
-      .gesture(
-        DragGesture(minimumDistance: 0)
-          .onChanged { value in
-            isDraggingSlider = true
-            let newProgress = max(0, min(1, value.location.x / width))
-            dragTime = newProgress * duration
-          }
-          .onEnded { value in
-            let newProgress = max(0, min(1, value.location.x / width))
-            let seekTime = newProgress * duration
-            Task {
-              try? await player.seek(
-                to: Measurement(value: seekTime, unit: UnitDuration.seconds),
-                allowSeekAhead: true
-              )
-            }
-            isDraggingSlider = false
-          }
-      )
-    }
-    .frame(height: 20)
+    )
+
+    TouchSlider(
+      direction: .horizontal,
+      value: normalizedValue,
+      speed: 0.5,
+      foregroundColor: .red,
+      backgroundColor: Color.gray.opacity(0.3),
+      cornerRadius: 8
+    )
+    .frame(height: 44)
   }
 
   // MARK: - Playback Controls
@@ -449,105 +384,20 @@ struct PlayerView: View {
       Divider()
 
       // Content
-      if isLoadingTranscripts {
-        VStack(spacing: 12) {
-          ProgressView()
-          Text("Loading subtitles...")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else if let error = transcriptError {
-        VStack(spacing: 12) {
-          Image(systemName: "exclamationmark.triangle")
-            .font(.system(size: 40))
-            .foregroundStyle(.orange)
-          Text("Failed to load subtitles")
-            .font(.headline)
-          Text(error)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-
-          // Show import option when YouTube subtitles fail
-          Button {
-            // Trigger import via SubtitleManagementView
-          } label: {
-            Label("Import Subtitle File", systemImage: "doc.badge.plus")
+      SubtitleListView(
+        entries: subtitleEntries,
+        currentTime: currentTime,
+        isLoading: isLoadingTranscripts,
+        error: transcriptError,
+        onTap: { time in
+          if let player = youtubePlayer {
+            jumpToSubtitle(player: player, offset: time)
           }
-          .buttonStyle(.borderedProminent)
-          .padding(.top, 8)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else if subtitleEntries.isEmpty {
-        ContentUnavailableView(
-          "No Subtitles",
-          systemImage: "text.bubble",
-          description: Text("No subtitles available for this video")
-        )
-      } else {
-        ScrollView {
-          LazyVStack(alignment: .leading, spacing: 6) {
-            ForEach(subtitleEntries) { entry in
-              subtitleRow(entry: entry)
-            }
-          }
-          .padding(12)
-        }
-        .scrollPosition($scrollPosition)
-        .onScrollPhaseChange { oldPhase, newPhase in
-          // Disable tracking when user manually scrolls
-          if newPhase == .interacting {
-            isSubtitleTrackingEnabled = false
-          }
-        }
-        .onChange(of: currentTime) { _, _ in
-          updateScrollPosition()
-        }
-      }
+        },
+        isTrackingEnabled: $isSubtitleTrackingEnabled,
+        scrollPosition: $scrollPosition
+      )
     }
-    .background(subtitleBackgroundColor)
-  }
-
-  @ViewBuilder
-  private func subtitleRow(entry: SubtitleEntry) -> some View {
-    let isCurrent = isCurrentSubtitle(entry: entry)
-
-    HStack(alignment: .top, spacing: 12) {
-      // Time badge
-      Text(formatTime(entry.startTime))
-        .font(.system(.caption2, design: .monospaced))
-        .foregroundStyle(isCurrent ? .white : .secondary)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(isCurrent ? Color.red : Color.gray.opacity(0.2))
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-
-      // Text content
-      Text(entry.text.htmlDecoded)
-        .font(.subheadline)
-        .foregroundStyle(isCurrent ? .primary : .secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .padding(.vertical, 10)
-    .padding(.horizontal, 12)
-    .background(
-      RoundedRectangle(cornerRadius: 8)
-        .fill(isCurrent ? Color.red.opacity(0.15) : Color.clear)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 8)
-        .strokeBorder(isCurrent ? Color.red.opacity(0.3) : Color.clear, lineWidth: 1)
-    )
-    .contentShape(Rectangle())
-    .onTapGesture {
-      if let player = youtubePlayer {
-        jumpToSubtitle(player: player, offset: entry.startTime)
-      }
-    }
-    .id(entry.id)
-    .animation(.easeInOut(duration: 0.2), value: isCurrent)
   }
 
   // MARK: - Private Methods
@@ -701,34 +551,6 @@ struct PlayerView: View {
   private func jumpToSubtitle(player: YouTubePlayer, offset: Double) {
     Task {
       try? await player.seek(to: Measurement(value: offset, unit: UnitDuration.seconds), allowSeekAhead: true)
-    }
-  }
-  
-  private func isCurrentSubtitle(entry: SubtitleEntry) -> Bool {
-    guard !subtitleEntries.isEmpty else { return false }
-
-    if let currentIndex = subtitleEntries.firstIndex(where: { $0.startTime > currentTime }) {
-      if currentIndex > 0 {
-        let previousEntry = subtitleEntries[currentIndex - 1]
-        return previousEntry.id == entry.id
-      }
-      return false
-    } else {
-      if let lastEntry = subtitleEntries.last {
-        return lastEntry.id == entry.id && currentTime >= entry.startTime
-      }
-      return false
-    }
-  }
-
-  private func updateScrollPosition() {
-    guard !subtitleEntries.isEmpty, isSubtitleTrackingEnabled else { return }
-
-    if let currentIndex = subtitleEntries.firstIndex(where: { $0.startTime > currentTime }), currentIndex > 0 {
-      let currentEntry = subtitleEntries[currentIndex - 1]
-      scrollPosition.scrollTo(id: currentEntry.id, anchor: .center)
-    } else if let lastEntry = subtitleEntries.last, currentTime >= lastEntry.startTime {
-      scrollPosition.scrollTo(id: lastEntry.id, anchor: .center)
     }
   }
 }

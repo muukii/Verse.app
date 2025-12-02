@@ -7,14 +7,16 @@
 
 import SwiftUI
 import SwiftData
+import AppIntents
 
 struct HomeView: View {
   @Environment(\.modelContext) private var modelContext
   @Query(sort: \VideoHistoryItem.timestamp, order: .reverse) private var history: [VideoHistoryItem]
-  
+
   @State private var urlText: String = ""
   @State private var selectedVideoID: String?
   @State private var showWebView: Bool = false
+  @State private var showShortcuts: Bool = false
   @ObservedObject private var deepLinkManager = DeepLinkManager.shared
   
   var body: some View {
@@ -70,22 +72,17 @@ struct HomeView: View {
         
         // History List
         if history.isEmpty {
-          VStack(spacing: 16) {
-            Spacer()
-            
-            Image(systemName: "play.rectangle.fill")
-              .font(.system(size: 60))
-              .foregroundStyle(.blue)
-            
-            Text("Verse")
-              .font(.largeTitle)
-              .fontWeight(.bold)
-
-            Text("YouTube videos with synced subtitles")
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
-            
-            Spacer()
+          ContentUnavailableView {
+            Label("Verse", systemImage: "captions.bubble.fill")
+          } description: {
+            Text("Watch YouTube videos with synced subtitles.\nPaste a URL above or browse YouTube to get started.")
+          } actions: {
+            Button {
+              showWebView = true
+            } label: {
+              Text("Browse YouTube")
+            }
+            .buttonStyle(.borderedProminent)
           }
         } else {
           List {
@@ -151,13 +148,20 @@ struct HomeView: View {
           .listStyle(.inset)
         }
       }
-      .navigationTitle("Verse")
+      .navigationTitle("")
       .toolbar {
         ToolbarItem(placement: .primaryAction) {
           Button {
             showWebView = true
           } label: {
             Label("Browse YouTube", systemImage: "safari")
+          }
+        }
+        ToolbarItem(placement: .secondaryAction) {
+          Button {
+            showShortcuts = true
+          } label: {
+            Label("Siri Shortcuts", systemImage: "wand.and.stars")
           }
         }
         if !history.isEmpty {
@@ -173,24 +177,36 @@ struct HomeView: View {
       .navigationDestination(item: $selectedVideoID) { videoID in
         PlayerView(videoID: videoID)
       }
-      .navigationDestination(isPresented: $showWebView) {
-        YouTubeWebView { videoID in
-          Task {
-            await addToHistory(videoID: videoID, url: "https://www.youtube.com/watch?v=\(videoID)")
+      .sheet(isPresented: $showWebView) {
+        NavigationStack {
+          YouTubeWebView { videoID in
+            Task {
+              await addToHistory(videoID: videoID, url: "https://www.youtube.com/watch?v=\(videoID)")
+            }
+            showWebView = false
+            selectedVideoID = videoID
           }
-          showWebView = false
-          selectedVideoID = videoID
+          .navigationTitle("YouTube")
+          #if os(iOS)
+          .navigationBarTitleDisplayMode(.inline)
+          #endif
+          .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+              Button("Close") {
+                showWebView = false
+              }
+            }
+          }
         }
-        .navigationTitle("YouTube")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
       }
       .onChange(of: deepLinkManager.pendingVideoID) { _, newVideoID in
         if let videoID = newVideoID {
           selectedVideoID = videoID
           deepLinkManager.pendingVideoID = nil
         }
+      }
+      .sheet(isPresented: $showShortcuts) {
+        ShortcutsSettingsView()
       }
     }
   }
