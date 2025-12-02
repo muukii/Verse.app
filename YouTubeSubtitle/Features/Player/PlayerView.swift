@@ -73,58 +73,24 @@ struct PlayerView: View {
   private var playerSection: some View {
     VStack(spacing: 0) {
       if let player = youtubePlayer {
-        YouTubePlayerView(player)
-          .aspectRatio(16 / 9, contentMode: .fit)
-          .clipShape(RoundedRectangle(cornerRadius: 12))
-          .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
-          .padding(.horizontal, 16)
-          .padding(.top, 16)
+        VideoPlayer(player: player)
 
-        ProgressBar(
+        PlayerControls(
           currentTime: currentTime,
           duration: duration,
-          onSeek: { time in
-            seek(player: player, to: time)
-          }
-        )
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-
-        TimeDisplay(
-          currentTime: isDraggingSlider ? dragTime : currentTime,
-          duration: duration
-        )
-        .padding(.horizontal, 20)
-        .padding(.top, 4)
-
-        PlaybackControls(
+          isDraggingSlider: isDraggingSlider,
+          dragTime: dragTime,
           isPlaying: isPlaying,
-          onBackward: { seekBackward(player: player) },
-          onForward: { seekForward(player: player) },
-          onTogglePlayPause: { togglePlayPause(player: player) }
+          playbackRate: playbackRate,
+          repeatStartTime: $repeatStartTime,
+          repeatEndTime: $repeatEndTime,
+          isRepeating: $isRepeating,
+          onSeek: { time in seek(player: player, to: time) },
+          onSeekBackward: { seekBackward(player: player) },
+          onSeekForward: { seekForward(player: player) },
+          onTogglePlayPause: { togglePlayPause(player: player) },
+          onRateChange: { rate in setPlaybackRate(player: player, rate: rate) }
         )
-        .padding(.top, 8)
-
-        HStack(spacing: 24) {
-          RepeatControls(
-            currentTime: currentTime,
-            repeatStartTime: $repeatStartTime,
-            repeatEndTime: $repeatEndTime,
-            isRepeating: $isRepeating
-          )
-
-          Divider()
-            .frame(height: 24)
-
-          SpeedControls(
-            playbackRate: playbackRate,
-            onRateChange: { rate in
-              setPlaybackRate(player: player, rate: rate)
-            }
-          )
-        }
-        .padding(.top, 8)
-        .padding(.bottom, 16)
 
         Spacer(minLength: 0)
       } else {
@@ -387,6 +353,86 @@ struct PlayerView: View {
 // MARK: - Nested Components
 
 extension PlayerView {
+
+  // MARK: - VideoPlayer
+
+  struct VideoPlayer: View {
+    let player: YouTubePlayer
+
+    var body: some View {
+      YouTubePlayerView(player)
+        .aspectRatio(16 / 9, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+    }
+  }
+
+  // MARK: - PlayerControls
+
+  struct PlayerControls: View {
+    let currentTime: Double
+    let duration: Double
+    let isDraggingSlider: Bool
+    let dragTime: Double
+    let isPlaying: Bool
+    let playbackRate: Double
+    @Binding var repeatStartTime: Double?
+    @Binding var repeatEndTime: Double?
+    @Binding var isRepeating: Bool
+    let onSeek: (Double) -> Void
+    let onSeekBackward: () -> Void
+    let onSeekForward: () -> Void
+    let onTogglePlayPause: () -> Void
+    let onRateChange: (Double) -> Void
+
+    var body: some View {
+      VStack(spacing: 0) {
+        ProgressBar(
+          currentTime: currentTime,
+          duration: duration,
+          onSeek: onSeek
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+
+        TimeDisplay(
+          currentTime: isDraggingSlider ? dragTime : currentTime,
+          duration: duration
+        )
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
+
+        PlaybackControls(
+          isPlaying: isPlaying,
+          onBackward: onSeekBackward,
+          onForward: onSeekForward,
+          onTogglePlayPause: onTogglePlayPause
+        )
+        .padding(.top, 8)
+
+        HStack(spacing: 24) {
+          RepeatControls(
+            currentTime: currentTime,
+            repeatStartTime: $repeatStartTime,
+            repeatEndTime: $repeatEndTime,
+            isRepeating: $isRepeating
+          )
+
+          Divider()
+            .frame(height: 24)
+
+          SpeedControls(
+            playbackRate: playbackRate,
+            onRateChange: onRateChange
+          )
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 16)
+      }
+    }
+  }
 
   // MARK: - ProgressBar
 
