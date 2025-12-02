@@ -7,7 +7,6 @@
 
 import SwiftSubtitles
 import SwiftUI
-import TouchSlider
 import YouTubeKit
 import YouTubePlayerKit
 import YoutubeTranscript
@@ -332,13 +331,14 @@ struct PlayerView: View {
 
     Task {
       do {
-        let youtube = YouTubeKit.YouTube(videoID: videoID)
+        let youtube = YouTube(videoID: videoID)
         let streams = try await youtube.streams
 
-        // Find audio-only streams
+        // Find audio-only streams with m4a format
         let audioStreams = streams.filterAudioOnly()
+          .filter { $0.fileExtension == .m4a }
 
-        if audioStreams.isEmpty {
+        guard let bestAudio = audioStreams.highestAudioBitrateStream() else {
           await MainActor.run {
             audioDownloadResult = "No audio streams found"
             showDownloadAlert = true
@@ -347,37 +347,25 @@ struct PlayerView: View {
           return
         }
 
-        // Get the highest quality audio stream
-        let sortedAudio = audioStreams.sorted { ($0.averageBitrate ?? 0) > ($1.averageBitrate ?? 0) }
-        guard let bestAudio = sortedAudio.first else {
-          await MainActor.run {
-            audioDownloadResult = "Could not select audio stream"
-            showDownloadAlert = true
-            isDownloadingAudio = false
-          }
-          return
-        }
+        // Download using URLSession
+        let streamURL = bestAudio.url
+        let (data, _) = try await URLSession.shared.data(from: streamURL)
 
-        // Try to download
+        // Save to documents directory
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let fileName = "\(videoID)_audio.\(bestAudio.subtype ?? "m4a")"
+        let fileName = "\(videoID)_audio.m4a"
         let destinationURL = documentsPath.appendingPathComponent(fileName)
 
         // Remove existing file if any
         try? FileManager.default.removeItem(at: destinationURL)
+        try data.write(to: destinationURL)
 
-        try await youtube.streams.download(
-          stream: bestAudio,
-          to: destinationURL
-        )
-
-        let fileSize = try FileManager.default.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64 ?? 0
-        let fileSizeMB = Double(fileSize) / 1_000_000
+        let fileSizeMB = Double(data.count) / 1_000_000
 
         await MainActor.run {
           audioDownloadResult = """
             Success!
-            Format: \(bestAudio.subtype ?? "unknown")
+            Format: m4a
             Bitrate: \(bestAudio.averageBitrate ?? 0) bps
             Size: \(String(format: "%.2f", fileSizeMB)) MB
             Path: \(destinationURL.lastPathComponent)
