@@ -75,6 +75,8 @@ struct PlayerView: View {
       if let player = youtubePlayer {
         VideoPlayer(player: player)
 
+        Spacer(minLength: 0)
+
         PlayerControls(
           currentTime: currentTime,
           duration: duration,
@@ -91,8 +93,6 @@ struct PlayerView: View {
           onTogglePlayPause: { togglePlayPause(player: player) },
           onRateChange: { rate in setPlaybackRate(player: player, rate: rate) }
         )
-
-        Spacer(minLength: 0)
       } else {
         ProgressView()
           .frame(maxWidth: .infinity, maxHeight: .infinity)
