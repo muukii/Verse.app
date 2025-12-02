@@ -5,9 +5,10 @@
 //  Created by Hiroshi Kimura on 2025/11/30.
 //
 
-import SwiftUI
 import SwiftSubtitles
+import SwiftUI
 import TouchSlider
+import YouTubeKit
 import YouTubePlayerKit
 import YoutubeTranscript
 
@@ -32,37 +33,39 @@ struct PlayerView: View {
   @State private var isRepeating: Bool = false
   @State private var playbackRate: Double = 1.0
   @State private var subtitleSource: SubtitleSource = .youtube
-
-  @Environment(\.colorScheme) private var colorScheme
-
-  private var backgroundColor: Color {
-    colorScheme == .dark ? Color(white: 0.1) : Color(white: 0.96)
-  }
+  @State private var isDownloadingAudio: Bool = false
+  @State private var audioDownloadResult: String?
+  @State private var showDownloadAlert: Bool = false
 
   var body: some View {
-    GeometryReader { geometry in
-      let isWide = geometry.size.width > 900
+    VStack(spacing: 0) {
+      playerSection
 
-      if isWide {
-        HStack(spacing: 0) {
-          playerSection
-            .frame(maxWidth: .infinity)
-
-          subtitleSection
-            .frame(width: min(400, geometry.size.width * 0.35))
-        }
-      } else {
-        VStack(spacing: 0) {
-          playerSection
-
-          subtitleSection
-            .frame(maxHeight: geometry.size.height * 0.4)
-        }
-      }
+      subtitleSection
     }
-    .background(backgroundColor)
+    .background(.appBackground)
     .onAppear {
       loadVideo()
+    }
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button {
+          tryDownloadAudio()
+        } label: {
+          if isDownloadingAudio {
+            ProgressView()
+              .controlSize(.small)
+          } else {
+            Label("Download Audio", systemImage: "arrow.down.circle")
+          }
+        }
+        .disabled(isDownloadingAudio)
+      }
+    }
+    .alert("Audio Download Test", isPresented: $showDownloadAlert) {
+      Button("OK", role: .cancel) {}
+    } message: {
+      Text(audioDownloadResult ?? "No result")
     }
   }
 
@@ -72,7 +75,7 @@ struct PlayerView: View {
     VStack(spacing: 0) {
       if let player = youtubePlayer {
         YouTubePlayerView(player)
-          .aspectRatio(16/9, contentMode: .fit)
+          .aspectRatio(16 / 9, contentMode: .fit)
           .clipShape(RoundedRectangle(cornerRadius: 12))
           .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
           .padding(.horizontal, 16)
@@ -170,6 +173,9 @@ struct PlayerView: View {
   // MARK: - Private Methods
 
   private func loadVideo() {
+    // Prevent multiple loads
+    guard youtubePlayer == nil else { return }
+
     let configuration = YouTubePlayer.Configuration(
       captionLanguage: "en",
       language: "en"
@@ -193,7 +199,10 @@ struct PlayerView: View {
     Task {
       do {
         let config = TranscriptConfig(lang: nil)
-        let fetchedTranscripts = try await YoutubeTranscript.fetchTranscript(for: videoID, config: config)
+        let fetchedTranscripts = try await YoutubeTranscript.fetchTranscript(
+          for: videoID,
+          config: config
+        )
 
         let entries = fetchedTranscripts.toSubtitleEntries()
         let subtitles = fetchedTranscripts.toSwiftSubtitles()
@@ -235,9 +244,10 @@ struct PlayerView: View {
           }
 
           if isRepeating,
-             let startTime = repeatStartTime,
-             let endTime = repeatEndTime,
-             timeValue >= endTime {
+            let startTime = repeatStartTime,
+            let endTime = repeatEndTime,
+            timeValue >= endTime
+          {
             try? await player.seek(
               to: Measurement(value: startTime, unit: UnitDuration.seconds),
               allowSeekAhead: true
@@ -269,7 +279,10 @@ struct PlayerView: View {
       if let currentTime = try? await player.getCurrentTime() {
         let currentSeconds = currentTime.converted(to: .seconds).value
         let newSeconds = max(0, currentSeconds - 10)
-        try? await player.seek(to: Measurement(value: newSeconds, unit: UnitDuration.seconds), allowSeekAhead: true)
+        try? await player.seek(
+          to: Measurement(value: newSeconds, unit: UnitDuration.seconds),
+          allowSeekAhead: true
+        )
       }
     }
   }
@@ -279,7 +292,10 @@ struct PlayerView: View {
       if let currentTime = try? await player.getCurrentTime() {
         let currentSeconds = currentTime.converted(to: .seconds).value
         let newSeconds = currentSeconds + 10
-        try? await player.seek(to: Measurement(value: newSeconds, unit: UnitDuration.seconds), allowSeekAhead: true)
+        try? await player.seek(
+          to: Measurement(value: newSeconds, unit: UnitDuration.seconds),
+          allowSeekAhead: true
+        )
       }
     }
   }
@@ -306,6 +322,75 @@ struct PlayerView: View {
       try? await player.set(playbackRate: rate)
       await MainActor.run {
         playbackRate = rate
+      }
+    }
+  }
+
+  private func tryDownloadAudio() {
+    isDownloadingAudio = true
+    audioDownloadResult = nil
+
+    Task {
+      do {
+        let youtube = YouTubeKit.YouTube(videoID: videoID)
+        let streams = try await youtube.streams
+
+        // Find audio-only streams
+        let audioStreams = streams.filterAudioOnly()
+
+        if audioStreams.isEmpty {
+          await MainActor.run {
+            audioDownloadResult = "No audio streams found"
+            showDownloadAlert = true
+            isDownloadingAudio = false
+          }
+          return
+        }
+
+        // Get the highest quality audio stream
+        let sortedAudio = audioStreams.sorted { ($0.averageBitrate ?? 0) > ($1.averageBitrate ?? 0) }
+        guard let bestAudio = sortedAudio.first else {
+          await MainActor.run {
+            audioDownloadResult = "Could not select audio stream"
+            showDownloadAlert = true
+            isDownloadingAudio = false
+          }
+          return
+        }
+
+        // Try to download
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileName = "\(videoID)_audio.\(bestAudio.subtype ?? "m4a")"
+        let destinationURL = documentsPath.appendingPathComponent(fileName)
+
+        // Remove existing file if any
+        try? FileManager.default.removeItem(at: destinationURL)
+
+        try await youtube.streams.download(
+          stream: bestAudio,
+          to: destinationURL
+        )
+
+        let fileSize = try FileManager.default.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64 ?? 0
+        let fileSizeMB = Double(fileSize) / 1_000_000
+
+        await MainActor.run {
+          audioDownloadResult = """
+            Success!
+            Format: \(bestAudio.subtype ?? "unknown")
+            Bitrate: \(bestAudio.averageBitrate ?? 0) bps
+            Size: \(String(format: "%.2f", fileSizeMB)) MB
+            Path: \(destinationURL.lastPathComponent)
+            """
+          showDownloadAlert = true
+          isDownloadingAudio = false
+        }
+      } catch {
+        await MainActor.run {
+          audioDownloadResult = "Error: \(error.localizedDescription)"
+          showDownloadAlert = true
+          isDownloadingAudio = false
+        }
       }
     }
   }
@@ -399,9 +484,11 @@ extension PlayerView {
         .buttonStyle(.plain)
 
         Button(action: onTogglePlayPause) {
-          Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-            .font(.system(size: 48))
-            .foregroundStyle(.primary)
+          Image(
+            systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill"
+          )
+          .font(.system(size: 48))
+          .foregroundStyle(.primary)
         }
         .buttonStyle(.plain)
 
@@ -441,7 +528,10 @@ extension PlayerView {
           }
           .padding(.horizontal, 10)
           .padding(.vertical, 6)
-          .background(repeatStartTime != nil ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15))
+          .background(
+            repeatStartTime != nil
+              ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15)
+          )
           .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
@@ -462,7 +552,10 @@ extension PlayerView {
           }
           .padding(.horizontal, 10)
           .padding(.vertical, 6)
-          .background(repeatEndTime != nil ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15))
+          .background(
+            repeatEndTime != nil
+              ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15)
+          )
           .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
@@ -472,9 +565,11 @@ extension PlayerView {
             isRepeating.toggle()
           }
         } label: {
-          Image(systemName: isRepeating ? "repeat.circle.fill" : "repeat.circle")
-            .font(.system(size: 24))
-            .foregroundStyle(isRepeating ? .orange : .secondary)
+          Image(
+            systemName: isRepeating ? "repeat.circle.fill" : "repeat.circle"
+          )
+          .font(.system(size: 24))
+          .foregroundStyle(isRepeating ? .orange : .secondary)
         }
         .buttonStyle(.plain)
         .disabled(repeatStartTime == nil || repeatEndTime == nil)
@@ -514,7 +609,9 @@ extension PlayerView {
     let playbackRate: Double
     let onRateChange: (Double) -> Void
 
-    private let availableRates: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+    private let availableRates: [Double] = [
+      0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0,
+    ]
 
     var body: some View {
       HStack(spacing: 8) {
