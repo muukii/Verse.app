@@ -1,5 +1,5 @@
 {
-  "originHash" : "07aa6f1bb7eee81a16f1991ac6f332110ad1fe32b7408a7707482f2f92a324a2",
+  "originHash" : "cdfa1c4c3184adffbdc3f87ee406837189e84d1e77486ffbcb28fd9bcbc33d35",
   "pins" : [
     {
       "identity" : "dsfregex",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "2c3d282cda97ce49adb196700404d8e46df9778c",
         "version" : "1.9.0"
+      }
+    },
+    {
+      "identity" : "swiftui-touch-slider",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FluidGroup/swiftui-touch-slider",
+      "state" : {
+        "revision" : "e6487e8ee1259fa48def4d904aff539822429f6d",
+        "version" : "0.1.0"
       }
     },
     {

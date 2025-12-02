@@ -1,0 +1,33 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build the app"
+  lane :build do
+    gym(
+      project: "YouTubeSubtitle.xcodeproj",
+      scheme: "YouTubeSubtitle",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "./build",
+      output_name: "YouTubeSubtitle.ipa"
+    )
+  end
+
+  desc "Upload to TestFlight"
+  lane :beta do
+    build
+    pilot(
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Build and upload to App Store"
+  lane :release do
+    build
+    deliver(
+      skip_screenshots: true,
+      skip_metadata: true,
+      submit_for_review: false
+    )
+  end
+end
