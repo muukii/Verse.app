@@ -13,183 +13,35 @@ import YoutubeTranscript
 
 // MARK: - PlayerViewModel
 
+/// ViewModel for high-frequency updated properties (currentTime, isPlaying)
 @Observable
 final class PlayerViewModel {
-  let videoID: String
-
-  var youtubePlayer: YouTubePlayer?
   var currentTime: Double = 0
-  var duration: Double = 0
-  var isTrackingTime: Bool = false
-  var subtitleEntries: [SubtitleEntry] = []
-  var currentSubtitles: Subtitles?
-  var isLoadingTranscripts: Bool = false
-  var transcriptError: String?
-  var scrollPosition: ScrollPosition = .init()
-  var isDraggingSlider: Bool = false
-  var dragTime: Double = 0
   var isPlaying: Bool = false
-  var isSubtitleTrackingEnabled: Bool = true
-  var repeatStartTime: Double?
-  var repeatEndTime: Double?
-  var isRepeating: Bool = false
-  var playbackRate: Double = 1.0
-  var subtitleSource: SubtitleSource = .youtube
-
-  init(videoID: String) {
-    self.videoID = videoID
-  }
-
-  func loadVideo() {
-    let configuration = YouTubePlayer.Configuration(
-      captionLanguage: "en",
-      language: "en"
-    )
-    let player = YouTubePlayer(
-      source: .video(id: videoID),
-      configuration: configuration
-    )
-    youtubePlayer = player
-
-    startTrackingTime(player: player)
-    fetchTranscripts(videoID: videoID)
-  }
-
-  func fetchTranscripts(videoID: String) {
-    isLoadingTranscripts = true
-    transcriptError = nil
-    subtitleEntries = []
-    currentSubtitles = nil
-
-    Task {
-      do {
-        let config = TranscriptConfig(lang: nil)
-        let fetchedTranscripts = try await YoutubeTranscript.fetchTranscript(for: videoID, config: config)
-
-        let entries = fetchedTranscripts.toSubtitleEntries()
-        let subtitles = fetchedTranscripts.toSwiftSubtitles()
-
-        await MainActor.run {
-          self.subtitleEntries = entries
-          self.currentSubtitles = subtitles
-          self.subtitleSource = .youtube
-          self.isLoadingTranscripts = false
-        }
-      } catch {
-        await MainActor.run {
-          self.transcriptError = error.localizedDescription
-          self.isLoadingTranscripts = false
-        }
-      }
-    }
-  }
-
-  func startTrackingTime(player: YouTubePlayer) {
-    isTrackingTime = true
-
-    Task {
-      try? await Task.sleep(for: .seconds(1))
-
-      if let videoDuration = try? await player.getDuration() {
-        await MainActor.run {
-          self.duration = videoDuration.converted(to: .seconds).value
-        }
-      }
-    }
-
-    Task {
-      while isTrackingTime {
-        if let time = try? await player.getCurrentTime() {
-          let timeValue = time.converted(to: .seconds).value
-          await MainActor.run {
-            self.currentTime = timeValue
-          }
-
-          if isRepeating,
-             let startTime = repeatStartTime,
-             let endTime = repeatEndTime,
-             timeValue >= endTime {
-            try? await player.seek(
-              to: Measurement(value: startTime, unit: UnitDuration.seconds),
-              allowSeekAhead: true
-            )
-          }
-        }
-
-        let state = player.playbackState
-        await MainActor.run {
-          self.isPlaying = (state == .playing)
-        }
-
-        try? await Task.sleep(for: .milliseconds(500))
-      }
-    }
-  }
-
-  func seek(player: YouTubePlayer, to time: Double) {
-    Task {
-      try? await player.seek(
-        to: Measurement(value: time, unit: UnitDuration.seconds),
-        allowSeekAhead: true
-      )
-    }
-  }
-
-  func seekBackward(player: YouTubePlayer) {
-    Task {
-      if let currentTime = try? await player.getCurrentTime() {
-        let currentSeconds = currentTime.converted(to: .seconds).value
-        let newSeconds = max(0, currentSeconds - 10)
-        try? await player.seek(to: Measurement(value: newSeconds, unit: UnitDuration.seconds), allowSeekAhead: true)
-      }
-    }
-  }
-
-  func seekForward(player: YouTubePlayer) {
-    Task {
-      if let currentTime = try? await player.getCurrentTime() {
-        let currentSeconds = currentTime.converted(to: .seconds).value
-        let newSeconds = currentSeconds + 10
-        try? await player.seek(to: Measurement(value: newSeconds, unit: UnitDuration.seconds), allowSeekAhead: true)
-      }
-    }
-  }
-
-  func togglePlayPause(player: YouTubePlayer) {
-    Task {
-      let state = player.playbackState
-      switch state {
-      case .playing:
-        try? await player.pause()
-        await MainActor.run { self.isPlaying = false }
-      case .paused, .unstarted, .ended, .buffering, .cued:
-        try? await player.play()
-        await MainActor.run { self.isPlaying = true }
-      case .none:
-        try? await player.play()
-        await MainActor.run { self.isPlaying = true }
-      }
-    }
-  }
-
-  func setPlaybackRate(player: YouTubePlayer, rate: Double) {
-    Task {
-      try? await player.set(playbackRate: rate)
-      await MainActor.run {
-        self.playbackRate = rate
-      }
-    }
-  }
 }
 
 // MARK: - PlayerView
 
 struct PlayerView: View {
-  @State private var viewModel: PlayerViewModel
+  let videoID: String
 
-  init(videoID: String) {
-    _viewModel = State(initialValue: PlayerViewModel(videoID: videoID))
-  }
+  @State private var viewModel = PlayerViewModel()
+  @State private var youtubePlayer: YouTubePlayer?
+  @State private var duration: Double = 0
+  @State private var isTrackingTime: Bool = false
+  @State private var subtitleEntries: [SubtitleEntry] = []
+  @State private var currentSubtitles: Subtitles?
+  @State private var isLoadingTranscripts: Bool = false
+  @State private var transcriptError: String?
+  @State private var scrollPosition: ScrollPosition = .init()
+  @State private var isDraggingSlider: Bool = false
+  @State private var dragTime: Double = 0
+  @State private var isSubtitleTrackingEnabled: Bool = true
+  @State private var repeatStartTime: Double?
+  @State private var repeatEndTime: Double?
+  @State private var isRepeating: Bool = false
+  @State private var playbackRate: Double = 1.0
+  @State private var subtitleSource: SubtitleSource = .youtube
 
   @Environment(\.colorScheme) private var colorScheme
 
@@ -220,7 +72,7 @@ struct PlayerView: View {
     }
     .background(backgroundColor)
     .onAppear {
-      viewModel.loadVideo()
+      loadVideo()
     }
   }
 
@@ -228,7 +80,7 @@ struct PlayerView: View {
 
   private var playerSection: some View {
     VStack(spacing: 0) {
-      if let player = viewModel.youtubePlayer {
+      if let player = youtubePlayer {
         YouTubePlayerView(player)
           .aspectRatio(16/9, contentMode: .fit)
           .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -238,44 +90,44 @@ struct PlayerView: View {
 
         ProgressBar(
           currentTime: viewModel.currentTime,
-          duration: viewModel.duration,
+          duration: duration,
           onSeek: { time in
-            viewModel.seek(player: player, to: time)
+            seek(player: player, to: time)
           }
         )
         .padding(.horizontal, 16)
         .padding(.top, 12)
 
         TimeDisplay(
-          currentTime: viewModel.isDraggingSlider ? viewModel.dragTime : viewModel.currentTime,
-          duration: viewModel.duration
+          currentTime: isDraggingSlider ? dragTime : viewModel.currentTime,
+          duration: duration
         )
         .padding(.horizontal, 20)
         .padding(.top, 4)
 
         PlaybackControls(
           isPlaying: viewModel.isPlaying,
-          onBackward: { viewModel.seekBackward(player: player) },
-          onForward: { viewModel.seekForward(player: player) },
-          onTogglePlayPause: { viewModel.togglePlayPause(player: player) }
+          onBackward: { seekBackward(player: player) },
+          onForward: { seekForward(player: player) },
+          onTogglePlayPause: { togglePlayPause(player: player) }
         )
         .padding(.top, 8)
 
         HStack(spacing: 24) {
           RepeatControls(
             currentTime: viewModel.currentTime,
-            repeatStartTime: $viewModel.repeatStartTime,
-            repeatEndTime: $viewModel.repeatEndTime,
-            isRepeating: $viewModel.isRepeating
+            repeatStartTime: $repeatStartTime,
+            repeatEndTime: $repeatEndTime,
+            isRepeating: $isRepeating
           )
 
           Divider()
             .frame(height: 24)
 
           SpeedControls(
-            playbackRate: viewModel.playbackRate,
+            playbackRate: playbackRate,
             onRateChange: { rate in
-              viewModel.setPlaybackRate(player: player, rate: rate)
+              setPlaybackRate(player: player, rate: rate)
             }
           )
         }
@@ -295,33 +147,176 @@ struct PlayerView: View {
   private var subtitleSection: some View {
     VStack(alignment: .leading, spacing: 0) {
       SubtitleHeader(
-        subtitleSource: viewModel.subtitleSource,
-        entryCount: viewModel.subtitleEntries.count,
-        isTrackingEnabled: $viewModel.isSubtitleTrackingEnabled,
-        videoID: viewModel.videoID,
-        currentSubtitles: viewModel.currentSubtitles,
+        subtitleSource: subtitleSource,
+        entryCount: subtitleEntries.count,
+        isTrackingEnabled: $isSubtitleTrackingEnabled,
+        videoID: videoID,
+        currentSubtitles: currentSubtitles,
         onSubtitlesImported: { entries in
-          viewModel.subtitleEntries = entries
-          viewModel.currentSubtitles = entries.toSwiftSubtitles()
-          viewModel.subtitleSource = .imported
+          subtitleEntries = entries
+          currentSubtitles = entries.toSwiftSubtitles()
+          subtitleSource = .imported
         }
       )
 
       Divider()
 
       SubtitleListView(
-        entries: viewModel.subtitleEntries,
+        entries: subtitleEntries,
         currentTime: viewModel.currentTime,
-        isLoading: viewModel.isLoadingTranscripts,
-        error: viewModel.transcriptError,
+        isLoading: isLoadingTranscripts,
+        error: transcriptError,
         onTap: { time in
-          if let player = viewModel.youtubePlayer {
-            viewModel.seek(player: player, to: time)
+          if let player = youtubePlayer {
+            seek(player: player, to: time)
           }
         },
-        isTrackingEnabled: $viewModel.isSubtitleTrackingEnabled,
-        scrollPosition: $viewModel.scrollPosition
+        isTrackingEnabled: $isSubtitleTrackingEnabled,
+        scrollPosition: $scrollPosition
       )
+    }
+  }
+
+  // MARK: - Private Methods
+
+  private func loadVideo() {
+    let configuration = YouTubePlayer.Configuration(
+      captionLanguage: "en",
+      language: "en"
+    )
+    let player = YouTubePlayer(
+      source: .video(id: videoID),
+      configuration: configuration
+    )
+    youtubePlayer = player
+
+    startTrackingTime(player: player)
+    fetchTranscripts(videoID: videoID)
+  }
+
+  private func fetchTranscripts(videoID: String) {
+    isLoadingTranscripts = true
+    transcriptError = nil
+    subtitleEntries = []
+    currentSubtitles = nil
+
+    Task {
+      do {
+        let config = TranscriptConfig(lang: nil)
+        let fetchedTranscripts = try await YoutubeTranscript.fetchTranscript(for: videoID, config: config)
+
+        let entries = fetchedTranscripts.toSubtitleEntries()
+        let subtitles = fetchedTranscripts.toSwiftSubtitles()
+
+        await MainActor.run {
+          subtitleEntries = entries
+          currentSubtitles = subtitles
+          subtitleSource = .youtube
+          isLoadingTranscripts = false
+        }
+      } catch {
+        await MainActor.run {
+          transcriptError = error.localizedDescription
+          isLoadingTranscripts = false
+        }
+      }
+    }
+  }
+
+  private func startTrackingTime(player: YouTubePlayer) {
+    isTrackingTime = true
+
+    Task {
+      try? await Task.sleep(for: .seconds(1))
+
+      if let videoDuration = try? await player.getDuration() {
+        await MainActor.run {
+          duration = videoDuration.converted(to: .seconds).value
+        }
+      }
+    }
+
+    Task {
+      while isTrackingTime {
+        if let time = try? await player.getCurrentTime() {
+          let timeValue = time.converted(to: .seconds).value
+          await MainActor.run {
+            viewModel.currentTime = timeValue
+          }
+
+          if isRepeating,
+             let startTime = repeatStartTime,
+             let endTime = repeatEndTime,
+             timeValue >= endTime {
+            try? await player.seek(
+              to: Measurement(value: startTime, unit: UnitDuration.seconds),
+              allowSeekAhead: true
+            )
+          }
+        }
+
+        let state = player.playbackState
+        await MainActor.run {
+          viewModel.isPlaying = (state == .playing)
+        }
+
+        try? await Task.sleep(for: .milliseconds(500))
+      }
+    }
+  }
+
+  private func seek(player: YouTubePlayer, to time: Double) {
+    Task {
+      try? await player.seek(
+        to: Measurement(value: time, unit: UnitDuration.seconds),
+        allowSeekAhead: true
+      )
+    }
+  }
+
+  private func seekBackward(player: YouTubePlayer) {
+    Task {
+      if let currentTime = try? await player.getCurrentTime() {
+        let currentSeconds = currentTime.converted(to: .seconds).value
+        let newSeconds = max(0, currentSeconds - 10)
+        try? await player.seek(to: Measurement(value: newSeconds, unit: UnitDuration.seconds), allowSeekAhead: true)
+      }
+    }
+  }
+
+  private func seekForward(player: YouTubePlayer) {
+    Task {
+      if let currentTime = try? await player.getCurrentTime() {
+        let currentSeconds = currentTime.converted(to: .seconds).value
+        let newSeconds = currentSeconds + 10
+        try? await player.seek(to: Measurement(value: newSeconds, unit: UnitDuration.seconds), allowSeekAhead: true)
+      }
+    }
+  }
+
+  private func togglePlayPause(player: YouTubePlayer) {
+    Task {
+      let state = player.playbackState
+      switch state {
+      case .playing:
+        try? await player.pause()
+        await MainActor.run { viewModel.isPlaying = false }
+      case .paused, .unstarted, .ended, .buffering, .cued:
+        try? await player.play()
+        await MainActor.run { viewModel.isPlaying = true }
+      case .none:
+        try? await player.play()
+        await MainActor.run { viewModel.isPlaying = true }
+      }
+    }
+  }
+
+  private func setPlaybackRate(player: YouTubePlayer, rate: Double) {
+    Task {
+      try? await player.set(playbackRate: rate)
+      await MainActor.run {
+        playbackRate = rate
+      }
     }
   }
 }
