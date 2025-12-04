@@ -103,6 +103,14 @@ struct PlayerView: View {
         )
         .padding(.top, 8)
 
+        if !subtitleEntries.isEmpty {
+          SubtitleNavigationControls(
+            onPrevious: { seekToPreviousSubtitle(player: player) },
+            onNext: { seekToNextSubtitle(player: player) }
+          )
+          .padding(.top, 8)
+        }
+
         HStack(spacing: 24) {
           RepeatControls(
             currentTime: currentTime,
@@ -309,6 +317,45 @@ struct PlayerView: View {
       }
     }
   }
+
+  private func seekToPreviousSubtitle(player: YouTubePlayer) {
+    guard !subtitleEntries.isEmpty else { return }
+
+    // Find the previous subtitle based on current time
+    // If we're more than 1 second into the current subtitle, go to its start
+    // Otherwise, go to the previous subtitle's start
+    if let currentIndex = subtitleEntries.lastIndex(where: { $0.startTime <= currentTime }) {
+      let currentEntry = subtitleEntries[currentIndex]
+
+      // If we're more than 1 second into the current subtitle, seek to its start
+      if currentTime - currentEntry.startTime > 1.0 {
+        seek(player: player, to: currentEntry.startTime)
+      } else if currentIndex > 0 {
+        // Go to the previous subtitle
+        let previousEntry = subtitleEntries[currentIndex - 1]
+        seek(player: player, to: previousEntry.startTime)
+      } else {
+        // Already at the first subtitle, seek to the beginning
+        seek(player: player, to: subtitleEntries[0].startTime)
+      }
+    } else if let firstEntry = subtitleEntries.first {
+      // Current time is before any subtitle, go to first subtitle
+      seek(player: player, to: firstEntry.startTime)
+    }
+  }
+
+  private func seekToNextSubtitle(player: YouTubePlayer) {
+    guard !subtitleEntries.isEmpty else { return }
+
+    // Find the next subtitle based on current time
+    if let nextIndex = subtitleEntries.firstIndex(where: { $0.startTime > currentTime }) {
+      let nextEntry = subtitleEntries[nextIndex]
+      seek(player: player, to: nextEntry.startTime)
+    } else if let lastEntry = subtitleEntries.last {
+      // Already past all subtitles, go to the last one
+      seek(player: player, to: lastEntry.startTime)
+    }
+  }
 }
 
 // MARK: - Nested Components
@@ -409,6 +456,49 @@ extension PlayerView {
           Image(systemName: "goforward.10")
             .font(.system(size: 24))
             .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
+      }
+    }
+  }
+
+  // MARK: - SubtitleNavigationControls
+
+  struct SubtitleNavigationControls: View {
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
+      HStack(spacing: 24) {
+        Button(action: onPrevious) {
+          HStack(spacing: 4) {
+            Image(systemName: "backward.end.fill")
+              .font(.system(size: 16))
+            Text("Previous")
+              .font(.system(.caption, design: .rounded))
+          }
+          .padding(.horizontal, 12)
+          .padding(.vertical, 8)
+          .background(Color.gray.opacity(0.15))
+          .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+
+        Image(systemName: "captions.bubble")
+          .foregroundStyle(.secondary)
+          .font(.system(size: 14))
+
+        Button(action: onNext) {
+          HStack(spacing: 4) {
+            Text("Next")
+              .font(.system(.caption, design: .rounded))
+            Image(systemName: "forward.end.fill")
+              .font(.system(size: 16))
+          }
+          .padding(.horizontal, 12)
+          .padding(.vertical, 8)
+          .background(Color.gray.opacity(0.15))
+          .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
       }
