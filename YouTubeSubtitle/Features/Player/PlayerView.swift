@@ -31,72 +31,85 @@ struct PlayerView: View {
   @State private var repeatEndTime: Double?
   @State private var isRepeating: Bool = false
   @State private var playbackRate: Double = 1.0
+  @AppStorage("backwardSeekInterval") private var backwardSeekInterval: Double =
+    3
+  @AppStorage("forwardSeekInterval") private var forwardSeekInterval: Double = 3
   @State private var subtitleSource: SubtitleSource = .youtube
   @State private var isDownloadingAudio: Bool = false
   @State private var audioDownloadResult: String?
   @State private var showDownloadAlert: Bool = false
+  
+  @State private var height: CGFloat = 0
+  @State private var isShowingSheet: Bool = true
 
   var body: some View {
-    VStack(spacing: 0) {
-      playerSection
+    if let player = youtubePlayer {
 
-      subtitleSection
-    }
-    .background(.appBackground)
-    .onAppear {
-      loadVideo()
-    }
-    .toolbar {
-      ToolbarItem(placement: .primaryAction) {
-        Button {
-          tryDownloadAudio()
-        } label: {
-          if isDownloadingAudio {
-            ProgressView()
-              .controlSize(.small)
-          } else {
-            Label("Download Audio", systemImage: "arrow.down.circle")
-          }
+      VStack(spacing: 0) {
+        VideoPlayer(player: player)    
+        
+        VStack {
+          
+          subtitleSection
+          
+          PlayerControls(
+            currentTime: currentTime,
+            duration: duration,
+            isDraggingSlider: isDraggingSlider,
+            dragTime: dragTime,
+            isPlaying: isPlaying,
+            playbackRate: playbackRate,
+            backwardSeekInterval: backwardSeekInterval,
+            forwardSeekInterval: forwardSeekInterval,
+            repeatStartTime: $repeatStartTime,
+            repeatEndTime: $repeatEndTime,
+            isRepeating: $isRepeating,
+            onSeek: { time in seek(player: player, to: time) },
+            onSeekBackward: { seekBackward(player: player) },
+            onSeekForward: { seekForward(player: player) },
+            onTogglePlayPause: { togglePlayPause(player: player) },
+            onRateChange: { rate in setPlaybackRate(player: player, rate: rate)
+            },
+            onBackwardSeekIntervalChange: { interval in
+              backwardSeekInterval = interval
+            },
+            onForwardSeekIntervalChange: { interval in
+              forwardSeekInterval = interval
+            }
+          )
         }
-        .disabled(isDownloadingAudio)
+        
       }
-    }
-    .alert("Audio Download Test", isPresented: $showDownloadAlert) {
-      Button("OK", role: .cancel) {}
-    } message: {
-      Text(audioDownloadResult ?? "No result")
-    }
-  }
-
-  // MARK: - Player Section
-
-  private var playerSection: some View {
-    VStack(spacing: 0) {
-      if let player = youtubePlayer {
-        VideoPlayer(player: player)
-
-        Spacer(minLength: 0)
-
-        PlayerControls(
-          currentTime: currentTime,
-          duration: duration,
-          isDraggingSlider: isDraggingSlider,
-          dragTime: dragTime,
-          isPlaying: isPlaying,
-          playbackRate: playbackRate,
-          repeatStartTime: $repeatStartTime,
-          repeatEndTime: $repeatEndTime,
-          isRepeating: $isRepeating,
-          onSeek: { time in seek(player: player, to: time) },
-          onSeekBackward: { seekBackward(player: player) },
-          onSeekForward: { seekForward(player: player) },
-          onTogglePlayPause: { togglePlayPause(player: player) },
-          onRateChange: { rate in setPlaybackRate(player: player, rate: rate) }
-        )
-      } else {
-        ProgressView()
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
+     
+      .background(.appPlayerBackground)
+      .toolbar {
+        ToolbarItem(placement: .primaryAction) {
+          Button {
+            tryDownloadAudio()
+          } label: {
+            if isDownloadingAudio {
+              ProgressView()
+                .controlSize(.small)
+            } else {
+              Label("Download Video", systemImage: "arrow.down.circle")
+            }
+          }
+          .disabled(isDownloadingAudio)
+        }
       }
+      .alert("Video Download Test", isPresented: $showDownloadAlert) {
+        Button("OK", role: .cancel) {}
+      } message: {
+        Text(audioDownloadResult ?? "No result")
+      }
+      .onDisappear { 
+        isShowingSheet = false
+      }
+    } else {
+      ProgressView()
+        .onAppear {
+          loadVideo()
+        }
     }
   }
 
@@ -107,7 +120,6 @@ struct PlayerView: View {
       SubtitleHeader(
         subtitleSource: subtitleSource,
         entryCount: subtitleEntries.count,
-        isTrackingEnabled: $isSubtitleTrackingEnabled,
         videoID: videoID,
         currentSubtitles: currentSubtitles,
         onSubtitlesImported: { entries in
@@ -129,9 +141,40 @@ struct PlayerView: View {
             seek(player: player, to: time)
           }
         },
+        onSetRepeatA: { time in
+          repeatStartTime = time
+          if let end = repeatEndTime, time < end {
+            isRepeating = true
+          }
+        },
+        onSetRepeatB: { time in
+          repeatEndTime = time
+          if let start = repeatStartTime, time > start {
+            isRepeating = true
+          }
+        },
         isTrackingEnabled: $isSubtitleTrackingEnabled,
         scrollPosition: $scrollPosition
       )
+      .overlay(alignment: .bottomTrailing) {
+        Button {
+          isSubtitleTrackingEnabled.toggle()
+        } label: {
+          Image(systemName: isSubtitleTrackingEnabled ? "eye" : "eye.slash")
+            .font(.system(size: 16))
+            .foregroundStyle(isSubtitleTrackingEnabled ? .white : .secondary)
+            .padding(10)
+            .background(
+              isSubtitleTrackingEnabled
+                ? Color.blue
+                : Color.gray.opacity(0.3)
+            )
+            .clipShape(Circle())
+            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+        }
+        .buttonStyle(.plain)
+        .padding(12)
+      }
     }
   }
 
@@ -243,7 +286,7 @@ struct PlayerView: View {
     Task {
       if let currentTime = try? await player.getCurrentTime() {
         let currentSeconds = currentTime.converted(to: .seconds).value
-        let newSeconds = max(0, currentSeconds - 10)
+        let newSeconds = max(0, currentSeconds - backwardSeekInterval)
         try? await player.seek(
           to: Measurement(value: newSeconds, unit: UnitDuration.seconds),
           allowSeekAhead: true
@@ -256,7 +299,7 @@ struct PlayerView: View {
     Task {
       if let currentTime = try? await player.getCurrentTime() {
         let currentSeconds = currentTime.converted(to: .seconds).value
-        let newSeconds = currentSeconds + 10
+        let newSeconds = currentSeconds + forwardSeekInterval
         try? await player.seek(
           to: Measurement(value: newSeconds, unit: UnitDuration.seconds),
           allowSeekAhead: true
@@ -300,13 +343,14 @@ struct PlayerView: View {
         let youtube = YouTube(videoID: videoID)
         let streams = try await youtube.streams
 
-        // Find audio-only streams with m4a format
-        let audioStreams = streams.filterAudioOnly()
-          .filter { $0.fileExtension == .m4a }
+        // Find progressive streams (video + audio combined) with mp4 format
+        let videoStreams = streams
+          .filter { $0.isProgressive }
+          .filter { $0.fileExtension == .mp4 }
 
-        guard let bestAudio = audioStreams.highestAudioBitrateStream() else {
+        guard let bestVideo = videoStreams.highestResolutionStream() else {
           await MainActor.run {
-            audioDownloadResult = "No audio streams found"
+            audioDownloadResult = "No video streams found"
             showDownloadAlert = true
             isDownloadingAudio = false
           }
@@ -314,12 +358,15 @@ struct PlayerView: View {
         }
 
         // Download using URLSession
-        let streamURL = bestAudio.url
+        let streamURL = bestVideo.url
         let (data, _) = try await URLSession.shared.data(from: streamURL)
 
         // Save to documents directory
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let fileName = "\(videoID)_audio.m4a"
+        let documentsPath = FileManager.default.urls(
+          for: .documentDirectory,
+          in: .userDomainMask
+        )[0]
+        let fileName = "\(videoID)_video.mp4"
         let destinationURL = documentsPath.appendingPathComponent(fileName)
 
         // Remove existing file if any
@@ -327,12 +374,13 @@ struct PlayerView: View {
         try data.write(to: destinationURL)
 
         let fileSizeMB = Double(data.count) / 1_000_000
+        let resolution = bestVideo.videoResolution.map { "\($0)p" } ?? "unknown"
 
         await MainActor.run {
           audioDownloadResult = """
             Success!
-            Format: m4a
-            Bitrate: \(bestAudio.averageBitrate ?? 0) bps
+            Format: mp4
+            Resolution: \(resolution)
             Size: \(String(format: "%.2f", fileSizeMB)) MB
             Path: \(destinationURL.lastPathComponent)
             """
@@ -378,6 +426,8 @@ extension PlayerView {
     let dragTime: Double
     let isPlaying: Bool
     let playbackRate: Double
+    let backwardSeekInterval: Double
+    let forwardSeekInterval: Double
     @Binding var repeatStartTime: Double?
     @Binding var repeatEndTime: Double?
     @Binding var isRepeating: Bool
@@ -386,6 +436,8 @@ extension PlayerView {
     let onSeekForward: () -> Void
     let onTogglePlayPause: () -> Void
     let onRateChange: (Double) -> Void
+    let onBackwardSeekIntervalChange: (Double) -> Void
+    let onForwardSeekIntervalChange: (Double) -> Void
 
     var body: some View {
       VStack(spacing: 0) {
@@ -406,9 +458,13 @@ extension PlayerView {
 
         PlaybackControls(
           isPlaying: isPlaying,
+          backwardSeekInterval: backwardSeekInterval,
+          forwardSeekInterval: forwardSeekInterval,
           onBackward: onSeekBackward,
           onForward: onSeekForward,
-          onTogglePlayPause: onTogglePlayPause
+          onTogglePlayPause: onTogglePlayPause,
+          onBackwardSeekIntervalChange: onBackwardSeekIntervalChange,
+          onForwardSeekIntervalChange: onForwardSeekIntervalChange
         )
         .padding(.top, 8)
 
@@ -459,10 +515,9 @@ extension PlayerView {
         value: normalizedValue,
         speed: 0.5,
         foregroundColor: .red,
-        backgroundColor: Color.gray.opacity(0.3),
-        cornerRadius: 8
+        backgroundColor: Color.gray.opacity(0.3)
       )
-      .frame(height: 44)
+      .frame(height: 16)
     }
   }
 
@@ -504,34 +559,105 @@ extension PlayerView {
 
   struct PlaybackControls: View {
     let isPlaying: Bool
+    let backwardSeekInterval: Double
+    let forwardSeekInterval: Double
     let onBackward: () -> Void
     let onForward: () -> Void
     let onTogglePlayPause: () -> Void
+    let onBackwardSeekIntervalChange: (Double) -> Void
+    let onForwardSeekIntervalChange: (Double) -> Void
+
+    private let availableIntervals: [Double] = [3, 5, 10, 15, 30]
 
     var body: some View {
       HStack(spacing: 32) {
         Button(action: onBackward) {
-          Image(systemName: "gobackward.10")
-            .font(.system(size: 24))
-            .foregroundStyle(.primary)
+          seekIcon(direction: .backward, interval: backwardSeekInterval)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glass)
+        .contextMenu {
+          seekIntervalMenu(
+            currentInterval: backwardSeekInterval,
+            onChange: onBackwardSeekIntervalChange
+          )
+        }
 
         Button(action: onTogglePlayPause) {
           Image(
-            systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill"
+            systemName: isPlaying ? "pause.fill" : "play.fill"
           )
-          .font(.system(size: 48))
-          .foregroundStyle(.primary)
+          .font(.system(size: 32))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glass)
 
         Button(action: onForward) {
-          Image(systemName: "goforward.10")
-            .font(.system(size: 24))
-            .foregroundStyle(.primary)
+          seekIcon(direction: .forward, interval: forwardSeekInterval)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glass)
+        .contextMenu {
+          seekIntervalMenu(
+            currentInterval: forwardSeekInterval,
+            onChange: onForwardSeekIntervalChange
+          )
+        }
+      }
+    }
+
+    private enum SeekDirection {
+      case backward, forward
+    }
+
+    @ViewBuilder
+    private func seekIcon(direction: SeekDirection, interval: Double)
+      -> some View
+    {
+      let prefix = direction == .backward ? "gobackward" : "goforward"
+      let symbolName: String = {
+        switch interval {
+        case 5: return "\(prefix).5"
+        case 10: return "\(prefix).10"
+        case 15: return "\(prefix).15"
+        case 30: return "\(prefix).30"
+        case 45: return "\(prefix).45"
+        case 60: return "\(prefix).60"
+        default:
+          return prefix
+        }
+      }()
+
+      if interval == 3 || ![5, 10, 15, 30, 45, 60].contains(Int(interval)) {
+        // Custom view for 3 seconds or other non-standard intervals
+        ZStack {
+          Image(systemName: prefix)
+            .font(.system(size: 24))
+          Text("\(Int(interval))")
+            .font(.system(size: 8, weight: .bold))
+            .offset(y: 1)
+        }
+        .foregroundStyle(.primary)
+      } else {
+        Image(systemName: symbolName)
+          .font(.system(size: 24))
+          .foregroundStyle(.primary)
+      }
+    }
+
+    @ViewBuilder
+    private func seekIntervalMenu(
+      currentInterval: Double,
+      onChange: @escaping (Double) -> Void
+    ) -> some View {
+      ForEach(availableIntervals, id: \.self) { interval in
+        Button {
+          onChange(interval)
+        } label: {
+          HStack {
+            Text("\(Int(interval)) seconds")
+            if interval == currentInterval {
+              Image(systemName: "checkmark")
+            }
+          }
+        }
       }
     }
   }
@@ -694,18 +820,12 @@ extension PlayerView {
   struct SubtitleHeader: View {
     let subtitleSource: SubtitleSource
     let entryCount: Int
-    @Binding var isTrackingEnabled: Bool
     let videoID: String
     let currentSubtitles: Subtitles?
     let onSubtitlesImported: ([SubtitleEntry]) -> Void
 
     var body: some View {
       HStack {
-        Image(systemName: "captions.bubble")
-          .foregroundStyle(.secondary)
-        Text("Subtitles")
-          .font(.headline)
-
         if subtitleSource != .youtube {
           Text("(\(subtitleSource.displayName))")
             .font(.caption)
@@ -713,25 +833,6 @@ extension PlayerView {
         }
 
         Spacer()
-
-        Button {
-          isTrackingEnabled.toggle()
-        } label: {
-          Label(
-            isTrackingEnabled ? "Tracking On" : "Tracking Off",
-            systemImage: isTrackingEnabled ? "eye" : "eye.slash"
-          )
-          .font(.caption)
-          .foregroundStyle(isTrackingEnabled ? .blue : .secondary)
-        }
-        .buttonStyle(.plain)
-        .help(isTrackingEnabled ? "Disable auto-scroll" : "Enable auto-scroll")
-
-        if entryCount > 0 {
-          Text("\(entryCount) items")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
 
         SubtitleManagementView(
           videoID: videoID,
@@ -762,5 +863,7 @@ enum SubtitleSource {
 }
 
 #Preview {
-  PlayerView(videoID: "oRc4sndVaWo")
+  NavigationStack {
+    PlayerView(videoID: "oRc4sndVaWo")
+  }
 }

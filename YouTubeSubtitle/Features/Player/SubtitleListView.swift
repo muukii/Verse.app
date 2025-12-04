@@ -15,6 +15,8 @@ struct SubtitleListView: View {
   let isLoading: Bool
   let error: String?
   let onTap: (Double) -> Void
+  let onSetRepeatA: ((Double) -> Void)?
+  let onSetRepeatB: ((Double) -> Void)?
 
   @Binding var isTrackingEnabled: Bool
   @Binding var scrollPosition: ScrollPosition
@@ -37,7 +39,7 @@ struct SubtitleListView: View {
         subtitleList
       }
     }
-    .background(backgroundColor)
+
   }
 
   // MARK: - Loading View
@@ -89,12 +91,15 @@ struct SubtitleListView: View {
           SubtitleRowView(
             entry: entry,
             isCurrent: isCurrentSubtitle(entry: entry),
-            onTap: { onTap(entry.startTime) }
+            onTap: { onTap(entry.startTime) },
+            onSetRepeatA: onSetRepeatA.map { callback in { callback(entry.startTime) } },
+            onSetRepeatB: onSetRepeatB.map { callback in { callback(entry.endTime) } }
           )
         }
       }
       .padding(12)
     }
+    .scrollEdgeEffectStyle(.hard, for: .vertical)
     .scrollPosition($scrollPosition)
     .onScrollPhaseChange { _, newPhase in
       if newPhase == .interacting {
@@ -143,6 +148,8 @@ struct SubtitleRowView: View {
   let entry: SubtitleEntry
   let isCurrent: Bool
   let onTap: () -> Void
+  let onSetRepeatA: (() -> Void)?
+  let onSetRepeatB: (() -> Void)?
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
@@ -174,6 +181,34 @@ struct SubtitleRowView: View {
     .contentShape(Rectangle())
     .onTapGesture {
       onTap()
+    }
+    .contextMenu {
+      Button {
+        #if os(iOS)
+        UIPasteboard.general.string = entry.text.htmlDecoded
+        #else
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(entry.text.htmlDecoded, forType: .string)
+        #endif
+      } label: {
+        Label("Copy", systemImage: "doc.on.doc")
+      }
+
+      if let onSetRepeatA {
+        Button {
+          onSetRepeatA()
+        } label: {
+          Label("Set as A (Start)", systemImage: "a.circle")
+        }
+      }
+
+      if let onSetRepeatB {
+        Button {
+          onSetRepeatB()
+        } label: {
+          Label("Set as B (End)", systemImage: "b.circle")
+        }
+      }
     }
     .id(entry.id)
     .animation(.easeInOut(duration: 0.2), value: isCurrent)
@@ -235,6 +270,8 @@ extension String {
     isLoading: false,
     error: nil,
     onTap: { _ in },
+    onSetRepeatA: { _ in },
+    onSetRepeatB: { _ in },
     isTrackingEnabled: .constant(true),
     scrollPosition: .constant(.init())
   )
