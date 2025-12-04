@@ -50,6 +50,11 @@ final class PlayerModel {
   /// Whether A-B repeat is active
   var isRepeating: Bool = false
 
+  // MARK: - Full Video Loop State
+
+  /// Whether the video should loop when it reaches the end
+  var isLoopingEnabled: Bool = false
+
   // MARK: - Computed Properties
 
   /// The time to display (drag time when dragging, otherwise current time)
@@ -106,5 +111,21 @@ final class PlayerModel {
       return nil
     }
     return startTime
+  }
+
+  /// Checks if video has ended and should loop back to the beginning
+  /// Returns 0 if should loop, nil otherwise
+  func checkEndOfVideoLoop() -> Double? {
+    guard isLoopingEnabled,
+          duration > 0,
+          currentTime >= duration - 0.5 else {
+      return nil
+    }
+    return 0
+  }
+
+  /// Toggles loop playback
+  func toggleLoop() {
+    isLoopingEnabled.toggle()
   }
 }

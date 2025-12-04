@@ -39,7 +39,9 @@
       "Bash(YouTubeSubtitle/YouTubeURLParser.swift )",
       "Bash(fd:*)",
       "Bash(xargs rg:*)",
-      "Bash(xargs cat:*)"
+      "Bash(xargs cat:*)",
+      "mcp__XcodeBuildMCP__discover_projs",
+      "mcp__daily__blocks_add"
     ],
     "deny": [],
     "ask": []
