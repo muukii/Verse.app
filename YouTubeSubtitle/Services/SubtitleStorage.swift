@@ -22,8 +22,7 @@ final class SubtitleStorage {
   // MARK: - Storage Directories
 
   private var subtitlesDirectory: URL {
-    let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-    let subtitlesURL = documentsURL.appendingPathComponent("Subtitles", isDirectory: true)
+    let subtitlesURL = URL.documentsDirectory.appendingPathComponent("Subtitles", isDirectory: true)
 
     // Create directory if it doesn't exist
     try? FileManager.default.createDirectory(at: subtitlesURL, withIntermediateDirectories: true)

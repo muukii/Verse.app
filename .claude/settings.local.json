@@ -36,9 +36,13 @@
       "Bash(YouTubeSubtitle/VideoMetadataFetcher.swift )",
       "Bash(YouTubeSubtitle/YouTubeSubtitleApp.swift )",
       "Bash(YouTubeSubtitle/YouTubeSubtitleAppShortcuts.swift )",
-      "Bash(YouTubeSubtitle/YouTubeURLParser.swift )"
+      "Bash(YouTubeSubtitle/YouTubeURLParser.swift )",
+      "Bash(fd:*)",
+      "Bash(xargs rg:*)",
+      "Bash(xargs cat:*)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "outputStyle": "Explanatory"
 }

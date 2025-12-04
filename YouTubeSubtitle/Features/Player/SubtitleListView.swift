@@ -5,12 +5,13 @@
 //  Created by Claude on 2025/12/02.
 //
 
+import SwiftSubtitles
 import SwiftUI
 
 // MARK: - Subtitle List View
 
 struct SubtitleListView: View {
-  let entries: [SubtitleEntry]
+  let cues: [Subtitles.Cue]
   let currentTime: Double
   let isLoading: Bool
   let error: String?
@@ -33,7 +34,7 @@ struct SubtitleListView: View {
         loadingView
       } else if let error {
         errorView(error: error)
-      } else if entries.isEmpty {
+      } else if cues.isEmpty {
         emptyView
       } else {
         subtitleList
@@ -87,13 +88,13 @@ struct SubtitleListView: View {
   private var subtitleList: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 6) {
-        ForEach(entries) { entry in
+        ForEach(cues) { cue in
           SubtitleRowView(
-            entry: entry,
-            isCurrent: isCurrentSubtitle(entry: entry),
-            onTap: { onTap(entry.startTime) },
-            onSetRepeatA: onSetRepeatA.map { callback in { callback(entry.startTime) } },
-            onSetRepeatB: onSetRepeatB.map { callback in { callback(entry.endTime) } }
+            cue: cue,
+            isCurrent: isCurrentSubtitle(cue: cue),
+            onTap: { onTap(cue.startTimeSeconds) },
+            onSetRepeatA: onSetRepeatA.map { callback in { callback(cue.startTimeSeconds) } },
+            onSetRepeatB: onSetRepeatB.map { callback in { callback(cue.endTimeSeconds) } }
           )
         }
       }
@@ -113,31 +114,31 @@ struct SubtitleListView: View {
 
   // MARK: - Helper Methods
 
-  private func isCurrentSubtitle(entry: SubtitleEntry) -> Bool {
-    guard !entries.isEmpty else { return false }
+  private func isCurrentSubtitle(cue: Subtitles.Cue) -> Bool {
+    guard !cues.isEmpty else { return false }
 
-    if let currentIndex = entries.firstIndex(where: { $0.startTime > currentTime }) {
+    if let currentIndex = cues.firstIndex(where: { $0.startTimeSeconds > currentTime }) {
       if currentIndex > 0 {
-        let previousEntry = entries[currentIndex - 1]
-        return previousEntry.id == entry.id
+        let previousCue = cues[currentIndex - 1]
+        return previousCue.id == cue.id
       }
       return false
     } else {
-      if let lastEntry = entries.last {
-        return lastEntry.id == entry.id && currentTime >= entry.startTime
+      if let lastCue = cues.last {
+        return lastCue.id == cue.id && currentTime >= cue.startTimeSeconds
       }
       return false
     }
   }
 
   private func updateScrollPosition() {
-    guard !entries.isEmpty, isTrackingEnabled else { return }
+    guard !cues.isEmpty, isTrackingEnabled else { return }
 
-    if let currentIndex = entries.firstIndex(where: { $0.startTime > currentTime }), currentIndex > 0 {
-      let currentEntry = entries[currentIndex - 1]
-      scrollPosition.scrollTo(id: currentEntry.id, anchor: .center)
-    } else if let lastEntry = entries.last, currentTime >= lastEntry.startTime {
-      scrollPosition.scrollTo(id: lastEntry.id, anchor: .center)
+    if let currentIndex = cues.firstIndex(where: { $0.startTimeSeconds > currentTime }), currentIndex > 0 {
+      let currentCue = cues[currentIndex - 1]
+      scrollPosition.scrollTo(id: currentCue.id, anchor: .center)
+    } else if let lastCue = cues.last, currentTime >= lastCue.startTimeSeconds {
+      scrollPosition.scrollTo(id: lastCue.id, anchor: .center)
     }
   }
 }
@@ -145,7 +146,7 @@ struct SubtitleListView: View {
 // MARK: - Subtitle Row View
 
 struct SubtitleRowView: View {
-  let entry: SubtitleEntry
+  let cue: Subtitles.Cue
   let isCurrent: Bool
   let onTap: () -> Void
   let onSetRepeatA: (() -> Void)?
@@ -154,7 +155,7 @@ struct SubtitleRowView: View {
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
       // Time badge
-      Text(formatTime(entry.startTime))
+      Text(formatTime(cue.startTimeSeconds))
         .font(.system(.caption2, design: .monospaced))
         .foregroundStyle(isCurrent ? .white : .secondary)
         .padding(.horizontal, 6)
@@ -163,7 +164,7 @@ struct SubtitleRowView: View {
         .clipShape(RoundedRectangle(cornerRadius: 4))
 
       // Text content
-      Text(entry.text.htmlDecoded)
+      Text(cue.text.htmlDecoded)
         .font(.subheadline)
         .foregroundStyle(isCurrent ? .primary : .secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -185,10 +186,10 @@ struct SubtitleRowView: View {
     .contextMenu {
       Button {
         #if os(iOS)
-        UIPasteboard.general.string = entry.text.htmlDecoded
+        UIPasteboard.general.string = cue.text.htmlDecoded
         #else
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(entry.text.htmlDecoded, forType: .string)
+        NSPasteboard.general.setString(cue.text.htmlDecoded, forType: .string)
         #endif
       } label: {
         Label("Copy", systemImage: "doc.on.doc")
@@ -210,7 +211,7 @@ struct SubtitleRowView: View {
         }
       }
     }
-    .id(entry.id)
+    .id(cue.id)
     .animation(.easeInOut(duration: 0.2), value: isCurrent)
   }
 
@@ -261,10 +262,25 @@ extension String {
 
 #Preview {
   SubtitleListView(
-    entries: [
-      SubtitleEntry(id: 1, startTime: 0, endTime: 3, text: "Hello, world!"),
-      SubtitleEntry(id: 2, startTime: 3, endTime: 6, text: "This is a test subtitle."),
-      SubtitleEntry(id: 3, startTime: 6, endTime: 9, text: "Testing the subtitle list view.")
+    cues: [
+      Subtitles.Cue(
+        position: 1,
+        startTime: Subtitles.Time(timeInSeconds: 0),
+        endTime: Subtitles.Time(timeInSeconds: 3),
+        text: "Hello, world!"
+      ),
+      Subtitles.Cue(
+        position: 2,
+        startTime: Subtitles.Time(timeInSeconds: 3),
+        endTime: Subtitles.Time(timeInSeconds: 6),
+        text: "This is a test subtitle."
+      ),
+      Subtitles.Cue(
+        position: 3,
+        startTime: Subtitles.Time(timeInSeconds: 6),
+        endTime: Subtitles.Time(timeInSeconds: 9),
+        text: "Testing the subtitle list view."
+      )
     ],
     currentTime: 4,
     isLoading: false,

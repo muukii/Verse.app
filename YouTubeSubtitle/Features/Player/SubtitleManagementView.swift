@@ -13,7 +13,7 @@ import UniformTypeIdentifiers
 struct SubtitleManagementView: View {
   let videoID: String
   let subtitles: Subtitles?
-  let onSubtitlesImported: ([SubtitleEntry]) -> Void
+  let onSubtitlesImported: (Subtitles) -> Void
 
   @State private var showExportSheet = false
   @State private var showImportPicker = false
@@ -125,8 +125,7 @@ struct SubtitleManagementView: View {
   private func loadSavedSubtitles(format: SubtitleFormat) {
     do {
       let subtitles = try SubtitleStorage.shared.load(videoID: videoID, format: format)
-      let entries = subtitles.toSubtitleEntries()
-      onSubtitlesImported(entries)
+      onSubtitlesImported(subtitles)
     } catch {
       errorMessage = error.localizedDescription
       showError = true
@@ -149,7 +148,6 @@ struct SubtitleManagementView: View {
 
       do {
         let subtitles = try SubtitleAdapter.decode(from: url)
-        let entries = subtitles.toSubtitleEntries()
 
         // Also save to storage
         if let format = SubtitleFormat.allCases.first(where: {
@@ -158,7 +156,7 @@ struct SubtitleManagementView: View {
           try? SubtitleStorage.shared.save(subtitles, videoID: videoID, format: format)
         }
 
-        onSubtitlesImported(entries)
+        onSubtitlesImported(subtitles)
       } catch {
         errorMessage = error.localizedDescription
         showError = true

@@ -27,20 +27,6 @@ struct SubtitleAdapter {
     return Subtitles(cues)
   }
 
-  // MARK: - SwiftSubtitles -> Display Format Conversion
-
-  /// Convert SwiftSubtitles to display-friendly subtitle entries
-  static func toSubtitleEntries(_ subtitles: Subtitles) -> [SubtitleEntry] {
-    subtitles.cues.enumerated().map { index, cue in
-      SubtitleEntry(
-        id: cue.position ?? (index + 1),
-        startTime: cue.startTime.totalSeconds,
-        endTime: cue.endTime.totalSeconds,
-        text: cue.text
-      )
-    }
-  }
-
   // MARK: - File Format Encoding/Decoding
 
   /// Encode subtitles to specified format (srt, vtt, sbv, etc.)
