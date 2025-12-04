@@ -5,6 +5,7 @@
 //  Created by Hiroshi Kimura on 2025/11/30.
 //
 
+import AVKit
 import ObjectEdge
 import SwiftData
 import SwiftSubtitles
@@ -19,53 +20,100 @@ struct PlayerView: View {
   @Environment(\.modelContext) private var modelContext
   @ObjectEdge private var model = PlayerModel()
 
-  @State private var youtubePlayer: YouTubePlayer?
-  @State private var isTrackingTime: Bool = false
+  @State private var playerController: PlayerController?
+  @State private var trackingTask: Task<Void, Never>?
   @State private var currentSubtitles: Subtitles?
   @State private var isLoadingTranscripts: Bool = false
   @State private var transcriptError: String?
-  @State private var scrollPosition: ScrollPosition = .init()
-  @State private var isSubtitleTrackingEnabled: Bool = true
-  @AppStorage("backwardSeekInterval") private var backwardSeekInterval: Double =
-    3
+  @AppStorage("backwardSeekInterval") private var backwardSeekInterval: Double = 3
   @AppStorage("forwardSeekInterval") private var forwardSeekInterval: Double = 3
   @State private var subtitleSource: SubtitleSource = .youtube
   @State private var showDownloadView: Bool = false
+  @State private var playbackSource: PlaybackSource = .youtube
+  @State private var localFileURL: URL?
 
   @State private var height: CGFloat = 0
   @State private var isShowingSheet: Bool = true
+  @State private var isPlayerCollapsed: Bool = false
 
   var body: some View {
-    if let player = youtubePlayer {
+    if let controller = playerController {
 
-      VStack(spacing: 0) {
-        VideoPlayer(player: player)    
+      ZStack {
         
-        VStack {
-
-          subtitleSection
-
-          PlayerControls(
-            model: model,
-            backwardSeekInterval: backwardSeekInterval,
-            forwardSeekInterval: forwardSeekInterval,
-            onSeek: { time in seek(player: player, to: time) },
-            onSeekBackward: { seekBackward(player: player) },
-            onSeekForward: { seekForward(player: player) },
-            onTogglePlayPause: { togglePlayPause(player: player) },
-            onRateChange: { rate in setPlaybackRate(player: player, rate: rate)
-            },
-            onBackwardSeekIntervalChange: { interval in
-              backwardSeekInterval = interval
-            },
-            onForwardSeekIntervalChange: { interval in
-              forwardSeekInterval = interval
+        VStack {        
+          VideoPlayerSection(controller: controller)
+            .compositingGroup()
+            .animation(.smooth) {              
+              $0.opacity(isPlayerCollapsed ? 0 : 1)
+                .scaleEffect(isPlayerCollapsed ? 0.95 : 1, anchor: .center)              
             }
-          )
+            .onGeometryChange(for: CGFloat.self, of: \.size.height) { newValue in
+              self.height = newValue
+            }                  
         }
-        
+        .frame(maxHeight: .infinity, alignment: .top)
+
+        VStack {
+          
+          Color.clear
+            .animation(.smooth) {              
+              $0
+                .frame(height: isPlayerCollapsed ? 0 : height)
+            }
+          
+          VStack {
+            // Player collapse toggle button
+            Button {
+              withAnimation(.smooth) {
+                isPlayerCollapsed.toggle()
+              }
+            } label: {
+              HStack(spacing: 6) {
+                Image(systemName: isPlayerCollapsed ? "chevron.down" : "chevron.up")
+                  .font(.system(size: 12, weight: .semibold))
+                Text(isPlayerCollapsed ? "Show Player" : "Hide Player")
+                  .font(.caption)
+              }
+              .foregroundStyle(.secondary)
+              .padding(.vertical, 8)
+              .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            
+            subtitleSection
+            
+            PlayerControls(
+              model: model,
+              backwardSeekInterval: backwardSeekInterval,
+              forwardSeekInterval: forwardSeekInterval,
+              onSeek: { time in seek(controller: controller, to: time) },
+              onSeekBackward: { seekBackward(controller: controller) },
+              onSeekForward: { seekForward(controller: controller) },
+              onTogglePlayPause: { togglePlayPause(controller: controller) },
+              onRateChange: { rate in setPlaybackRate(controller: controller, rate: rate) },
+              onBackwardSeekIntervalChange: { interval in
+                backwardSeekInterval = interval
+              },
+              onForwardSeekIntervalChange: { interval in
+                forwardSeekInterval = interval
+              }
+            )
+          }
+          .background(
+            UnevenRoundedRectangle(
+              topLeadingRadius: 24,
+              bottomLeadingRadius: 0,
+              bottomTrailingRadius: 0,
+              topTrailingRadius: 24,
+              style: .continuous
+            )
+            .foregroundStyle(.appPlayerBackground)
+          )
+        }        
+
       }
-     
+
       .background(.appPlayerBackground)
       .toolbar {
         ToolbarItem(placement: .primaryAction) {
@@ -73,9 +121,14 @@ struct PlayerView: View {
             SubtitleManagementView(
               videoID: videoID,
               subtitles: currentSubtitles,
+              localFileURL: localFileURL,
+              playbackSource: playbackSource,
               onSubtitlesImported: { subtitles in
                 currentSubtitles = subtitles
                 subtitleSource = .imported
+              },
+              onPlaybackSourceChange: { source in
+                switchPlaybackSource(to: source)
               }
             )
 
@@ -92,7 +145,7 @@ struct PlayerView: View {
           DownloadView(videoID: videoID)
         }
       }
-      .onDisappear { 
+      .onDisappear {
         isShowingSheet = false
       }
     } else {
@@ -109,42 +162,24 @@ struct PlayerView: View {
     VStack(alignment: .leading, spacing: 0) {
       SubtitleHeader(subtitleSource: subtitleSource)
 
-      SubtitleListView(
+      SubtitleListViewContainer(
+        model: model,
         cues: currentSubtitles?.cues ?? [],
-        currentTime: model.currentTime,
         isLoading: isLoadingTranscripts,
         error: transcriptError,
-        onTap: { time in
-          if let player = youtubePlayer {
-            seek(player: player, to: time)
+        onAction: { action in
+          switch action {
+          case .tap(let time):
+            if let controller = playerController {
+              seek(controller: controller, to: time)
+            }
+          case .setRepeatA(let time):
+            model.repeatStartTime = time
+          case .setRepeatB(let time):
+            model.repeatEndTime = time
           }
-        },
-        onSetRepeatA: { time in
-          model.repeatStartTime = time
-          if let end = model.repeatEndTime, time < end {
-            model.isRepeating = true
-          }
-        },
-        onSetRepeatB: { time in
-          model.repeatEndTime = time
-          if let start = model.repeatStartTime, time > start {
-            model.isRepeating = true
-          }
-        },
-        isTrackingEnabled: $isSubtitleTrackingEnabled,
-        scrollPosition: $scrollPosition
-      )
-      .overlay(alignment: .bottomTrailing) {
-        Button {
-          isSubtitleTrackingEnabled.toggle()
-        } label: {
-          Image(systemName: isSubtitleTrackingEnabled ? "arrow.up.left.circle.fill" : "arrow.up.left.circle")
-            .font(.system(size: 28))
-            .foregroundStyle(isSubtitleTrackingEnabled ? .blue : .secondary)
         }
-        .buttonStyle(.plain)
-        .padding(12)
-      }
+      )     
     }
   }
 
@@ -152,19 +187,30 @@ struct PlayerView: View {
 
   private func loadVideo() {
     // Prevent multiple loads
-    guard youtubePlayer == nil else { return }
+    guard playerController == nil else { return }
 
-    let configuration = YouTubePlayer.Configuration(
-      captionLanguage: "en",
-      language: "en"
+    // Check for downloaded file
+    let descriptor = FetchDescriptor<VideoHistoryItem>(
+      predicate: #Predicate { $0.videoID == videoID }
     )
-    let player = YouTubePlayer(
-      source: .video(id: videoID),
-      configuration: configuration
-    )
-    youtubePlayer = player
 
-    startTrackingTime(player: player)
+    if let historyItem = try? modelContext.fetch(descriptor).first,
+       let fileURL = historyItem.downloadedFileURL,
+       FileManager.default.fileExists(atPath: fileURL.path) {
+      // Store local file URL for later switching
+      localFileURL = fileURL
+      // Use local file playback by default when available
+      playerController = .local(LocalVideoPlayerController(url: fileURL))
+      playbackSource = .local
+    } else {
+      // Use YouTube playback
+      playerController = .youtube(YouTubeVideoPlayerController(videoID: videoID))
+      playbackSource = .youtube
+    }
+
+    if let controller = playerController {
+      startTrackingTime(controller: controller)
+    }
     fetchTranscripts(videoID: videoID)
   }
 
@@ -219,38 +265,36 @@ struct PlayerView: View {
     }
   }
 
-  private func startTrackingTime(player: YouTubePlayer) {
-    isTrackingTime = true
+  private func startTrackingTime(controller: PlayerController) {
+    // Cancel any existing tracking task
+    trackingTask?.cancel()
 
-    Task {
+    trackingTask = Task {
+      // Initial delay to get duration
       try? await Task.sleep(for: .seconds(1))
 
-      if let videoDuration = try? await player.getDuration() {
-        await MainActor.run {
-          model.duration = videoDuration.converted(to: .seconds).value
-        }
+      guard !Task.isCancelled else { return }
+
+      let videoDuration = await controller.duration
+      await MainActor.run {
+        model.duration = videoDuration
       }
-    }
 
-    Task {
-      while isTrackingTime {
-        if let time = try? await player.getCurrentTime() {
-          let timeValue = time.converted(to: .seconds).value
-          await MainActor.run {
-            model.currentTime = timeValue
-          }
-
-          if let loopStartTime = model.checkRepeatLoop() {
-            try? await player.seek(
-              to: Measurement(value: loopStartTime, unit: UnitDuration.seconds),
-              allowSeekAhead: true
-            )
-          }
+      // Main tracking loop
+      while !Task.isCancelled {
+        let timeValue = await controller.currentTime
+        await MainActor.run {
+          model.currentTime = timeValue
+          model.isPlaying = controller.isPlaying
         }
 
-        let state = player.playbackState
-        await MainActor.run {
-          model.isPlaying = (state == .playing)
+        // Check A-B repeat loop
+        if let loopStartTime = model.checkRepeatLoop() {
+          await controller.seek(to: loopStartTime)
+        }
+        // Check end-of-video loop
+        else if let loopStartTime = model.checkEndOfVideoLoop() {
+          await controller.seek(to: loopStartTime)
         }
 
         try? await Task.sleep(for: .milliseconds(500))
@@ -258,64 +302,147 @@ struct PlayerView: View {
     }
   }
 
-  private func seek(player: YouTubePlayer, to time: Double) {
+  private func seek(controller: PlayerController, to time: Double) {
     Task {
-      try? await player.seek(
-        to: Measurement(value: time, unit: UnitDuration.seconds),
-        allowSeekAhead: true
-      )
+      await controller.seek(to: time)
     }
   }
 
-  private func seekBackward(player: YouTubePlayer) {
+  private func seekBackward(controller: PlayerController) {
     Task {
-      if let currentTime = try? await player.getCurrentTime() {
-        let currentSeconds = currentTime.converted(to: .seconds).value
-        let newSeconds = max(0, currentSeconds - backwardSeekInterval)
-        try? await player.seek(
-          to: Measurement(value: newSeconds, unit: UnitDuration.seconds),
-          allowSeekAhead: true
-        )
-      }
+      let currentSeconds = await controller.currentTime
+      let newSeconds = max(0, currentSeconds - backwardSeekInterval)
+      await controller.seek(to: newSeconds)
     }
   }
 
-  private func seekForward(player: YouTubePlayer) {
+  private func seekForward(controller: PlayerController) {
     Task {
-      if let currentTime = try? await player.getCurrentTime() {
-        let currentSeconds = currentTime.converted(to: .seconds).value
-        let newSeconds = currentSeconds + forwardSeekInterval
-        try? await player.seek(
-          to: Measurement(value: newSeconds, unit: UnitDuration.seconds),
-          allowSeekAhead: true
-        )
-      }
+      let currentSeconds = await controller.currentTime
+      let newSeconds = currentSeconds + forwardSeekInterval
+      await controller.seek(to: newSeconds)
     }
   }
 
-  private func togglePlayPause(player: YouTubePlayer) {
+  private func togglePlayPause(controller: PlayerController) {
     Task {
-      let state = player.playbackState
-      switch state {
-      case .playing:
-        try? await player.pause()
+      if controller.isPlaying {
+        await controller.pause()
         await MainActor.run { model.isPlaying = false }
-      case .paused, .unstarted, .ended, .buffering, .cued:
-        try? await player.play()
-        await MainActor.run { model.isPlaying = true }
-      case .none:
-        try? await player.play()
+      } else {
+        await controller.play()
         await MainActor.run { model.isPlaying = true }
       }
     }
   }
 
-  private func setPlaybackRate(player: YouTubePlayer, rate: Double) {
+  private func setPlaybackRate(controller: PlayerController, rate: Double) {
     Task {
-      try? await player.set(playbackRate: rate)
+      await controller.setPlaybackRate(rate)
       await MainActor.run {
         model.playbackRate = rate
       }
+    }
+  }
+
+  private func switchPlaybackSource(to source: PlaybackSource) {
+    guard source != playbackSource else { return }
+
+    // Cancel existing tracking task
+    trackingTask?.cancel()
+
+    // Stop current player before switching
+    if let currentController = playerController {
+      Task {
+        await currentController.pause()
+      }
+    }
+
+    // Create new controller based on source
+    switch source {
+    case .youtube:
+      playerController = .youtube(YouTubeVideoPlayerController(videoID: videoID))
+    case .local:
+      guard let fileURL = localFileURL else { return }
+      playerController = .local(LocalVideoPlayerController(url: fileURL))
+    }
+
+    playbackSource = source
+
+    // Start new time tracking
+    if let controller = playerController {
+      startTrackingTime(controller: controller)
+    }
+  }
+}
+
+// MARK: - Player Controller Enum
+
+/// Type-safe wrapper that holds either YouTube or local video player controller.
+/// This approach avoids existential type issues with protocols.
+enum PlayerController {
+  case youtube(YouTubeVideoPlayerController)
+  case local(LocalVideoPlayerController)
+
+  // MARK: - VideoPlayerController Forwarding
+
+  var isPlaying: Bool {
+    switch self {
+    case .youtube(let controller): controller.isPlaying
+    case .local(let controller): controller.isPlaying
+    }
+  }
+
+  var currentTime: Double {
+    get async {
+      switch self {
+      case .youtube(let controller): await controller.currentTime
+      case .local(let controller): await controller.currentTime
+      }
+    }
+  }
+
+  var duration: Double {
+    get async {
+      switch self {
+      case .youtube(let controller): await controller.duration
+      case .local(let controller): await controller.duration
+      }
+    }
+  }
+
+  var playbackRate: Double {
+    switch self {
+    case .youtube(let controller): controller.playbackRate
+    case .local(let controller): controller.playbackRate
+    }
+  }
+
+  func play() async {
+    switch self {
+    case .youtube(let controller): await controller.play()
+    case .local(let controller): await controller.play()
+    }
+  }
+
+  func pause() async {
+    switch self {
+    case .youtube(let controller): await controller.pause()
+    case .local(let controller): await controller.pause()
+    }
+  }
+
+  func seek(to time: Double) async {
+    switch self {
+    case .youtube(let controller): await controller.seek(to: time)
+    case .local(let controller): await controller.seek(to: time)
+    }
+  }
+
+  func setPlaybackRate(_ rate: Double) async {
+    switch self {
+    case .youtube(let controller): await controller.setPlaybackRate(rate)
+    case .local(let controller): await controller.setPlaybackRate(rate)
     }
   }
 }
@@ -324,18 +451,25 @@ struct PlayerView: View {
 
 extension PlayerView {
 
-  // MARK: - VideoPlayer
+  // MARK: - VideoPlayerSection
 
-  struct VideoPlayer: View {
-    let player: YouTubePlayer
+  struct VideoPlayerSection: View {
+    let controller: PlayerController
 
     var body: some View {
-      YouTubePlayerView(player)
-        .aspectRatio(16 / 9, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
+      Group {
+        switch controller {
+        case .youtube(let controller):
+          YouTubeVideoPlayer(controller: controller)
+        case .local(let controller):
+          LocalVideoPlayer(controller: controller)
+        }
+      }
+      .aspectRatio(16 / 9, contentMode: .fit)
+      .clipShape(RoundedRectangle(cornerRadius: 12))
+      .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+      .padding(.horizontal, 16)
+      .padding(.top, 16)
     }
   }
 
@@ -392,6 +526,11 @@ extension PlayerView {
             playbackRate: model.playbackRate,
             onRateChange: onRateChange
           )
+
+          Divider()
+            .frame(height: 24)
+
+          LoopControl(model: model)
         }
         .padding(.top, 8)
         .padding(.bottom, 16)
@@ -707,6 +846,23 @@ extension PlayerView {
     }
   }
 
+  // MARK: - LoopControl
+
+  struct LoopControl: View {
+    let model: PlayerModel
+
+    var body: some View {
+      Button {
+        model.toggleLoop()
+      } label: {
+        Image(systemName: model.isLoopingEnabled ? "repeat.circle.fill" : "repeat")
+          .font(.system(size: 24))
+          .foregroundStyle(model.isLoopingEnabled ? .blue : .secondary)
+      }
+      .buttonStyle(.plain)
+    }
+  }
+
   // MARK: - SubtitleHeader
 
   struct SubtitleHeader: View {
@@ -725,6 +881,20 @@ extension PlayerView {
           .padding(.vertical, 12)
         }
       }
+    }
+  }
+}
+
+// MARK: - Playback Source
+
+enum PlaybackSource {
+  case youtube
+  case local
+
+  var displayName: String {
+    switch self {
+    case .youtube: return "YouTube"
+    case .local: return "Local"
     }
   }
 }

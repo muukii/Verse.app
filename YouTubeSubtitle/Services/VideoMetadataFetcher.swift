@@ -1,5 +1,5 @@
 import Foundation
-import YouTubeKit
+@preconcurrency import YouTubeKit
 
 struct VideoMetadata {
   let title: String?

@@ -4,9 +4,9 @@ import Combine
 import SwiftUI
 
 struct OpenYouTubeVideoIntent: AppIntent {
-  static var title: LocalizedStringResource = "Open YouTube Video"
-  static var description: IntentDescription = "Open a YouTube video in YouTubeSubtitle app"
-  static var openAppWhenRun: Bool = true
+  static let title: LocalizedStringResource = "Open YouTube Video"
+  static let description: IntentDescription = "Open a YouTube video in YouTubeSubtitle app"
+  static let openAppWhenRun: Bool = true
   
   @Parameter(title: "YouTube URL")
   var url: URL

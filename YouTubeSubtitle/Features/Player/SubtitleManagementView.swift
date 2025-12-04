@@ -9,11 +9,14 @@ import SwiftUI
 import SwiftSubtitles
 import UniformTypeIdentifiers
 
-/// View for managing subtitles: save, export, import
+/// View for managing subtitles and playback options
 struct SubtitleManagementView: View {
   let videoID: String
   let subtitles: Subtitles?
+  let localFileURL: URL?
+  let playbackSource: PlaybackSource
   let onSubtitlesImported: (Subtitles) -> Void
+  let onPlaybackSourceChange: (PlaybackSource) -> Void
 
   @State private var showExportSheet = false
   @State private var showImportPicker = false
@@ -26,46 +29,68 @@ struct SubtitleManagementView: View {
 
   var body: some View {
     Menu {
-      // Save to local storage
-      if subtitles != nil {
-        Button {
-          saveSubtitles()
-        } label: {
-          Label("Save Subtitles", systemImage: "square.and.arrow.down")
-        }
-
-        // Export to file
-        Button {
-          showExportSheet = true
-        } label: {
-          Label("Export...", systemImage: "square.and.arrow.up")
-        }
-
-        Divider()
-      }
-
-      // Import from file
-      Button {
-        showImportPicker = true
-      } label: {
-        Label("Import Subtitle File...", systemImage: "doc.badge.plus")
-      }
-
-      // Load from storage
-      let savedFormats = SubtitleStorage.shared.listSavedFormats(videoID: videoID)
-      if !savedFormats.isEmpty {
-        Divider()
-
-        Menu {
-          ForEach(savedFormats) { format in
-            Button {
-              loadSavedSubtitles(format: format)
-            } label: {
-              Text(format.rawValue)
-            }
+      // MARK: - Playback Source (only if local file exists)
+      if localFileURL != nil {
+        Section("Playback Source") {
+          Button {
+            onPlaybackSourceChange(.youtube)
+          } label: {
+            Label(
+              "YouTube",
+              systemImage: playbackSource == .youtube ? "checkmark" : "play.rectangle"
+            )
           }
+
+          Button {
+            onPlaybackSourceChange(.local)
+          } label: {
+            Label(
+              "Local File",
+              systemImage: playbackSource == .local ? "checkmark" : "internaldrive"
+            )
+          }
+        }
+      }
+
+      // MARK: - Subtitle Management
+      Section("Subtitles") {
+        // Save to local storage
+        if subtitles != nil {
+          Button {
+            saveSubtitles()
+          } label: {
+            Label("Save Subtitles", systemImage: "square.and.arrow.down")
+          }
+
+          // Export to file
+          Button {
+            showExportSheet = true
+          } label: {
+            Label("Export...", systemImage: "square.and.arrow.up")
+          }
+        }
+
+        // Import from file
+        Button {
+          showImportPicker = true
         } label: {
-          Label("Load Saved", systemImage: "folder")
+          Label("Import Subtitle File...", systemImage: "doc.badge.plus")
+        }
+
+        // Load from storage
+        let savedFormats = SubtitleStorage.shared.listSavedFormats(videoID: videoID)
+        if !savedFormats.isEmpty {
+          Menu {
+            ForEach(savedFormats) { format in
+              Button {
+                loadSavedSubtitles(format: format)
+              } label: {
+                Text(format.rawValue)
+              }
+            }
+          } label: {
+            Label("Load Saved", systemImage: "folder")
+          }
         }
       }
     } label: {
@@ -273,6 +298,9 @@ struct SubtitleDocument: FileDocument {
   SubtitleManagementView(
     videoID: "test123",
     subtitles: nil,
-    onSubtitlesImported: { _ in }
+    localFileURL: nil,
+    playbackSource: .youtube,
+    onSubtitlesImported: { _ in },
+    onPlaybackSourceChange: { _ in }
   )
 }
