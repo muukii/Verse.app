@@ -6,6 +6,7 @@
 //
 
 import ObjectEdge
+import SwiftData
 import SwiftSubtitles
 import SwiftUI
 import YouTubeKit
@@ -15,11 +16,11 @@ import YoutubeTranscript
 struct PlayerView: View {
   let videoID: String
 
+  @Environment(\.modelContext) private var modelContext
   @ObjectEdge private var model = PlayerModel()
 
   @State private var youtubePlayer: YouTubePlayer?
   @State private var isTrackingTime: Bool = false
-  @State private var subtitleEntries: [SubtitleEntry] = []
   @State private var currentSubtitles: Subtitles?
   @State private var isLoadingTranscripts: Bool = false
   @State private var transcriptError: String?
@@ -29,9 +30,7 @@ struct PlayerView: View {
     3
   @AppStorage("forwardSeekInterval") private var forwardSeekInterval: Double = 3
   @State private var subtitleSource: SubtitleSource = .youtube
-  @State private var isDownloadingAudio: Bool = false
-  @State private var audioDownloadResult: String?
-  @State private var showDownloadAlert: Bool = false
+  @State private var showDownloadView: Bool = false
 
   @State private var height: CGFloat = 0
   @State private var isShowingSheet: Bool = true
@@ -74,31 +73,24 @@ struct PlayerView: View {
             SubtitleManagementView(
               videoID: videoID,
               subtitles: currentSubtitles,
-              onSubtitlesImported: { entries in
-                subtitleEntries = entries
-                currentSubtitles = entries.toSwiftSubtitles()
+              onSubtitlesImported: { subtitles in
+                currentSubtitles = subtitles
                 subtitleSource = .imported
               }
             )
 
             Button {
-              tryDownloadAudio()
+              showDownloadView = true
             } label: {
-              if isDownloadingAudio {
-                ProgressView()
-                  .controlSize(.small)
-              } else {
-                Label("Download Video", systemImage: "arrow.down.circle")
-              }
+              Label("Download", systemImage: "arrow.down.circle")
             }
-            .disabled(isDownloadingAudio)
           }
         }
       }
-      .alert("Video Download Test", isPresented: $showDownloadAlert) {
-        Button("OK", role: .cancel) {}
-      } message: {
-        Text(audioDownloadResult ?? "No result")
+      .sheet(isPresented: $showDownloadView) {
+        NavigationStack {
+          DownloadView(videoID: videoID)
+        }
       }
       .onDisappear { 
         isShowingSheet = false
@@ -117,10 +109,8 @@ struct PlayerView: View {
     VStack(alignment: .leading, spacing: 0) {
       SubtitleHeader(subtitleSource: subtitleSource)
 
-      Divider()
-
       SubtitleListView(
-        entries: subtitleEntries,
+        cues: currentSubtitles?.cues ?? [],
         currentTime: model.currentTime,
         isLoading: isLoadingTranscripts,
         error: transcriptError,
@@ -148,17 +138,9 @@ struct PlayerView: View {
         Button {
           isSubtitleTrackingEnabled.toggle()
         } label: {
-          Image(systemName: isSubtitleTrackingEnabled ? "eye" : "eye.slash")
-            .font(.system(size: 16))
-            .foregroundStyle(isSubtitleTrackingEnabled ? .white : .secondary)
-            .padding(10)
-            .background(
-              isSubtitleTrackingEnabled
-                ? Color.blue
-                : Color.gray.opacity(0.3)
-            )
-            .clipShape(Circle())
-            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+          Image(systemName: isSubtitleTrackingEnabled ? "arrow.up.left.circle.fill" : "arrow.up.left.circle")
+            .font(.system(size: 28))
+            .foregroundStyle(isSubtitleTrackingEnabled ? .blue : .secondary)
         }
         .buttonStyle(.plain)
         .padding(12)
@@ -189,10 +171,26 @@ struct PlayerView: View {
   private func fetchTranscripts(videoID: String) {
     isLoadingTranscripts = true
     transcriptError = nil
-    subtitleEntries = []
     currentSubtitles = nil
 
     Task {
+      // Check cache first
+      let descriptor = FetchDescriptor<VideoHistoryItem>(
+        predicate: #Predicate { $0.videoID == videoID }
+      )
+
+      if let historyItem = try? modelContext.fetch(descriptor).first,
+         let cached = historyItem.cachedSubtitles,
+         !cached.cues.isEmpty {
+        await MainActor.run {
+          currentSubtitles = cached
+          subtitleSource = .youtube
+          isLoadingTranscripts = false
+        }
+        return
+      }
+
+      // Fetch from network
       do {
         let config = TranscriptConfig(lang: nil)
         let fetchedTranscripts = try await YoutubeTranscript.fetchTranscript(
@@ -200,11 +198,14 @@ struct PlayerView: View {
           config: config
         )
 
-        let entries = fetchedTranscripts.toSubtitleEntries()
         let subtitles = fetchedTranscripts.toSwiftSubtitles()
 
+        // Save to cache
+        if let historyItem = try? modelContext.fetch(descriptor).first {
+          historyItem.cachedSubtitles = subtitles
+        }
+
         await MainActor.run {
-          subtitleEntries = entries
           currentSubtitles = subtitles
           subtitleSource = .youtube
           isLoadingTranscripts = false
@@ -314,69 +315,6 @@ struct PlayerView: View {
       try? await player.set(playbackRate: rate)
       await MainActor.run {
         model.playbackRate = rate
-      }
-    }
-  }
-
-  private func tryDownloadAudio() {
-    isDownloadingAudio = true
-    audioDownloadResult = nil
-
-    Task {
-      do {
-        let youtube = YouTube(videoID: videoID)
-        let streams = try await youtube.streams
-
-        // Find progressive streams (video + audio combined) with mp4 format
-        let videoStreams = streams
-          .filter { $0.isProgressive }
-          .filter { $0.fileExtension == .mp4 }
-
-        guard let bestVideo = videoStreams.highestResolutionStream() else {
-          await MainActor.run {
-            audioDownloadResult = "No video streams found"
-            showDownloadAlert = true
-            isDownloadingAudio = false
-          }
-          return
-        }
-
-        // Download using URLSession
-        let streamURL = bestVideo.url
-        let (data, _) = try await URLSession.shared.data(from: streamURL)
-
-        // Save to documents directory
-        let documentsPath = FileManager.default.urls(
-          for: .documentDirectory,
-          in: .userDomainMask
-        )[0]
-        let fileName = "\(videoID)_video.mp4"
-        let destinationURL = documentsPath.appendingPathComponent(fileName)
-
-        // Remove existing file if any
-        try? FileManager.default.removeItem(at: destinationURL)
-        try data.write(to: destinationURL)
-
-        let fileSizeMB = Double(data.count) / 1_000_000
-        let resolution = bestVideo.videoResolution.map { "\($0)p" } ?? "unknown"
-
-        await MainActor.run {
-          audioDownloadResult = """
-            Success!
-            Format: mp4
-            Resolution: \(resolution)
-            Size: \(String(format: "%.2f", fileSizeMB)) MB
-            Path: \(destinationURL.lastPathComponent)
-            """
-          showDownloadAlert = true
-          isDownloadingAudio = false
-        }
-      } catch {
-        await MainActor.run {
-          audioDownloadResult = "Error: \(error.localizedDescription)"
-          showDownloadAlert = true
-          isDownloadingAudio = false
-        }
       }
     }
   }

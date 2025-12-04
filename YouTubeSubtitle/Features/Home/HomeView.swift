@@ -13,10 +13,10 @@ struct HomeView: View {
   @Environment(\.modelContext) private var modelContext
   @Query(sort: \VideoHistoryItem.timestamp, order: .reverse) private var history: [VideoHistoryItem]
 
-  @State private var urlText: String = ""
   @State private var selectedVideoID: String?
   @State private var showWebView: Bool = false
-  @State private var showShortcuts: Bool = false
+  @State private var showSettings: Bool = false
+  @State private var showURLInput: Bool = false
   @ObservedObject private var deepLinkManager = DeepLinkManager.shared
 
   @Namespace private var heroNamespace
@@ -24,54 +24,17 @@ struct HomeView: View {
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
-        // Search Bar Style URL Input
-        HStack(spacing: 12) {
-          HStack(spacing: 8) {
-            Image(systemName: "link")
-              .foregroundStyle(.secondary)
-              .font(.system(size: 16, weight: .medium))
-
-            TextField("Paste YouTube URL", text: $urlText)
-              .textContentType(.URL)
-              #if os(iOS)
-              .keyboardType(.URL)
-              .autocapitalization(.none)
-              #endif
-              .onSubmit {
-                loadURL()
-              }
-
-            if !urlText.isEmpty {
-              Button {
-                urlText = ""
-              } label: {
-                Image(systemName: "xmark.circle.fill")
-                  .foregroundStyle(.secondary)
-              }
-              .buttonStyle(.plain)
-            }
-          }
-          .padding(.horizontal, 12)
-          .padding(.vertical, 10)
-          .background(Color.gray.opacity(0.15))
-          .clipShape(RoundedRectangle(cornerRadius: 12))
-
-          if !urlText.isEmpty {
-            Button {
-              loadURL()
-            } label: {
-              Image(systemName: "arrow.right.circle.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(.tint)
-            }
-            .buttonStyle(.plain)
-            .transition(.scale.combined(with: .opacity))
-          }
+        // URL Input Button
+        Button {
+          showURLInput = true
+        } label: {
+          Label("Paste URL", systemImage: "link")
         }
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .animation(.easeInOut(duration: 0.2), value: urlText.isEmpty)
-        
+
         // History List
         if history.isEmpty {
           ContentUnavailableView {
@@ -128,9 +91,9 @@ struct HomeView: View {
         }
         ToolbarItem(placement: .secondaryAction) {
           Button {
-            showShortcuts = true
+            showSettings = true
           } label: {
-            Label("Siri Shortcuts", systemImage: "wand.and.stars")
+            Label("Settings", systemImage: "gear")
           }
         }
         if !history.isEmpty {
@@ -175,8 +138,13 @@ struct HomeView: View {
           deepLinkManager.pendingVideoID = nil
         }
       }
-      .sheet(isPresented: $showShortcuts) {
-        ShortcutsSettingsView()
+      .sheet(isPresented: $showSettings) {
+        SettingsView()
+      }
+      .fittingSheet(isPresented: $showURLInput) {
+        URLInputSheet { urlText in
+          loadURL(urlText)
+        }
       }
       .onDisappear { 
         
@@ -184,7 +152,7 @@ struct HomeView: View {
     }
   }
   
-  private func loadURL() {
+  private func loadURL(_ urlText: String) {
     guard let url = URL(string: urlText), !urlText.isEmpty else {
       return
     }
@@ -195,7 +163,6 @@ struct HomeView: View {
         await addToHistory(videoID: videoID, url: urlText)
       }
       selectedVideoID = videoID
-      urlText = ""
     }
   }
 
