@@ -18,7 +18,9 @@ struct HomeView: View {
   @State private var showWebView: Bool = false
   @State private var showShortcuts: Bool = false
   @ObservedObject private var deepLinkManager = DeepLinkManager.shared
-  
+
+  @Namespace private var heroNamespace
+
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
@@ -90,52 +92,10 @@ struct HomeView: View {
               Button {
                 selectedVideoID = item.videoID
               } label: {
-                HStack(spacing: 12) {
-                  // サムネイル画像
-                  if let thumbnailURLString = item.thumbnailURL,
-                     let thumbnailURL = URL(string: thumbnailURLString) {
-                    AsyncImage(url: thumbnailURL) { image in
-                      image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                      Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                    }
-                    .frame(width: 120, height: 68)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                  } else {
-                    Rectangle()
-                      .fill(Color.gray.opacity(0.3))
-                      .frame(width: 120, height: 68)
-                      .clipShape(RoundedRectangle(cornerRadius: 8))
-                      .overlay {
-                        Image(systemName: "play.rectangle")
-                          .foregroundStyle(.white)
-                          .font(.title)
-                      }
-                  }
-                  
-                  // テキスト情報
-                  VStack(alignment: .leading, spacing: 4) {
-                    Text(item.title ?? item.videoID)
-                      .font(.headline)
-                      .lineLimit(2)
-                    
-                    if let author = item.author {
-                      Text(author)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    }
-                    
-                    Text(formatDate(item.timestamp))
-                      .font(.caption2)
-                      .foregroundStyle(.tertiary)
-                  }
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .contentShape(Rectangle())
+                VideoHistoryCell(
+                  item: item,
+                  namespace: heroNamespace
+                )
               }
               .buttonStyle(.plain)
             }
@@ -176,6 +136,7 @@ struct HomeView: View {
       }
       .navigationDestination(item: $selectedVideoID) { videoID in
         PlayerView(videoID: videoID)
+          .navigationTransition(.zoom(sourceID: videoID, in: heroNamespace))
       }
       .sheet(isPresented: $showWebView) {
         NavigationStack {
@@ -207,6 +168,9 @@ struct HomeView: View {
       }
       .sheet(isPresented: $showShortcuts) {
         ShortcutsSettingsView()
+      }
+      .onDisappear { 
+        
       }
     }
   }
@@ -261,6 +225,74 @@ struct HomeView: View {
     }
   }
   
+  private func formatDate(_ date: Date) -> String {
+    let formatter = RelativeDateTimeFormatter()
+    formatter.unitsStyle = .abbreviated
+    return formatter.localizedString(for: date, relativeTo: Date())
+  }
+}
+
+// MARK: - Video History Cell
+
+struct VideoHistoryCell: View {
+  let item: VideoHistoryItem
+  let namespace: Namespace.ID
+
+  var body: some View {
+    HStack(spacing: 12) {
+      // サムネイル画像
+      thumbnailView
+
+      // テキスト情報
+      VStack(alignment: .leading, spacing: 4) {
+        Text(item.title ?? item.videoID)
+          .font(.headline)
+          .lineLimit(2)
+
+        if let author = item.author {
+          Text(author)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+
+        Text(formatDate(item.timestamp))
+          .font(.caption2)
+          .foregroundStyle(.tertiary)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .contentShape(Rectangle())
+    .matchedTransitionSource(id: item.videoID, in: namespace)
+  }
+
+  @ViewBuilder
+  private var thumbnailView: some View {
+    if let thumbnailURLString = item.thumbnailURL,
+       let thumbnailURL = URL(string: thumbnailURLString) {
+      AsyncImage(url: thumbnailURL) { image in
+        image
+          .resizable()
+          .aspectRatio(contentMode: .fill)
+      } placeholder: {
+        Rectangle()
+          .fill(Color.gray.opacity(0.3))
+      }
+      .frame(width: 120, height: 68)
+      .clipShape(RoundedRectangle(cornerRadius: 8))
+    } else {
+      Rectangle()
+        .fill(Color.gray.opacity(0.3))
+        .frame(width: 120, height: 68)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay {
+          Image(systemName: "play.rectangle")
+            .foregroundStyle(.white)
+            .font(.title)
+        }
+    }
+  }
+
   private func formatDate(_ date: Date) -> String {
     let formatter = RelativeDateTimeFormatter()
     formatter.unitsStyle = .abbreviated

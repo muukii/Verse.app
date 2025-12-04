@@ -19,19 +19,30 @@ public struct TouchSlider: View {
   }
 
   @GestureState private var trackingState: TrackingState? = nil
+  @State private var draggingProgress: Double?
 
   @Binding var progress: Double
   public let speed: Double
   public let direction: Axis
+  public let continuous: Bool
 
   private let foregroundColor: Color
   private let backgroundColor: Color
   private let cornerRadius: Double
 
+  /// The progress value to display (uses dragging value when in non-continuous mode and dragging)
+  private var displayProgress: Double {
+    if !continuous, let dragging = draggingProgress {
+      return dragging
+    }
+    return progress
+  }
+
   public init(
     direction: Axis,
     value: Binding<Double>,
     speed: Double = 1,
+    continuous: Bool = true,
     foregroundColor: Color = Color(white: 0.5, opacity: 0.5),
     backgroundColor: Color = Color(white: 0.5, opacity: 0.5),
     cornerRadius: Double = .greatestFiniteMagnitude
@@ -39,6 +50,7 @@ public struct TouchSlider: View {
     self._progress = value
     self.direction = direction
     self.speed = speed
+    self.continuous = continuous
     self.foregroundColor = foregroundColor
     self.backgroundColor = backgroundColor
     self.cornerRadius = cornerRadius
@@ -55,7 +67,7 @@ public struct TouchSlider: View {
         case .horizontal:
           HStack {
             foregroundColor
-              .frame(width: proxy.size.width * max(min(1, progress), 0))
+              .frame(width: proxy.size.width * max(min(1, displayProgress), 0))
             Spacer(minLength: 0)
           }
 
@@ -63,7 +75,7 @@ public struct TouchSlider: View {
           VStack {
             Spacer(minLength: 0)
             foregroundColor
-              .frame(height: proxy.size.height * max(min(1, progress), 0))
+              .frame(height: proxy.size.height * max(min(1, displayProgress), 0))
           }
 
         }
@@ -120,11 +132,20 @@ public struct TouchSlider: View {
             }()
 
             let progressChanges = constantSpeedProgress * speed
+            let newProgress = max(min(1, trackingState.beginProgress + progressChanges), 0)
 
-            progress = max(min(1, trackingState.beginProgress + progressChanges), 0)
+            if continuous {
+              progress = newProgress
+            } else {
+              draggingProgress = newProgress
+            }
 
           })
           .onEnded { _ in
+            if !continuous, let finalProgress = draggingProgress {
+              progress = finalProgress
+              draggingProgress = nil
+            }
             #if os(iOS)
             UIImpactFeedbackGenerator(style: .soft).impactOccurred()
             #endif
@@ -138,20 +159,43 @@ public struct TouchSlider: View {
 }
 
 #Preview {
-  @Previewable @State var value: Double = 0.5
+  @Previewable @State var continuousValue: Double = 0.5
+  @Previewable @State var discreteValue: Double = 0.5
 
-  VStack(spacing: 20) {
-    TouchSlider(
-      direction: .horizontal,
-      value: $value,
-      speed: 0.5,
-      foregroundColor: .red,
-      backgroundColor: Color.gray.opacity(0.3),
-      cornerRadius: 8
-    )
-    .frame(height: 44)
+  VStack(spacing: 32) {
+    VStack(spacing: 8) {
+      Text("Continuous (updates while dragging)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      TouchSlider(
+        direction: .horizontal,
+        value: $continuousValue,
+        speed: 0.5,
+        continuous: true,
+        foregroundColor: .red,
+        backgroundColor: Color.gray.opacity(0.3),
+        cornerRadius: 6
+      )
+      .frame(height: 28)
+      Text("Value: \(continuousValue, specifier: "%.2f")")
+    }
 
-    Text("Value: \(value, specifier: "%.2f")")
+    VStack(spacing: 8) {
+      Text("Non-continuous (updates on release)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      TouchSlider(
+        direction: .horizontal,
+        value: $discreteValue,
+        speed: 0.5,
+        continuous: false,
+        foregroundColor: .blue,
+        backgroundColor: Color.gray.opacity(0.3),
+        cornerRadius: 6
+      )
+      .frame(height: 28)
+      Text("Value: \(discreteValue, specifier: "%.2f")")
+    }
   }
   .padding()
 }
