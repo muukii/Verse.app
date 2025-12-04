@@ -79,12 +79,21 @@ struct HomeView: View {
           } description: {
             Text("Watch YouTube videos with synced subtitles.\nPaste a URL above or browse YouTube to get started.")
           } actions: {
-            Button {
-              showWebView = true
-            } label: {
-              Text("Browse YouTube")
+            VStack(spacing: 12) {
+              Button {
+                showWebView = true
+              } label: {
+                Text("Browse YouTube")
+              }
+              .buttonStyle(.borderedProminent)
+
+              Button {
+                loadDemoVideo()
+              } label: {
+                Label("Try Demo Video", systemImage: "play.circle")
+              }
+              .buttonStyle(.bordered)
             }
-            .buttonStyle(.borderedProminent)
           }
         } else {
           List {
@@ -179,7 +188,7 @@ struct HomeView: View {
     guard let url = URL(string: urlText), !urlText.isEmpty else {
       return
     }
-    
+
     // Extract video ID and navigate to player
     if let videoID = YouTubeURLParser.extractVideoID(from: url) {
       Task {
@@ -188,6 +197,15 @@ struct HomeView: View {
       selectedVideoID = videoID
       urlText = ""
     }
+  }
+
+  private func loadDemoVideo() {
+    let demoVideoID = "JKpsGXPqMd8"
+    let demoURL = "https://www.youtube.com/watch?v=\(demoVideoID)"
+    Task {
+      await addToHistory(videoID: demoVideoID, url: demoURL)
+    }
+    selectedVideoID = demoVideoID
   }
   
   private func addToHistory(videoID: String, url: String) async {

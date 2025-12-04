@@ -5,6 +5,7 @@
 //  Created by Hiroshi Kimura on 2025/11/30.
 //
 
+import ObjectEdge
 import SwiftSubtitles
 import SwiftUI
 import YouTubeKit
@@ -14,23 +15,16 @@ import YoutubeTranscript
 struct PlayerView: View {
   let videoID: String
 
+  @ObjectEdge private var model = PlayerModel()
+
   @State private var youtubePlayer: YouTubePlayer?
-  @State private var currentTime: Double = 0
-  @State private var duration: Double = 0
   @State private var isTrackingTime: Bool = false
   @State private var subtitleEntries: [SubtitleEntry] = []
   @State private var currentSubtitles: Subtitles?
   @State private var isLoadingTranscripts: Bool = false
   @State private var transcriptError: String?
   @State private var scrollPosition: ScrollPosition = .init()
-  @State private var isDraggingSlider: Bool = false
-  @State private var dragTime: Double = 0
-  @State private var isPlaying: Bool = false
   @State private var isSubtitleTrackingEnabled: Bool = true
-  @State private var repeatStartTime: Double?
-  @State private var repeatEndTime: Double?
-  @State private var isRepeating: Bool = false
-  @State private var playbackRate: Double = 1.0
   @AppStorage("backwardSeekInterval") private var backwardSeekInterval: Double =
     3
   @AppStorage("forwardSeekInterval") private var forwardSeekInterval: Double = 3
@@ -38,7 +32,7 @@ struct PlayerView: View {
   @State private var isDownloadingAudio: Bool = false
   @State private var audioDownloadResult: String?
   @State private var showDownloadAlert: Bool = false
-  
+
   @State private var height: CGFloat = 0
   @State private var isShowingSheet: Bool = true
 
@@ -49,21 +43,13 @@ struct PlayerView: View {
         VideoPlayer(player: player)    
         
         VStack {
-          
+
           subtitleSection
-          
+
           PlayerControls(
-            currentTime: currentTime,
-            duration: duration,
-            isDraggingSlider: isDraggingSlider,
-            dragTime: dragTime,
-            isPlaying: isPlaying,
-            playbackRate: playbackRate,
+            model: model,
             backwardSeekInterval: backwardSeekInterval,
             forwardSeekInterval: forwardSeekInterval,
-            repeatStartTime: $repeatStartTime,
-            repeatEndTime: $repeatEndTime,
-            isRepeating: $isRepeating,
             onSeek: { time in seek(player: player, to: time) },
             onSeekBackward: { seekBackward(player: player) },
             onSeekForward: { seekForward(player: player) },
@@ -84,17 +70,29 @@ struct PlayerView: View {
       .background(.appPlayerBackground)
       .toolbar {
         ToolbarItem(placement: .primaryAction) {
-          Button {
-            tryDownloadAudio()
-          } label: {
-            if isDownloadingAudio {
-              ProgressView()
-                .controlSize(.small)
-            } else {
-              Label("Download Video", systemImage: "arrow.down.circle")
+          HStack(spacing: 16) {
+            SubtitleManagementView(
+              videoID: videoID,
+              subtitles: currentSubtitles,
+              onSubtitlesImported: { entries in
+                subtitleEntries = entries
+                currentSubtitles = entries.toSwiftSubtitles()
+                subtitleSource = .imported
+              }
+            )
+
+            Button {
+              tryDownloadAudio()
+            } label: {
+              if isDownloadingAudio {
+                ProgressView()
+                  .controlSize(.small)
+              } else {
+                Label("Download Video", systemImage: "arrow.down.circle")
+              }
             }
+            .disabled(isDownloadingAudio)
           }
-          .disabled(isDownloadingAudio)
         }
       }
       .alert("Video Download Test", isPresented: $showDownloadAlert) {
@@ -117,23 +115,13 @@ struct PlayerView: View {
 
   private var subtitleSection: some View {
     VStack(alignment: .leading, spacing: 0) {
-      SubtitleHeader(
-        subtitleSource: subtitleSource,
-        entryCount: subtitleEntries.count,
-        videoID: videoID,
-        currentSubtitles: currentSubtitles,
-        onSubtitlesImported: { entries in
-          subtitleEntries = entries
-          currentSubtitles = entries.toSwiftSubtitles()
-          subtitleSource = .imported
-        }
-      )
+      SubtitleHeader(subtitleSource: subtitleSource)
 
       Divider()
 
       SubtitleListView(
         entries: subtitleEntries,
-        currentTime: currentTime,
+        currentTime: model.currentTime,
         isLoading: isLoadingTranscripts,
         error: transcriptError,
         onTap: { time in
@@ -142,15 +130,15 @@ struct PlayerView: View {
           }
         },
         onSetRepeatA: { time in
-          repeatStartTime = time
-          if let end = repeatEndTime, time < end {
-            isRepeating = true
+          model.repeatStartTime = time
+          if let end = model.repeatEndTime, time < end {
+            model.isRepeating = true
           }
         },
         onSetRepeatB: { time in
-          repeatEndTime = time
-          if let start = repeatStartTime, time > start {
-            isRepeating = true
+          model.repeatEndTime = time
+          if let start = model.repeatStartTime, time > start {
+            model.isRepeating = true
           }
         },
         isTrackingEnabled: $isSubtitleTrackingEnabled,
@@ -238,7 +226,7 @@ struct PlayerView: View {
 
       if let videoDuration = try? await player.getDuration() {
         await MainActor.run {
-          duration = videoDuration.converted(to: .seconds).value
+          model.duration = videoDuration.converted(to: .seconds).value
         }
       }
     }
@@ -248,16 +236,12 @@ struct PlayerView: View {
         if let time = try? await player.getCurrentTime() {
           let timeValue = time.converted(to: .seconds).value
           await MainActor.run {
-            currentTime = timeValue
+            model.currentTime = timeValue
           }
 
-          if isRepeating,
-            let startTime = repeatStartTime,
-            let endTime = repeatEndTime,
-            timeValue >= endTime
-          {
+          if let loopStartTime = model.checkRepeatLoop() {
             try? await player.seek(
-              to: Measurement(value: startTime, unit: UnitDuration.seconds),
+              to: Measurement(value: loopStartTime, unit: UnitDuration.seconds),
               allowSeekAhead: true
             )
           }
@@ -265,7 +249,7 @@ struct PlayerView: View {
 
         let state = player.playbackState
         await MainActor.run {
-          isPlaying = (state == .playing)
+          model.isPlaying = (state == .playing)
         }
 
         try? await Task.sleep(for: .milliseconds(500))
@@ -314,13 +298,13 @@ struct PlayerView: View {
       switch state {
       case .playing:
         try? await player.pause()
-        await MainActor.run { isPlaying = false }
+        await MainActor.run { model.isPlaying = false }
       case .paused, .unstarted, .ended, .buffering, .cued:
         try? await player.play()
-        await MainActor.run { isPlaying = true }
+        await MainActor.run { model.isPlaying = true }
       case .none:
         try? await player.play()
-        await MainActor.run { isPlaying = true }
+        await MainActor.run { model.isPlaying = true }
       }
     }
   }
@@ -329,7 +313,7 @@ struct PlayerView: View {
     Task {
       try? await player.set(playbackRate: rate)
       await MainActor.run {
-        playbackRate = rate
+        model.playbackRate = rate
       }
     }
   }
@@ -420,17 +404,9 @@ extension PlayerView {
   // MARK: - PlayerControls
 
   struct PlayerControls: View {
-    let currentTime: Double
-    let duration: Double
-    let isDraggingSlider: Bool
-    let dragTime: Double
-    let isPlaying: Bool
-    let playbackRate: Double
+    let model: PlayerModel
     let backwardSeekInterval: Double
     let forwardSeekInterval: Double
-    @Binding var repeatStartTime: Double?
-    @Binding var repeatEndTime: Double?
-    @Binding var isRepeating: Bool
     let onSeek: (Double) -> Void
     let onSeekBackward: () -> Void
     let onSeekForward: () -> Void
@@ -442,22 +418,22 @@ extension PlayerView {
     var body: some View {
       VStack(spacing: 0) {
         ProgressBar(
-          currentTime: currentTime,
-          duration: duration,
+          currentTime: model.currentTime,
+          duration: model.duration,
           onSeek: onSeek
         )
         .padding(.horizontal, 16)
         .padding(.top, 12)
 
         TimeDisplay(
-          currentTime: isDraggingSlider ? dragTime : currentTime,
-          duration: duration
+          currentTime: model.displayTime,
+          duration: model.duration
         )
         .padding(.horizontal, 20)
         .padding(.top, 4)
 
         PlaybackControls(
-          isPlaying: isPlaying,
+          isPlaying: model.isPlaying,
           backwardSeekInterval: backwardSeekInterval,
           forwardSeekInterval: forwardSeekInterval,
           onBackward: onSeekBackward,
@@ -469,18 +445,13 @@ extension PlayerView {
         .padding(.top, 8)
 
         HStack(spacing: 24) {
-          RepeatControls(
-            currentTime: currentTime,
-            repeatStartTime: $repeatStartTime,
-            repeatEndTime: $repeatEndTime,
-            isRepeating: $isRepeating
-          )
+          RepeatControls(model: model)
 
           Divider()
             .frame(height: 24)
 
           SpeedControls(
-            playbackRate: playbackRate,
+            playbackRate: model.playbackRate,
             onRateChange: onRateChange
           )
         }
@@ -665,31 +636,23 @@ extension PlayerView {
   // MARK: - RepeatControls
 
   struct RepeatControls: View {
-    let currentTime: Double
-    @Binding var repeatStartTime: Double?
-    @Binding var repeatEndTime: Double?
-    @Binding var isRepeating: Bool
+    let model: PlayerModel
 
     var body: some View {
       HStack(spacing: 16) {
         Button {
-          repeatStartTime = currentTime
-          if repeatEndTime == nil {
-            isRepeating = false
-          } else if let end = repeatEndTime, currentTime < end {
-            isRepeating = true
-          }
+          model.setRepeatStartToCurrent()
         } label: {
           HStack(spacing: 4) {
             Text("A")
               .font(.system(.caption, design: .rounded).bold())
-            Text(repeatStartTime.map { formatTime($0) } ?? "--:--")
+            Text(model.repeatStartTime.map { formatTime($0) } ?? "--:--")
               .font(.system(.caption, design: .monospaced))
           }
           .padding(.horizontal, 10)
           .padding(.vertical, 6)
           .background(
-            repeatStartTime != nil
+            model.repeatStartTime != nil
               ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15)
           )
           .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -697,23 +660,18 @@ extension PlayerView {
         .buttonStyle(.plain)
 
         Button {
-          repeatEndTime = currentTime
-          if repeatStartTime == nil {
-            isRepeating = false
-          } else if let start = repeatStartTime, currentTime > start {
-            isRepeating = true
-          }
+          model.setRepeatEndToCurrent()
         } label: {
           HStack(spacing: 4) {
             Text("B")
               .font(.system(.caption, design: .rounded).bold())
-            Text(repeatEndTime.map { formatTime($0) } ?? "--:--")
+            Text(model.repeatEndTime.map { formatTime($0) } ?? "--:--")
               .font(.system(.caption, design: .monospaced))
           }
           .padding(.horizontal, 10)
           .padding(.vertical, 6)
           .background(
-            repeatEndTime != nil
+            model.repeatEndTime != nil
               ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15)
           )
           .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -721,24 +679,20 @@ extension PlayerView {
         .buttonStyle(.plain)
 
         Button {
-          if repeatStartTime != nil && repeatEndTime != nil {
-            isRepeating.toggle()
-          }
+          model.toggleRepeat()
         } label: {
           Image(
-            systemName: isRepeating ? "repeat.circle.fill" : "repeat.circle"
+            systemName: model.isRepeating ? "repeat.circle.fill" : "repeat.circle"
           )
           .font(.system(size: 24))
-          .foregroundStyle(isRepeating ? .orange : .secondary)
+          .foregroundStyle(model.isRepeating ? .orange : .secondary)
         }
         .buttonStyle(.plain)
-        .disabled(repeatStartTime == nil || repeatEndTime == nil)
+        .disabled(!model.canToggleRepeat)
 
-        if repeatStartTime != nil || repeatEndTime != nil {
+        if model.repeatStartTime != nil || model.repeatEndTime != nil {
           Button {
-            repeatStartTime = nil
-            repeatEndTime = nil
-            isRepeating = false
+            model.clearRepeat()
           } label: {
             Image(systemName: "xmark.circle")
               .font(.system(size: 20))
@@ -819,29 +773,20 @@ extension PlayerView {
 
   struct SubtitleHeader: View {
     let subtitleSource: SubtitleSource
-    let entryCount: Int
-    let videoID: String
-    let currentSubtitles: Subtitles?
-    let onSubtitlesImported: ([SubtitleEntry]) -> Void
 
     var body: some View {
-      HStack {
+      Group {
         if subtitleSource != .youtube {
-          Text("(\(subtitleSource.displayName))")
-            .font(.caption)
-            .foregroundStyle(.orange)
+          HStack {
+            Text("(\(subtitleSource.displayName))")
+              .font(.caption)
+              .foregroundStyle(.orange)
+            Spacer()
+          }
+          .padding(.horizontal, 16)
+          .padding(.vertical, 12)
         }
-
-        Spacer()
-
-        SubtitleManagementView(
-          videoID: videoID,
-          subtitles: currentSubtitles,
-          onSubtitlesImported: onSubtitlesImported
-        )
       }
-      .padding(.horizontal, 16)
-      .padding(.vertical, 12)
     }
   }
 }

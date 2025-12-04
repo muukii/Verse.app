@@ -1,5 +1,5 @@
 {
-  "originHash" : "07aa6f1bb7eee81a16f1991ac6f332110ad1fe32b7408a7707482f2f92a324a2",
+  "originHash" : "4e21a5f385118c9dc9a24c6d1b19c932d8285cab93eb62725da56883e409ba60",
   "pins" : [
     {
       "identity" : "dsfregex",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "2c3d282cda97ce49adb196700404d8e46df9778c",
         "version" : "1.9.0"
+      }
+    },
+    {
+      "identity" : "swiftui-object-edge",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FluidGroup/swiftui-object-edge",
+      "state" : {
+        "revision" : "2848582ee253565ff8d529506e0988b2d2c4404a",
+        "version" : "1.0.0"
       }
     },
     {
