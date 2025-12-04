@@ -14,6 +14,9 @@ import YoutubeTranscript
 struct PlayerView: View {
   let videoID: String
 
+  /// Threshold in seconds for determining whether to go to current subtitle start or previous subtitle
+  private static let subtitleSeekBackThreshold: Double = 1.0
+
   @State private var youtubePlayer: YouTubePlayer?
   @State private var currentTime: Double = 0
   @State private var duration: Double = 0
@@ -322,13 +325,13 @@ struct PlayerView: View {
     guard !subtitleEntries.isEmpty else { return }
 
     // Find the previous subtitle based on current time
-    // If we're more than 1 second into the current subtitle, go to its start
+    // If we're more than the threshold into the current subtitle, go to its start
     // Otherwise, go to the previous subtitle's start
     if let currentIndex = subtitleEntries.lastIndex(where: { $0.startTime <= currentTime }) {
       let currentEntry = subtitleEntries[currentIndex]
 
-      // If we're more than 1 second into the current subtitle, seek to its start
-      if currentTime - currentEntry.startTime > 1.0 {
+      // If we're more than the threshold into the current subtitle, seek to its start
+      if currentTime - currentEntry.startTime > Self.subtitleSeekBackThreshold {
         seek(player: player, to: currentEntry.startTime)
       } else if currentIndex > 0 {
         // Go to the previous subtitle
