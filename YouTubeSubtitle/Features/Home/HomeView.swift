@@ -12,7 +12,7 @@ import AppIntents
 struct HomeView: View {
   @Environment(VideoHistoryService.self) private var historyService
   @Environment(DownloadManager.self) private var downloadManager
-  @Query(sort: \VideoHistoryItem.timestamp, order: .reverse) private var history: [VideoHistoryItem]
+  @Query(sort: \VideoItem.timestamp, order: .reverse) private var history: [VideoItem]
 
   @State private var selectedVideoID: String?
   @State private var showWebView: Bool = false
@@ -186,7 +186,7 @@ struct HomeView: View {
 // MARK: - Video History Cell
 
 struct VideoHistoryCell: View {
-  let item: VideoHistoryItem
+  let item: VideoItem
   let namespace: Namespace.ID
   let downloadManager: DownloadManager
 
@@ -271,7 +271,7 @@ struct VideoHistoryCell: View {
           .background(Circle().fill(.white).padding(2))
           .padding(4)
       }
-    } else if item.downloadedFileName != nil {
+    } else if item.isDownloaded {
       // Already downloaded (persisted)
       Image(systemName: "checkmark.circle.fill")
         .font(.system(size: 20))

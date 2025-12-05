@@ -38,6 +38,7 @@ struct PlayerView: View {
   @State private var height: CGFloat = 0
   @State private var isShowingSheet: Bool = true
   @State private var isPlayerCollapsed: Bool = false
+  @State private var videoItem: VideoItem?
 
   // Transcription state
   @State private var isTranscribing: Bool = false
@@ -126,37 +127,7 @@ struct PlayerView: View {
 
       .background(.appPlayerBackground)
       .toolbar {
-        ToolbarItem(placement: .primaryAction) {
-          HStack(spacing: 16) {
-            SubtitleManagementView(
-              videoID: videoID,
-              subtitles: currentSubtitles,
-              localFileURL: localFileURL,
-              playbackSource: playbackSource,
-              onSubtitlesImported: { subtitles in
-                currentSubtitles = subtitles
-                subtitleSource = .imported
-              },
-              onPlaybackSourceChange: { source in
-                switchPlaybackSource(to: source)
-              },
-              onLocalVideoDeleted: {
-                localFileURL = nil
-              },
-              onTranscribe: {
-                showTranscriptionSheet = true
-              },
-              isTranscribing: isTranscribing
-            )
-
-            DownloadButton(
-              videoID: videoID,
-              downloadManager: downloadManager,
-              localFileURL: localFileURL,
-              onTap: { showDownloadView = true }
-            )
-          }
-        }
+       toolbarContent
       }
       .sheet(isPresented: $showDownloadView) {
         NavigationStack {
@@ -201,6 +172,39 @@ struct PlayerView: View {
         }
     }
   }
+  
+  @ToolbarContentBuilder
+  var toolbarContent: some ToolbarContent {
+    ToolbarItem(placement: .primaryAction) {
+      HStack(spacing: 16) {
+        SubtitleManagementView(
+          videoID: videoID,
+          subtitles: currentSubtitles,
+          localFileURL: localFileURL,
+          playbackSource: playbackSource,
+          onSubtitlesImported: { subtitles in
+            currentSubtitles = subtitles
+            subtitleSource = .imported
+          },
+          onPlaybackSourceChange: { source in
+            switchPlaybackSource(to: source)
+          },
+          onLocalVideoDeleted: {
+            localFileURL = nil
+          },
+          onTranscribe: {
+            showTranscriptionSheet = true
+          },
+          isTranscribing: isTranscribing
+        )
+
+        DownloadButton(
+          state: downloadButtonState,
+          onTap: { showDownloadView = true }
+        )
+      }
+    }
+  }
 
   // MARK: - Subtitle Section
 
@@ -229,6 +233,31 @@ struct PlayerView: View {
     }
   }
 
+  // MARK: - Download Button State
+
+  private var downloadButtonState: DownloadButton.State {
+    // Check active download progress first
+    if let progress = downloadManager.downloadProgress(for: videoID) {
+      switch progress.state {
+      case .pending:
+        return .pending
+      case .downloading:
+        return .downloading(progress.fractionCompleted)
+      case .paused:
+        return .paused
+      case .completed:
+        return .completed
+      case .failed, .cancelled:
+        return .failed
+      }
+    }
+    // Check persisted download status from VideoItem
+    if videoItem?.isDownloaded == true {
+      return .completed
+    }
+    return .idle
+  }
+
   // MARK: - Private Methods
 
   private func loadVideo() {
@@ -236,13 +265,16 @@ struct PlayerView: View {
     guard playerController == nil else { return }
 
     // Check for downloaded file
-    let descriptor = FetchDescriptor<VideoHistoryItem>(
+    let descriptor = FetchDescriptor<VideoItem>(
       predicate: #Predicate { $0.videoID == videoID }
     )
 
-    if let historyItem = try? modelContext.fetch(descriptor).first,
-       let fileURL = historyItem.downloadedFileURL,
-       FileManager.default.fileExists(atPath: fileURL.path) {
+    let item = try? modelContext.fetch(descriptor).first
+    videoItem = item
+
+    if let item,
+       item.isDownloaded,
+       let fileURL = item.downloadedFileURL {
       // Store local file URL for later switching
       localFileURL = fileURL
       // Use local file playback by default when available
@@ -267,7 +299,7 @@ struct PlayerView: View {
 
     Task {
       // Check cache first
-      let descriptor = FetchDescriptor<VideoHistoryItem>(
+      let descriptor = FetchDescriptor<VideoItem>(
         predicate: #Predicate { $0.videoID == videoID }
       )
 
@@ -486,77 +518,6 @@ struct PlayerView: View {
           isTranscribing = false
         }
       }
-    }
-  }
-}
-
-// MARK: - Player Controller Enum
-
-/// Type-safe wrapper that holds either YouTube or local video player controller.
-/// This approach avoids existential type issues with protocols.
-enum PlayerController {
-  case youtube(YouTubeVideoPlayerController)
-  case local(LocalVideoPlayerController)
-
-  // MARK: - VideoPlayerController Forwarding
-
-  var isPlaying: Bool {
-    switch self {
-    case .youtube(let controller): controller.isPlaying
-    case .local(let controller): controller.isPlaying
-    }
-  }
-
-  var currentTime: Double {
-    get async {
-      switch self {
-      case .youtube(let controller): await controller.currentTime
-      case .local(let controller): await controller.currentTime
-      }
-    }
-  }
-
-  var duration: Double {
-    get async {
-      switch self {
-      case .youtube(let controller): await controller.duration
-      case .local(let controller): await controller.duration
-      }
-    }
-  }
-
-  var playbackRate: Double {
-    switch self {
-    case .youtube(let controller): controller.playbackRate
-    case .local(let controller): controller.playbackRate
-    }
-  }
-
-  func play() async {
-    switch self {
-    case .youtube(let controller): await controller.play()
-    case .local(let controller): await controller.play()
-    }
-  }
-
-  func pause() async {
-    switch self {
-    case .youtube(let controller): await controller.pause()
-    case .local(let controller): await controller.pause()
-    }
-  }
-
-  func seek(to time: Double) async {
-    switch self {
-    case .youtube(let controller): await controller.seek(to: time)
-    case .local(let controller): await controller.seek(to: time)
-    }
-  }
-
-  func setPlaybackRate(_ rate: Double) async {
-    switch self {
-    case .youtube(let controller): await controller.setPlaybackRate(rate)
-    case .local(let controller): await controller.setPlaybackRate(rate)
     }
   }
 }
@@ -1153,21 +1114,17 @@ extension PlayerView {
   // MARK: - DownloadButton
 
   struct DownloadButton: View {
-    let videoID: String
-    let downloadManager: DownloadManager
-    let localFileURL: URL?
+    enum State: Equatable {
+      case idle
+      case pending
+      case downloading(Double)
+      case paused
+      case completed
+      case failed
+    }
+
+    let state: State
     let onTap: () -> Void
-
-    /// Download progress from DownloadManager
-    private var downloadProgress: DownloadProgress? {
-      downloadManager.downloadProgress(for: videoID)
-    }
-
-    /// Check if already downloaded (file exists)
-    private var isDownloaded: Bool {
-      guard let url = localFileURL else { return false }
-      return FileManager.default.fileExists(atPath: url.path)
-    }
 
     var body: some View {
       Button(action: onTap) {
@@ -1177,51 +1134,41 @@ extension PlayerView {
 
     @ViewBuilder
     private var buttonContent: some View {
-      if let progress = downloadProgress {
-        // Active download state
-        switch progress.state {
-        case .pending:
-          Label {
-            Text("Pending")
-          } icon: {
-            ProgressView()
-              .scaleEffect(0.8)
-          }
-
-        case .downloading:
-          Label {
-            Text("\(Int(progress.fractionCompleted * 100))%")
-          } icon: {
-            ZStack {
-              Circle()
-                .stroke(Color.gray.opacity(0.3), lineWidth: 2)
-              Circle()
-                .trim(from: 0, to: progress.fractionCompleted)
-                .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            }
-            .frame(width: 18, height: 18)
-          }
-
-        case .paused:
-          Label("Paused", systemImage: "pause.circle.fill")
-            .foregroundStyle(.gray)
-
-        case .completed:
-          Label("Downloaded", systemImage: "checkmark.circle.fill")
-            .foregroundStyle(.green)
-
-        case .failed, .cancelled:
-          Label("Retry", systemImage: "exclamationmark.circle")
-            .foregroundStyle(.orange)
-        }
-      } else if isDownloaded {
-        // Already downloaded (persisted)
-        Label("Downloaded", systemImage: "checkmark.circle.fill")
-          .foregroundStyle(.green)
-      } else {
-        // Not downloaded
+      switch state {
+      case .idle:
         Label("Download", systemImage: "arrow.down.circle")
+
+      case .pending:
+        Label {
+          Text("Pending")
+        } icon: {
+          ProgressView()
+            .scaleEffect(0.8)
+        }
+
+      case .downloading(let progress):
+        Label {
+          Text("\(Int(progress * 100))%")
+        } icon: {
+          ZStack {
+            Circle()
+              .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+            Circle()
+              .trim(from: 0, to: progress)
+              .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+              .rotationEffect(.degrees(-90))
+          }
+          .frame(width: 18, height: 18)
+        }
+
+      case .paused:
+        Label("Paused", systemImage: "pause.circle.fill")
+
+      case .completed:
+        Label("Downloaded", systemImage: "checkmark.circle.fill")
+
+      case .failed:
+        Label("Retry", systemImage: "exclamationmark.circle")
       }
     }
   }

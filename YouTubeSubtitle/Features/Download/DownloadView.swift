@@ -24,6 +24,17 @@ struct DownloadView: View {
 
   @State private var transcriptionState: TranscriptionService.TranscriptionState = .idle
 
+  /// Check if file is already downloaded (persisted in SwiftData)
+  private var isAlreadyDownloaded: Bool {
+    let descriptor = FetchDescriptor<VideoItem>(
+      predicate: #Predicate { $0.videoID == videoID }
+    )
+    guard let item = try? modelContext.fetch(descriptor).first else {
+      return false
+    }
+    return item.isDownloaded
+  }
+
   /// Current download progress from DownloadManager
   private var currentProgress: DownloadProgress? {
     downloadManager.downloadProgress(for: videoID)
@@ -31,6 +42,12 @@ struct DownloadView: View {
 
   /// Map DownloadManager state to view state
   private var downloadState: ViewDownloadState {
+    // First check if already downloaded (persisted)
+    if isAlreadyDownloaded {
+      return .alreadyDownloaded
+    }
+
+    // Then check active download progress
     guard let progress = currentProgress else { return .idle }
     switch progress.state {
     case .pending, .downloading:
@@ -51,6 +68,7 @@ struct DownloadView: View {
     case downloading(Double)
     case paused(Double)
     case completed
+    case alreadyDownloaded
     case failed(String)
   }
 
@@ -211,13 +229,13 @@ struct DownloadView: View {
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
 
-      case .completed:
+      case .completed, .alreadyDownloaded:
         HStack(spacing: 12) {
           Image(systemName: "checkmark.circle.fill")
             .font(.system(size: 24))
             .foregroundStyle(.green)
           VStack(alignment: .leading, spacing: 2) {
-            Text("Download Complete")
+            Text(downloadState == .alreadyDownloaded ? "Already Downloaded" : "Download Complete")
               .font(.subheadline.weight(.medium))
             Text("Video saved to local storage")
               .font(.caption)
@@ -403,7 +421,7 @@ struct DownloadView: View {
       return "Downloading..."
     case .paused:
       return "Resume"
-    case .completed:
+    case .completed, .alreadyDownloaded:
       return "Downloaded"
     case .failed:
       return "Retry Download"
@@ -415,7 +433,7 @@ struct DownloadView: View {
     switch downloadState {
     case .idle, .failed, .paused:
       return true
-    case .downloading, .completed:
+    case .downloading, .completed, .alreadyDownloaded:
       return false
     }
   }
@@ -489,12 +507,12 @@ struct DownloadView: View {
         }
       }
 
-      // Save transcription result to VideoHistoryItem
-      let descriptor = FetchDescriptor<VideoHistoryItem>(
+      // Save transcription result to VideoItem
+      let descriptor = FetchDescriptor<VideoItem>(
         predicate: #Predicate { $0.videoID == videoID }
       )
-      if let historyItem = try? modelContext.fetch(descriptor).first {
-        historyItem.cachedSubtitles = subtitles
+      if let item = try? modelContext.fetch(descriptor).first {
+        item.cachedSubtitles = subtitles
       }
     } catch {
       await MainActor.run {

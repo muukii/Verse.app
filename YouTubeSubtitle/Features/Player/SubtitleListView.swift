@@ -8,6 +8,7 @@
 @preconcurrency import SwiftSubtitles
 import SwiftUI
 import RichText
+import Translation
 
 // MARK: - Subtitle List View Container
 
@@ -222,6 +223,7 @@ struct SubtitleRowView: View {
   let onAction: (Action) -> Void
 
   @State private var showExplanationSheet = false
+  @State private var showTranslation = false
 
   var body: some View {
     HStack(alignment: .top, spacing: 8) {
@@ -270,6 +272,12 @@ struct SubtitleRowView: View {
           Label("Explain", systemImage: "sparkles")
         }
 
+        Button {
+          showTranslation = true
+        } label: {
+          Label("Translate", systemImage: "character.book.closed")
+        }
+
         Divider()
 
         Button {
@@ -313,6 +321,7 @@ struct SubtitleRowView: View {
     )
     .id(cue.id)
     .animation(.easeInOut(duration: 0.2), value: isCurrent)
+    .translationPresentation(isPresented: $showTranslation, text: cue.text.htmlDecoded)
   }
 
   private func formatTime(_ seconds: Double) -> String {

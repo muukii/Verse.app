@@ -3,7 +3,7 @@ import SwiftData
 import SwiftSubtitles
 
 @Model
-final class VideoHistoryItem {
+final class VideoItem {
   var id: UUID
   var videoID: String
   var url: String
@@ -18,6 +18,11 @@ final class VideoHistoryItem {
 
   // Downloaded file (relative path from Documents directory)
   var downloadedFileName: String?
+
+  /// Whether the video has been downloaded
+  var isDownloaded: Bool {
+    downloadedFileName != nil
+  }
 
   var downloadedFileURL: URL? {
     guard let fileName = downloadedFileName else { return nil }
@@ -57,3 +62,7 @@ final class VideoHistoryItem {
     self.timestamp = Date()
   }
 }
+
+// MARK: - Type Alias for Migration
+/// @available(*, deprecated, renamed: "VideoItem")
+typealias VideoHistoryItem = VideoItem
