@@ -23,40 +23,20 @@ struct HomeView: View {
 
   var body: some View {
     NavigationStack {
-      VStack(spacing: 0) {
-        // URL Input Button
-        Button {
-          showURLInput = true
-        } label: {
-          Label("Paste URL", systemImage: "link")
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-
+      Group {
         // History List
         if history.isEmpty {
           ContentUnavailableView {
             Label("Verse", systemImage: "captions.bubble.fill")
           } description: {
-            Text("Watch YouTube videos with synced subtitles.\nPaste a URL above or browse YouTube to get started.")
+            Text("Watch YouTube videos with synced subtitles.\nPaste a URL or browse YouTube to get started.")
           } actions: {
-            VStack(spacing: 12) {
-              Button {
-                showWebView = true
-              } label: {
-                Text("Browse YouTube")
-              }
-              .buttonStyle(.borderedProminent)
-
-              Button {
-                loadDemoVideo()
-              } label: {
-                Label("Try Demo Video", systemImage: "play.circle")
-              }
-              .buttonStyle(.bordered)
+            Button {
+              loadDemoVideo()
+            } label: {
+              Label("Try Demo Video", systemImage: "play.circle")
             }
+            .buttonStyle(.bordered)
           }
         } else {
           List {
@@ -73,7 +53,10 @@ struct HomeView: View {
             }
             .onDelete { indexSet in
               for index in indexSet {
-                modelContext.delete(history[index])
+                let item = history[index]
+                // Cancel any active downloads for this video
+                DownloadManager.shared.cancelDownloads(for: item.videoID)
+                modelContext.delete(item)
               }
             }
           }
@@ -82,14 +65,8 @@ struct HomeView: View {
       }
       .navigationTitle("")
       .toolbar {
+        // Top toolbar - Settings
         ToolbarItem(placement: .primaryAction) {
-          Button {
-            showWebView = true
-          } label: {
-            Label("Browse YouTube", systemImage: "safari")
-          }
-        }
-        ToolbarItem(placement: .secondaryAction) {
           Button {
             showSettings = true
           } label: {
@@ -103,6 +80,23 @@ struct HomeView: View {
             } label: {
               Label("Clear History", systemImage: "trash")
             }
+          }
+        }
+
+        // Bottom toolbar - Main actions
+        ToolbarItemGroup(placement: .bottomBar) {
+          Button {
+            showURLInput = true
+          } label: {
+            Label("Paste URL", systemImage: "link")
+          }
+
+          Spacer()
+
+          Button {
+            showWebView = true
+          } label: {
+            Label("Browse YouTube", systemImage: "safari")
           }
         }
       }
@@ -206,6 +200,8 @@ struct HomeView: View {
   
   private func clearHistory() {
     for item in history {
+      // Cancel any active downloads
+      DownloadManager.shared.cancelDownloads(for: item.videoID)
       modelContext.delete(item)
     }
   }
@@ -223,10 +219,18 @@ struct VideoHistoryCell: View {
   let item: VideoHistoryItem
   let namespace: Namespace.ID
 
+  /// Download progress from DownloadManager
+  private var downloadProgress: DownloadProgress? {
+    DownloadManager.shared.downloadProgress(for: item.videoID)
+  }
+
   var body: some View {
     HStack(spacing: 12) {
       // サムネイル画像
       thumbnailView
+        .overlay(alignment: .bottomTrailing) {
+          downloadStatusBadge
+        }
 
       // テキスト情報
       VStack(alignment: .leading, spacing: 4) {
@@ -241,14 +245,90 @@ struct VideoHistoryCell: View {
             .lineLimit(1)
         }
 
-        Text(formatDate(item.timestamp))
-          .font(.caption2)
-          .foregroundStyle(.tertiary)
+        HStack(spacing: 6) {
+          Text(formatDate(item.timestamp))
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+
+          // Show download status text
+          if let progress = downloadProgress {
+            downloadStatusText(for: progress)
+          } else if item.downloadedFileName != nil {
+            Text("Downloaded")
+              .font(.caption2)
+              .foregroundStyle(.green)
+          }
+        }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .contentShape(Rectangle())
     .matchedTransitionSource(id: item.videoID, in: namespace)
+  }
+
+  @ViewBuilder
+  private var downloadStatusBadge: some View {
+    if let progress = downloadProgress {
+      switch progress.state {
+      case .pending, .downloading:
+        // Circular progress indicator
+        ZStack {
+          Circle()
+            .fill(.ultraThinMaterial)
+            .frame(width: 28, height: 28)
+          CircularProgressView(progress: progress.fractionCompleted)
+            .frame(width: 20, height: 20)
+        }
+        .padding(4)
+
+      case .completed:
+        Image(systemName: "checkmark.circle.fill")
+          .font(.system(size: 20))
+          .foregroundStyle(.green)
+          .background(Circle().fill(.white).padding(2))
+          .padding(4)
+
+      case .failed, .cancelled:
+        Image(systemName: "exclamationmark.circle.fill")
+          .font(.system(size: 20))
+          .foregroundStyle(.orange)
+          .background(Circle().fill(.white).padding(2))
+          .padding(4)
+      }
+    } else if item.downloadedFileName != nil {
+      // Already downloaded (persisted)
+      Image(systemName: "arrow.down.circle.fill")
+        .font(.system(size: 20))
+        .foregroundStyle(.blue)
+        .background(Circle().fill(.white).padding(2))
+        .padding(4)
+    }
+  }
+
+  @ViewBuilder
+  private func downloadStatusText(for progress: DownloadProgress) -> some View {
+    switch progress.state {
+    case .pending:
+      Text("Pending...")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    case .downloading:
+      Text("Downloading \(Int(progress.fractionCompleted * 100))%")
+        .font(.caption2)
+        .foregroundStyle(.blue)
+    case .completed:
+      Text("Downloaded")
+        .font(.caption2)
+        .foregroundStyle(.green)
+    case .failed:
+      Text("Failed")
+        .font(.caption2)
+        .foregroundStyle(.red)
+    case .cancelled:
+      Text("Cancelled")
+        .font(.caption2)
+        .foregroundStyle(.orange)
+    }
   }
 
   @ViewBuilder
@@ -282,6 +362,27 @@ struct VideoHistoryCell: View {
     let formatter = RelativeDateTimeFormatter()
     formatter.unitsStyle = .abbreviated
     return formatter.localizedString(for: date, relativeTo: Date())
+  }
+}
+
+// MARK: - Circular Progress View
+
+private struct CircularProgressView: View {
+  let progress: Double
+
+  var body: some View {
+    ZStack {
+      // Background circle
+      Circle()
+        .stroke(Color.gray.opacity(0.3), lineWidth: 3)
+
+      // Progress circle
+      Circle()
+        .trim(from: 0, to: progress)
+        .stroke(Color.blue, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+        .rotationEffect(.degrees(-90))
+        .animation(.linear(duration: 0.3), value: progress)
+    }
   }
 }
 

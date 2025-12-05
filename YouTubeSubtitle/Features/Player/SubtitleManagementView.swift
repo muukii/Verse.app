@@ -5,8 +5,9 @@
 //  Created by Claude on 2025/12/01.
 //
 
-import SwiftUI
+import SwiftData
 import SwiftSubtitles
+import SwiftUI
 import UniformTypeIdentifiers
 
 /// View for managing subtitles and playback options
@@ -17,15 +18,18 @@ struct SubtitleManagementView: View {
   let playbackSource: PlaybackSource
   let onSubtitlesImported: (Subtitles) -> Void
   let onPlaybackSourceChange: (PlaybackSource) -> Void
+  var onLocalVideoDeleted: (() -> Void)?
 
   @State private var showExportSheet = false
   @State private var showImportPicker = false
   @State private var exportFormat: SubtitleFormat = .srt
   @State private var showSaveConfirmation = false
+  @State private var showDeleteConfirmation = false
   @State private var errorMessage: String?
   @State private var showError = false
 
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.modelContext) private var modelContext
 
   var body: some View {
     Menu {
@@ -48,6 +52,15 @@ struct SubtitleManagementView: View {
               "Local File",
               systemImage: playbackSource == .local ? "checkmark" : "internaldrive"
             )
+          }
+        }
+
+        // MARK: - Local Video Management
+        Section("Local Video") {
+          Button(role: .destructive) {
+            showDeleteConfirmation = true
+          } label: {
+            Label("Delete Local Video", systemImage: "trash")
           }
         }
       }
@@ -121,6 +134,18 @@ struct SubtitleManagementView: View {
     } message: {
       Text(errorMessage ?? "Unknown error occurred")
     }
+    .confirmationDialog(
+      "Delete Local Video",
+      isPresented: $showDeleteConfirmation,
+      titleVisibility: .visible
+    ) {
+      Button("Delete", role: .destructive) {
+        deleteLocalVideo()
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("This will delete the downloaded video file. You can re-download it later.")
+    }
   }
 
   private var subtitleContentTypes: [UTType] {
@@ -189,6 +214,36 @@ struct SubtitleManagementView: View {
 
     case .failure(let error):
       errorMessage = error.localizedDescription
+      showError = true
+    }
+  }
+
+  private func deleteLocalVideo() {
+    guard let fileURL = localFileURL else { return }
+
+    do {
+      // Delete the file from disk
+      try FileManager.default.removeItem(at: fileURL)
+
+      // Update VideoHistoryItem to clear downloadedFileName
+      let descriptor = FetchDescriptor<VideoHistoryItem>(
+        predicate: #Predicate { $0.videoID == videoID }
+      )
+      if let historyItem = try? modelContext.fetch(descriptor).first {
+        historyItem.downloadedFileName = nil
+        try? modelContext.save()
+      }
+
+      // Switch to YouTube playback if currently on local
+      if playbackSource == .local {
+        onPlaybackSourceChange(.youtube)
+      }
+
+      // Notify parent
+      onLocalVideoDeleted?()
+
+    } catch {
+      errorMessage = "Failed to delete video: \(error.localizedDescription)"
       showError = true
     }
   }

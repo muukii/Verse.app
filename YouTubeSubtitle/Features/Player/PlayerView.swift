@@ -129,6 +129,9 @@ struct PlayerView: View {
               },
               onPlaybackSourceChange: { source in
                 switchPlaybackSource(to: source)
+              },
+              onLocalVideoDeleted: {
+                localFileURL = nil
               }
             )
 

@@ -1,5 +1,5 @@
 {
-  "originHash" : "4e21a5f385118c9dc9a24c6d1b19c932d8285cab93eb62725da56883e409ba60",
+  "originHash" : "b576cb9f541ed5a6bb9cd6c19024966d5c6d8d2da5b6229af12abf0dd7529cdd",
   "pins" : [
     {
       "identity" : "dsfregex",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "e0e64805519b23b08dcca9c83ca2d4a2b3de4c33",
         "version" : "3.4.0"
+      }
+    },
+    {
+      "identity" : "richtext",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/LiYanan2004/RichText",
+      "state" : {
+        "branch" : "main",
+        "revision" : "32a8348d7862e19b6d624625a35541b49d2a0f31"
       }
     },
     {

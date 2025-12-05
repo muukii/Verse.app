@@ -41,7 +41,11 @@
       "Bash(xargs rg:*)",
       "Bash(xargs cat:*)",
       "mcp__XcodeBuildMCP__discover_projs",
-      "mcp__daily__blocks_add"
+      "mcp__daily__blocks_add",
+      "mcp__sosumi__searchAppleDocumentation",
+      "mcp__XcodeBuildMCP__build_macos",
+      "Bash(xcrun swift:*)",
+      "Bash(xcrun:*)"
     ],
     "deny": [],
     "ask": []
