@@ -12,15 +12,29 @@
 		B0FAE68C2EDC3000008493F1 /* YoutubeTranscript in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE68B2EDC3000008493F1 /* YoutubeTranscript */; };
 		B0FAE68E2EDC4000008493F1 /* SwiftSubtitles in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE68F2EDC4000008493F1 /* SwiftSubtitles */; };
 		B0FAE6912EDC5000008493F1 /* ObjectEdge in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE6922EDC5000008493F1 /* ObjectEdge */; };
+		B0FAE6962EDC6000008493F1 /* RichText in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE6952EDC6000008493F1 /* RichText */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		B0FAE6772EDC249B008493F1 /* YouTubeSubtitle.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YouTubeSubtitle.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B073BF442EE21E7E006FD7C6 /* Exceptions for "YouTubeSubtitle" folder in "YouTubeSubtitle" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B0FAE6762EDC249B008493F1 /* YouTubeSubtitle */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B0FAE6792EDC249B008493F1 /* YouTubeSubtitle */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B073BF442EE21E7E006FD7C6 /* Exceptions for "YouTubeSubtitle" folder in "YouTubeSubtitle" target */,
+			);
 			path = YouTubeSubtitle;
 			sourceTree = "<group>";
 		};
@@ -36,6 +50,7 @@
 				B0FAE68C2EDC3000008493F1 /* YoutubeTranscript in Frameworks */,
 				B0FAE68E2EDC4000008493F1 /* SwiftSubtitles in Frameworks */,
 				B0FAE6912EDC5000008493F1 /* ObjectEdge in Frameworks */,
+				B0FAE6962EDC6000008493F1 /* RichText in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -83,6 +98,7 @@
 				B0FAE68B2EDC3000008493F1 /* YoutubeTranscript */,
 				B0FAE68F2EDC4000008493F1 /* SwiftSubtitles */,
 				B0FAE6922EDC5000008493F1 /* ObjectEdge */,
+				B0FAE6952EDC6000008493F1 /* RichText */,
 			);
 			productName = YouTubeSubtitle;
 			productReference = B0FAE6772EDC249B008493F1 /* YouTubeSubtitle.app */;
@@ -118,6 +134,7 @@
 				B0FAE68D2EDC3000008493F1 /* XCRemoteSwiftPackageReference "swift-youtube-transcript" */,
 				B0FAE6902EDC4000008493F1 /* XCRemoteSwiftPackageReference "SwiftSubtitles" */,
 				B0FAE6932EDC5000008493F1 /* XCRemoteSwiftPackageReference "swiftui-object-edge" */,
+				B0FAE6942EDC6000008493F1 /* XCRemoteSwiftPackageReference "RichText" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0FAE6782EDC249B008493F1 /* Products */;
@@ -282,8 +299,10 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = YouTubeSubtitle/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Verse;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This app uses speech recognition to transcribe audio from downloaded videos into subtitles.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -331,8 +350,10 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = YouTubeSubtitle/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Verse;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This app uses speech recognition to transcribe audio from downloaded videos into subtitles.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -430,6 +451,14 @@
 				minimumVersion = 1.0.0;
 			};
 		};
+		B0FAE6942EDC6000008493F1 /* XCRemoteSwiftPackageReference "RichText" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/LiYanan2004/RichText";
+			requirement = {
+				kind = branch;
+				branch = main;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -457,6 +486,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B0FAE6932EDC5000008493F1 /* XCRemoteSwiftPackageReference "swiftui-object-edge" */;
 			productName = ObjectEdge;
+		};
+		B0FAE6952EDC6000008493F1 /* RichText */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B0FAE6942EDC6000008493F1 /* XCRemoteSwiftPackageReference "RichText" */;
+			productName = RichText;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

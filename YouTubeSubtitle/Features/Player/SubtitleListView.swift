@@ -7,6 +7,7 @@
 
 @preconcurrency import SwiftSubtitles
 import SwiftUI
+import RichText
 
 // MARK: - Subtitle List View Container
 
@@ -217,21 +218,61 @@ struct SubtitleRowView: View {
   let onAction: (Action) -> Void
 
   var body: some View {
-    HStack(alignment: .top, spacing: 12) {
-      // Time badge
-      Text(formatTime(cue.startTimeSeconds))
-        .font(.system(.caption2, design: .monospaced))
-        .foregroundStyle(isCurrent ? .white : .secondary)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(isCurrent ? Color.red : Color.gray.opacity(0.2))
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+    HStack(alignment: .top, spacing: 8) {
+      // Time badge - tappable to seek
+      Button {
+        onAction(.tap)
+      } label: {
+        Text(formatTime(cue.startTimeSeconds))
+          .font(.system(.caption2, design: .monospaced))
+          .foregroundStyle(isCurrent ? .white : .secondary)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 2)
+          .background(isCurrent ? Color.red : Color.gray.opacity(0.2))
+          .clipShape(RoundedRectangle(cornerRadius: 4))
+      }
+      .buttonStyle(.plain)
 
-      // Text content
-      Text(cue.text.htmlDecoded)
-        .font(.subheadline)
-        .foregroundStyle(isCurrent ? .primary : .secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
+      // Text content with selection support
+      TextView {
+        cue.text.htmlDecoded
+      }
+      .font(.subheadline)
+      .foregroundStyle(isCurrent ? .primary : .secondary)
+      .frame(maxWidth: .infinity, alignment: .leading)
+
+      // Menu button for actions
+      Menu {
+        Button {
+          #if os(iOS)
+            UIPasteboard.general.string = cue.text.htmlDecoded
+          #else
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(cue.text.htmlDecoded, forType: .string)
+          #endif
+        } label: {
+          Label("Copy", systemImage: "doc.on.doc")
+        }
+
+        Button {
+          onAction(.setRepeatA)
+        } label: {
+          Label("Set as A (Start)", systemImage: "a.circle")
+        }
+
+        Button {
+          onAction(.setRepeatB)
+        } label: {
+          Label("Set as B (End)", systemImage: "b.circle")
+        }
+      } label: {
+        Image(systemName: "ellipsis")
+          .font(.system(size: 18))
+          .foregroundStyle(.secondary)
+          .frame(width: 44, height: 44)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
     }
     .padding(.vertical, 10)
     .padding(.horizontal, 12)
@@ -246,34 +287,6 @@ struct SubtitleRowView: View {
           lineWidth: 1
         )
     )
-    .contentShape(Rectangle())
-    .onTapGesture {
-      onAction(.tap)
-    }
-    .contextMenu {
-      Button {
-        #if os(iOS)
-          UIPasteboard.general.string = cue.text.htmlDecoded
-        #else
-          NSPasteboard.general.clearContents()
-          NSPasteboard.general.setString(cue.text.htmlDecoded, forType: .string)
-        #endif
-      } label: {
-        Label("Copy", systemImage: "doc.on.doc")
-      }
-
-      Button {
-        onAction(.setRepeatA)
-      } label: {
-        Label("Set as A (Start)", systemImage: "a.circle")
-      }
-
-      Button {
-        onAction(.setRepeatB)
-      } label: {
-        Label("Set as B (End)", systemImage: "b.circle")
-      }
-    }
     .id(cue.id)
     .animation(.easeInOut(duration: 0.2), value: isCurrent)
   }

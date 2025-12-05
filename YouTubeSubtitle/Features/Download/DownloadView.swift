@@ -20,13 +20,32 @@ struct DownloadView: View {
   @State private var streamError: (any Error)?
 
   @State private var selectedStream: YouTubeKit.Stream?
-  @State private var downloadState: DownloadState = .idle
-  @State private var downloadProgress: Double = 0
-  @State private var downloadedFileURL: URL?
 
-  enum DownloadState: Equatable {
+  @State private var transcriptionState: TranscriptionService.TranscriptionState = .idle
+
+  /// Current download progress from DownloadManager
+  private var currentProgress: DownloadProgress? {
+    DownloadManager.shared.downloadProgress(for: videoID)
+  }
+
+  /// Map DownloadManager state to view state
+  private var downloadState: ViewDownloadState {
+    guard let progress = currentProgress else { return .idle }
+    switch progress.state {
+    case .pending, .downloading:
+      return .downloading(progress.fractionCompleted)
+    case .completed:
+      return .completed
+    case .failed:
+      return .failed("Download failed")
+    case .cancelled:
+      return .failed("Download cancelled")
+    }
+  }
+
+  enum ViewDownloadState: Equatable {
     case idle
-    case downloading
+    case downloading(Double)
     case completed
     case failed(String)
   }
@@ -45,8 +64,15 @@ struct DownloadView: View {
           qualitySelectionSection
 
           // Download Progress (when downloading or completed)
-          if downloadState != .idle {
+          if case .idle = downloadState {
+            // No download status to show
+          } else {
             downloadStatusSection
+          }
+
+          // Transcription Progress (when transcribing or completed)
+          if transcriptionState != .idle {
+            transcriptionStatusSection
           }
         }
         .padding(20)
@@ -154,18 +180,27 @@ struct DownloadView: View {
       case .idle:
         EmptyView()
 
-      case .downloading:
+      case .downloading(let progress):
         VStack(spacing: 8) {
-          ProgressView(value: downloadProgress)
+          ProgressView(value: progress)
             .tint(.blue)
           HStack {
             Text("Downloading...")
               .font(.subheadline)
               .foregroundStyle(.secondary)
             Spacer()
-            Text("\(Int(downloadProgress * 100))%")
+            Text("\(Int(progress * 100))%")
               .font(.subheadline.monospacedDigit())
               .foregroundStyle(.secondary)
+          }
+
+          // Cancel button
+          Button {
+            cancelDownload()
+          } label: {
+            Text("Cancel")
+              .font(.subheadline)
+              .foregroundStyle(.red)
           }
         }
         .padding(16)
@@ -180,11 +215,9 @@ struct DownloadView: View {
           VStack(alignment: .leading, spacing: 2) {
             Text("Download Complete")
               .font(.subheadline.weight(.medium))
-            if let url = downloadedFileURL {
-              Text(url.lastPathComponent)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
+            Text("Video saved to local storage")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
           Spacer()
         }
@@ -213,6 +246,96 @@ struct DownloadView: View {
     }
   }
 
+  // MARK: - Transcription Status Section
+
+  private var transcriptionStatusSection: some View {
+    VStack(spacing: 12) {
+      switch transcriptionState {
+      case .idle:
+        EmptyView()
+
+      case .preparingAssets:
+        HStack(spacing: 12) {
+          ProgressView()
+          VStack(alignment: .leading, spacing: 2) {
+            Text("Preparing Speech Model")
+              .font(.subheadline.weight(.medium))
+            Text("Downloading language assets...")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          Spacer()
+        }
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+      case .transcribing(let progress):
+        VStack(spacing: 8) {
+          HStack(spacing: 12) {
+            Image(systemName: "waveform")
+              .font(.system(size: 20))
+              .foregroundStyle(.purple)
+            Text("Transcribing Audio")
+              .font(.subheadline.weight(.medium))
+            Spacer()
+          }
+          ProgressView(value: progress)
+            .tint(.purple)
+          HStack {
+            Text("Converting speech to text...")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Spacer()
+            Text("\(Int(progress * 100))%")
+              .font(.caption.monospacedDigit())
+              .foregroundStyle(.secondary)
+          }
+        }
+        .padding(16)
+        .background(Color.purple.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+      case .completed:
+        HStack(spacing: 12) {
+          Image(systemName: "text.bubble.fill")
+            .font(.system(size: 24))
+            .foregroundStyle(.purple)
+          VStack(alignment: .leading, spacing: 2) {
+            Text("Transcription Complete")
+              .font(.subheadline.weight(.medium))
+            Text("Subtitles generated from audio")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          Spacer()
+        }
+        .padding(16)
+        .background(Color.purple.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+      case .failed(let message):
+        HStack(spacing: 12) {
+          Image(systemName: "waveform.slash")
+            .font(.system(size: 24))
+            .foregroundStyle(.orange)
+          VStack(alignment: .leading, spacing: 2) {
+            Text("Transcription Failed")
+              .font(.subheadline.weight(.medium))
+            Text(message)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .lineLimit(2)
+          }
+          Spacer()
+        }
+        .padding(16)
+        .background(Color.orange.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+      }
+    }
+  }
+
   // MARK: - Download Button
 
   private var downloadButton: some View {
@@ -222,7 +345,7 @@ struct DownloadView: View {
         Task { await startDownload() }
       } label: {
         HStack(spacing: 8) {
-          if downloadState == .downloading {
+          if case .downloading = downloadState {
             ProgressView()
               .tint(.white)
           } else {
@@ -299,37 +422,45 @@ struct DownloadView: View {
   private func startDownload() async {
     guard let stream = selectedStream else { return }
 
-    await MainActor.run {
-      downloadState = .downloading
-      downloadProgress = 0
-      downloadedFileURL = nil
-    }
-
     do {
-      let (data, _) = try await URLSession.shared.data(from: stream.url)
+      // Queue download with DownloadManager
+      try await DownloadManager.shared.queueDownload(
+        videoID: videoID,
+        stream: stream
+      )
 
-      let fileName = "\(videoID)_\(stream.itag).\(stream.fileExtension.rawValue)"
-      let destinationURL = URL.documentsDirectory.appendingPathComponent(fileName)
+      // Note: Progress is automatically shown in Live Activity by BGContinuedProcessingTask
+      // The UI will update reactively from DownloadManager.shared.activeDownloads
+    } catch {
+      // Show error (DownloadManager handles state internally)
+      print("Failed to queue download: \(error)")
+    }
+  }
 
-      try? FileManager.default.removeItem(at: destinationURL)
-      try data.write(to: destinationURL)
+  private func cancelDownload() {
+    DownloadManager.shared.cancelDownloads(for: videoID)
+  }
 
-      // Save to history
+  private func startTranscription(fileURL: URL) async {
+    do {
+      let subtitles = try await TranscriptionService.shared.transcribe(
+        fileURL: fileURL
+      ) { state in
+        Task { @MainActor in
+          transcriptionState = state
+        }
+      }
+
+      // Save transcription result to VideoHistoryItem
       let descriptor = FetchDescriptor<VideoHistoryItem>(
         predicate: #Predicate { $0.videoID == videoID }
       )
       if let historyItem = try? modelContext.fetch(descriptor).first {
-        historyItem.downloadedFileName = fileName
-      }
-
-      await MainActor.run {
-        downloadedFileURL = destinationURL
-        downloadProgress = 1.0
-        downloadState = .completed
+        historyItem.cachedSubtitles = subtitles
       }
     } catch {
       await MainActor.run {
-        downloadState = .failed(error.localizedDescription)
+        transcriptionState = .failed(error.localizedDescription)
       }
     }
   }
