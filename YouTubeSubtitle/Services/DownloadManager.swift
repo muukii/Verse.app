@@ -173,9 +173,9 @@ final class DownloadManager: Sendable {
       fatalError("DownloadManager not configured. Call configure(modelContainer:) first.")
     }
 
-    // Fetch video title from VideoHistoryItem
+    // Fetch video title from VideoItem
     let context = ModelContext(modelContainer)
-    let historyDescriptor = FetchDescriptor<VideoHistoryItem>(
+    let historyDescriptor = FetchDescriptor<VideoItem>(
       predicate: #Predicate { $0.videoID == videoID }
     )
     let videoTitle = try? context.fetch(historyDescriptor).first?.title
@@ -334,9 +334,9 @@ final class DownloadManager: Sendable {
     guard let records = try? context.fetch(descriptor) else { return }
 
     for record in records {
-      // Fetch video title from VideoHistoryItem
+      // Fetch video title from VideoItem
       let targetVideoID = record.videoID
-      let historyDescriptor = FetchDescriptor<VideoHistoryItem>(
+      let historyDescriptor = FetchDescriptor<VideoItem>(
         predicate: #Predicate { $0.videoID == targetVideoID }
       )
       let videoTitle = try? context.fetch(historyDescriptor).first?.title
@@ -661,11 +661,11 @@ final class DownloadManager: Sendable {
     guard let modelContainer else { return }
 
     let context = ModelContext(modelContainer)
-    let descriptor = FetchDescriptor<VideoHistoryItem>(
+    let descriptor = FetchDescriptor<VideoItem>(
       predicate: #Predicate { $0.videoID == videoID }
     )
-    if let historyItem = try? context.fetch(descriptor).first {
-      historyItem.downloadedFileName = fileName
+    if let item = try? context.fetch(descriptor).first {
+      item.downloadedFileName = fileName
       try? context.save()
     }
   }
