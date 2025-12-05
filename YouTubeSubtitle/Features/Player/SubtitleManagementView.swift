@@ -19,6 +19,8 @@ struct SubtitleManagementView: View {
   let onSubtitlesImported: (Subtitles) -> Void
   let onPlaybackSourceChange: (PlaybackSource) -> Void
   var onLocalVideoDeleted: (() -> Void)?
+  var onTranscribe: (() -> Void)?
+  var isTranscribing: Bool = false
 
   @State private var showExportSheet = false
   @State private var showImportPicker = false
@@ -28,11 +30,20 @@ struct SubtitleManagementView: View {
   @State private var errorMessage: String?
   @State private var showError = false
 
-  @Environment(\.dismiss) private var dismiss
   @Environment(\.modelContext) private var modelContext
+  @Environment(VideoHistoryService.self) private var historyService
 
   var body: some View {
     Menu {
+      // MARK: - Share
+      Section {
+        if let youtubeURL = URL(string: "https://www.youtube.com/watch?v=\(videoID)") {
+          ShareLink(item: youtubeURL) {
+            Label("Share YouTube URL", systemImage: "square.and.arrow.up")
+          }
+        }
+      }
+
       // MARK: - Playback Source (only if local file exists)
       if localFileURL != nil {
         Section("Playback Source") {
@@ -57,6 +68,14 @@ struct SubtitleManagementView: View {
 
         // MARK: - Local Video Management
         Section("Local Video") {
+          // Transcribe audio to subtitles
+          Button {
+            onTranscribe?()
+          } label: {
+            Label("Transcribe Audio", systemImage: "waveform.badge.mic")
+          }
+          .disabled(isTranscribing)
+
           Button(role: .destructive) {
             showDeleteConfirmation = true
           } label: {
@@ -219,32 +238,34 @@ struct SubtitleManagementView: View {
   }
 
   private func deleteLocalVideo() {
-    guard let fileURL = localFileURL else { return }
+    guard localFileURL != nil else { return }
 
-    do {
-      // Delete the file from disk
-      try FileManager.default.removeItem(at: fileURL)
+    Task {
+      do {
+        // Find the history item
+        guard let historyItem = try historyService.findItem(videoID: videoID) else {
+          throw VideoHistoryError.itemNotFound
+        }
 
-      // Update VideoHistoryItem to clear downloadedFileName
-      let descriptor = FetchDescriptor<VideoHistoryItem>(
-        predicate: #Predicate { $0.videoID == videoID }
-      )
-      if let historyItem = try? modelContext.fetch(descriptor).first {
-        historyItem.downloadedFileName = nil
-        try? modelContext.save()
+        // Delete local video using service
+        try historyService.deleteLocalVideo(for: historyItem)
+
+        // Switch to YouTube playback if currently on local
+        await MainActor.run {
+          if playbackSource == .local {
+            onPlaybackSourceChange(.youtube)
+          }
+
+          // Notify parent
+          onLocalVideoDeleted?()
+        }
+
+      } catch {
+        await MainActor.run {
+          errorMessage = "Failed to delete video: \(error.localizedDescription)"
+          showError = true
+        }
       }
-
-      // Switch to YouTube playback if currently on local
-      if playbackSource == .local {
-        onPlaybackSourceChange(.youtube)
-      }
-
-      // Notify parent
-      onLocalVideoDeleted?()
-
-    } catch {
-      errorMessage = "Failed to delete video: \(error.localizedDescription)"
-      showError = true
     }
   }
 }

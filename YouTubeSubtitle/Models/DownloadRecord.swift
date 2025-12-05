@@ -13,6 +13,7 @@ import SwiftData
 enum DownloadState: String, Codable, Sendable {
   case pending
   case downloading
+  case paused
   case completed
   case failed
   case cancelled
@@ -72,6 +73,11 @@ final class DownloadRecord {
   // MARK: - Error
 
   var errorMessage: String?
+
+  // MARK: - Resume Data
+
+  /// Data for resuming a paused download
+  var resumeData: Data?
 
   // MARK: - Computed Properties
 

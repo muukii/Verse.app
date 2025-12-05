@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B046D4AE2EE324FC00367936 /* AnyLanguageModelMLX in Frameworks */ = {isa = PBXBuildFile; productRef = B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */; };
 		B0FAE6862EDC2500008493F1 /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE6852EDC2500008493F1 /* YouTubeKit */; };
 		B0FAE68A2EDC2600008493F1 /* YouTubePlayerKit in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE6892EDC2600008493F1 /* YouTubePlayerKit */; };
 		B0FAE68C2EDC3000008493F1 /* YoutubeTranscript in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE68B2EDC3000008493F1 /* YoutubeTranscript */; };
@@ -51,6 +52,7 @@
 				B0FAE68E2EDC4000008493F1 /* SwiftSubtitles in Frameworks */,
 				B0FAE6912EDC5000008493F1 /* ObjectEdge in Frameworks */,
 				B0FAE6962EDC6000008493F1 /* RichText in Frameworks */,
+				B046D4AE2EE324FC00367936 /* AnyLanguageModelMLX in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -99,6 +101,7 @@
 				B0FAE68F2EDC4000008493F1 /* SwiftSubtitles */,
 				B0FAE6922EDC5000008493F1 /* ObjectEdge */,
 				B0FAE6952EDC6000008493F1 /* RichText */,
+				B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */,
 			);
 			productName = YouTubeSubtitle;
 			productReference = B0FAE6772EDC249B008493F1 /* YouTubeSubtitle.app */;
@@ -135,6 +138,7 @@
 				B0FAE6902EDC4000008493F1 /* XCRemoteSwiftPackageReference "SwiftSubtitles" */,
 				B0FAE6932EDC5000008493F1 /* XCRemoteSwiftPackageReference "swiftui-object-edge" */,
 				B0FAE6942EDC6000008493F1 /* XCRemoteSwiftPackageReference "RichText" */,
+				B046D4AC2EE324FC00367936 /* XCLocalSwiftPackageReference "Packages/AnyLanguageModelMLX" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0FAE6782EDC249B008493F1 /* Products */;
@@ -296,6 +300,7 @@
 				DEVELOPMENT_TEAM = KU2QEJ9K3Z;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -325,13 +330,14 @@
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = 1;
 				XROS_DEPLOYMENT_TARGET = 26.1;
 			};
 			name = Debug;
@@ -376,13 +382,14 @@
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = 1;
 				XROS_DEPLOYMENT_TARGET = 26.1;
 			};
 			name = Release;
@@ -409,6 +416,13 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		B046D4AC2EE324FC00367936 /* XCLocalSwiftPackageReference "Packages/AnyLanguageModelMLX" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/AnyLanguageModelMLX;
+		};
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		B0FAE6872EDC2500008493F1 /* XCRemoteSwiftPackageReference "YouTubeKit" */ = {
@@ -455,13 +469,17 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/LiYanan2004/RichText";
 			requirement = {
-				kind = branch;
 				branch = main;
+				kind = branch;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AnyLanguageModelMLX;
+		};
 		B0FAE6852EDC2500008493F1 /* YouTubeKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B0FAE6872EDC2500008493F1 /* XCRemoteSwiftPackageReference "YouTubeKit" */;

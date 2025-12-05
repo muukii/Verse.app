@@ -50,6 +50,10 @@ final class LocalVideoPlayerController: VideoPlayerController, Sendable {
     let playerItem = AVPlayerItem(asset: asset)
     self.player = AVPlayer(playerItem: playerItem)
 
+    // Configure background playback policy
+    // .continuesIfPossible allows audio to continue in background
+    self.player.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
+
     // Log the URL being played
     print("[LocalVideoPlayerController] Initializing with URL: \(url.path)")
     print("[LocalVideoPlayerController] URL scheme: \(url.scheme ?? "nil")")
