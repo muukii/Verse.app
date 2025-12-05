@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftSubtitles
 
 /// Observable model for PlayerView that holds frequently updated playback state.
 /// This separates mutable playback state from the view to improve performance
@@ -53,7 +54,12 @@ final class PlayerModel {
   // MARK: - Full Video Loop State
 
   /// Whether the video should loop when it reaches the end
-  var isLoopingEnabled: Bool = false
+  var isLoopingEnabled: Bool = true
+
+  // MARK: - Subtitle State
+
+  /// Current subtitle cues for subtitle-based seeking
+  var cues: [Subtitles.Cue] = []
 
   // MARK: - Computed Properties
 
@@ -127,5 +133,43 @@ final class PlayerModel {
   /// Toggles loop playback
   func toggleLoop() {
     isLoopingEnabled.toggle()
+  }
+
+  // MARK: - Subtitle-based Seeking
+
+  /// Returns the start time of the previous subtitle cue relative to current time.
+  /// - Returns: Start time of the previous cue, or nil if at the beginning
+  func previousSubtitleTime() -> Double? {
+    guard !cues.isEmpty else { return nil }
+
+    // Find the last cue that starts before current time (with small threshold)
+    let threshold = 0.5 // If we're less than 0.5s into current cue, go to previous one
+    let adjustedTime = currentTime - threshold
+
+    // Find all cues before adjusted time
+    let previousCues = cues.filter { $0.startTime.totalSeconds < adjustedTime }
+
+    // Return the last one (most recent)
+    return previousCues.last?.startTime.totalSeconds
+  }
+
+  /// Returns the start time of the next subtitle cue relative to current time.
+  /// - Returns: Start time of the next cue, or nil if at the end
+  func nextSubtitleTime() -> Double? {
+    guard !cues.isEmpty else { return nil }
+
+    // Find the first cue that starts after current time
+    return cues.first(where: { $0.startTime.totalSeconds > currentTime })?.startTime.totalSeconds
+  }
+
+  /// Returns the start time of the current subtitle cue.
+  /// - Returns: Start time of the current cue, or nil if no matching cue
+  func currentSubtitleTime() -> Double? {
+    guard !cues.isEmpty else { return nil }
+
+    // Find the cue that contains current time
+    return cues.first(where: {
+      $0.startTime.totalSeconds <= currentTime && currentTime < $0.endTime.totalSeconds
+    })?.startTime.totalSeconds
   }
 }

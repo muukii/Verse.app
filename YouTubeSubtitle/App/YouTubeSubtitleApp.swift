@@ -12,8 +12,12 @@ import SwiftUI
 struct YouTubeSubtitleApp: App {
 
   let modelContainer: ModelContainer
+  @State private var downloadManager = DownloadManager()
 
   init() {
+    // Configure audio session for video playback (allows audio in silent mode)
+    _ = AudioSessionManager.shared
+
     // Configure ModelContainer with all schemas
     let schema = Schema([
       VideoHistoryItem.self,
@@ -25,20 +29,19 @@ struct YouTubeSubtitleApp: App {
     } catch {
       fatalError("Failed to create ModelContainer: \(error)")
     }
-
-    // Configure DownloadManager
-    DownloadManager.shared.configure(modelContainer: modelContainer)
   }
 
   var body: some Scene {
     WindowGroup {
       ContentView()
         .task {
-          // Restore pending downloads on app launch
-          await DownloadManager.shared.restorePendingDownloads()
+          // Configure and restore pending downloads on app launch
+          downloadManager.configure(modelContainer: modelContainer)
+          await downloadManager.restorePendingDownloads()
         }
     }
     .defaultSize(width: 800, height: 600)
     .modelContainer(modelContainer)
+    .environment(downloadManager)
   }
 }

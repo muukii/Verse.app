@@ -18,6 +18,9 @@ struct PlayerView: View {
   let videoID: String
 
   @Environment(\.modelContext) private var modelContext
+  @Environment(\.scenePhase) private var scenePhase
+  @Environment(DownloadManager.self) private var downloadManager
+  @Environment(VideoHistoryService.self) private var historyService
   @ObjectEdge private var model = PlayerModel()
 
   @State private var playerController: PlayerController?
@@ -35,6 +38,11 @@ struct PlayerView: View {
   @State private var height: CGFloat = 0
   @State private var isShowingSheet: Bool = true
   @State private var isPlayerCollapsed: Bool = false
+
+  // Transcription state
+  @State private var isTranscribing: Bool = false
+  @State private var transcriptionState: TranscriptionService.TranscriptionState = .idle
+  @State private var showTranscriptionSheet: Bool = false
 
   var body: some View {
     if let controller = playerController {
@@ -97,7 +105,9 @@ struct PlayerView: View {
               },
               onForwardSeekIntervalChange: { interval in
                 forwardSeekInterval = interval
-              }
+              },
+              onSubtitleSeekBackward: { seekToPreviousSubtitle(controller: controller) },
+              onSubtitleSeekForward: { seekToNextSubtitle(controller: controller) }
             )
           }
           .background(
@@ -132,14 +142,19 @@ struct PlayerView: View {
               },
               onLocalVideoDeleted: {
                 localFileURL = nil
-              }
+              },
+              onTranscribe: {
+                showTranscriptionSheet = true
+              },
+              isTranscribing: isTranscribing
             )
 
-            Button {
-              showDownloadView = true
-            } label: {
-              Label("Download", systemImage: "arrow.down.circle")
-            }
+            DownloadButton(
+              videoID: videoID,
+              downloadManager: downloadManager,
+              localFileURL: localFileURL,
+              onTap: { showDownloadView = true }
+            )
           }
         }
       }
@@ -148,8 +163,36 @@ struct PlayerView: View {
           DownloadView(videoID: videoID)
         }
       }
+      .sheet(isPresented: $showTranscriptionSheet) {
+        TranscriptionProgressSheet(
+          transcriptionState: transcriptionState,
+          onStart: {
+            transcribeVideo()
+          },
+          onDismiss: {
+            showTranscriptionSheet = false
+          }
+        )
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+      }
       .onDisappear {
         isShowingSheet = false
+        // Stop playback and cancel tracking
+        trackingTask?.cancel()
+        trackingTask = nil
+        if let controller = playerController {
+          Task {
+            await controller.pause()
+          }
+        }
+      }
+      .onChange(of: scenePhase) { oldPhase, newPhase in
+        handleScenePhaseChange(from: oldPhase, to: newPhase)
+      }
+      .onChange(of: currentSubtitles?.cues) { _, newCues in
+        // Update model's cues when subtitles change
+        model.cues = newCues ?? []
       }
     } else {
       ProgressView()
@@ -250,9 +293,7 @@ struct PlayerView: View {
         let subtitles = fetchedTranscripts.toSwiftSubtitles()
 
         // Save to cache
-        if let historyItem = try? modelContext.fetch(descriptor).first {
-          historyItem.cachedSubtitles = subtitles
-        }
+        try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: subtitles)
 
         await MainActor.run {
           currentSubtitles = subtitles
@@ -327,6 +368,22 @@ struct PlayerView: View {
     }
   }
 
+  private func seekToPreviousSubtitle(controller: PlayerController) {
+    Task {
+      if let previousTime = model.previousSubtitleTime() {
+        await controller.seek(to: previousTime)
+      }
+    }
+  }
+
+  private func seekToNextSubtitle(controller: PlayerController) {
+    Task {
+      if let nextTime = model.nextSubtitleTime() {
+        await controller.seek(to: nextTime)
+      }
+    }
+  }
+
   private func togglePlayPause(controller: PlayerController) {
     Task {
       if controller.isPlaying {
@@ -375,6 +432,60 @@ struct PlayerView: View {
     // Start new time tracking
     if let controller = playerController {
       startTrackingTime(controller: controller)
+    }
+  }
+
+  private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
+    guard let controller = playerController else { return }
+
+    // When entering background
+    if newPhase == .background {
+      // Only pause YouTube playback in background
+      // Local video playback continues in background (thanks to AVAudioSession .playback category)
+      if case .youtube = controller {
+        Task {
+          await controller.pause()
+          await MainActor.run {
+            model.isPlaying = false
+          }
+        }
+      }
+      // Local video (.local case) continues playing in background - no action needed
+    }
+  }
+
+  private func transcribeVideo() {
+    guard let fileURL = localFileURL else { return }
+
+    isTranscribing = true
+    transcriptionState = .idle
+
+    Task {
+      do {
+        let subtitles = try await TranscriptionService.shared.transcribe(
+          fileURL: fileURL,
+          locale: Locale(identifier: "en_US")
+        ) { state in
+          transcriptionState = state
+        }
+
+        // Update UI with transcribed subtitles and persist to SwiftData
+        await MainActor.run {
+          currentSubtitles = subtitles
+          subtitleSource = .transcribed
+          isTranscribing = false
+          transcriptionState = .completed
+
+          // Save to SwiftData for persistence across app launches
+          try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: subtitles)
+        }
+
+      } catch {
+        await MainActor.run {
+          transcriptionState = .failed(error.localizedDescription)
+          isTranscribing = false
+        }
+      }
     }
   }
 }
@@ -489,6 +600,8 @@ extension PlayerView {
     let onRateChange: (Double) -> Void
     let onBackwardSeekIntervalChange: (Double) -> Void
     let onForwardSeekIntervalChange: (Double) -> Void
+    let onSubtitleSeekBackward: () -> Void
+    let onSubtitleSeekForward: () -> Void
 
     var body: some View {
       VStack(spacing: 0) {
@@ -518,6 +631,12 @@ extension PlayerView {
           onForwardSeekIntervalChange: onForwardSeekIntervalChange
         )
         .padding(.top, 8)
+
+        SubtitleSeekControls(
+          onBackward: onSubtitleSeekBackward,
+          onForward: onSubtitleSeekForward
+        )
+        .padding(.top, 4)
 
         HStack(spacing: 24) {
           RepeatControls(model: model)
@@ -866,6 +985,37 @@ extension PlayerView {
     }
   }
 
+  // MARK: - SubtitleSeekControls
+
+  struct SubtitleSeekControls: View {
+    let onBackward: () -> Void
+    let onForward: () -> Void
+
+    var body: some View {
+      HStack(spacing: 12) {
+        Text("Subtitle Seek")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        HStack(spacing: 16) {
+          Button(action: onBackward) {
+            Image(systemName: "backward.frame.fill")
+              .font(.system(size: 20))
+              .foregroundStyle(.primary)
+          }
+          .buttonStyle(.glass)
+
+          Button(action: onForward) {
+            Image(systemName: "forward.frame.fill")
+              .font(.system(size: 20))
+              .foregroundStyle(.primary)
+          }
+          .buttonStyle(.glass)
+        }
+      }
+    }
+  }
+
   // MARK: - SubtitleHeader
 
   struct SubtitleHeader: View {
@@ -883,6 +1033,195 @@ extension PlayerView {
           .padding(.horizontal, 16)
           .padding(.vertical, 12)
         }
+      }
+    }
+  }
+
+  // MARK: - TranscriptionProgressSheet
+
+  struct TranscriptionProgressSheet: View {
+    let transcriptionState: TranscriptionService.TranscriptionState
+    let onStart: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+      VStack(spacing: 24) {
+        // Title
+        Text("Transcribe Audio")
+          .font(.headline)
+
+        // State-based content
+        Group {
+          switch transcriptionState {
+          case .idle:
+            VStack(spacing: 16) {
+              Image(systemName: "waveform.badge.mic")
+                .font(.system(size: 48))
+                .foregroundStyle(.blue)
+
+              Text("Convert video audio to subtitles using Apple's Speech Recognition.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+              Button {
+                onStart()
+              } label: {
+                Text("Start Transcription")
+                  .frame(maxWidth: .infinity)
+              }
+              .buttonStyle(.borderedProminent)
+              .padding(.horizontal)
+            }
+
+          case .preparingAssets:
+            VStack(spacing: 16) {
+              ProgressView()
+                .scaleEffect(1.5)
+
+              Text("Preparing speech recognition model...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+
+          case .transcribing(let progress):
+            VStack(spacing: 16) {
+              ProgressView(value: progress) {
+                Text("Transcribing...")
+              } currentValueLabel: {
+                Text("\(Int(progress * 100))%")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+
+              Text("Processing audio...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+
+          case .completed:
+            VStack(spacing: 16) {
+              Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.green)
+
+              Text("Transcription completed successfully!")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+              Button {
+                onDismiss()
+              } label: {
+                Text("Done")
+                  .frame(maxWidth: .infinity)
+              }
+              .buttonStyle(.borderedProminent)
+              .padding(.horizontal)
+            }
+
+          case .failed(let message):
+            VStack(spacing: 16) {
+              Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.orange)
+
+              Text("Transcription failed")
+                .font(.headline)
+
+              Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+              Button {
+                onDismiss()
+              } label: {
+                Text("Close")
+                  .frame(maxWidth: .infinity)
+              }
+              .buttonStyle(.bordered)
+              .padding(.horizontal)
+            }
+          }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+      .padding()
+    }
+  }
+
+  // MARK: - DownloadButton
+
+  struct DownloadButton: View {
+    let videoID: String
+    let downloadManager: DownloadManager
+    let localFileURL: URL?
+    let onTap: () -> Void
+
+    /// Download progress from DownloadManager
+    private var downloadProgress: DownloadProgress? {
+      downloadManager.downloadProgress(for: videoID)
+    }
+
+    /// Check if already downloaded (file exists)
+    private var isDownloaded: Bool {
+      guard let url = localFileURL else { return false }
+      return FileManager.default.fileExists(atPath: url.path)
+    }
+
+    var body: some View {
+      Button(action: onTap) {
+        buttonContent
+      }
+    }
+
+    @ViewBuilder
+    private var buttonContent: some View {
+      if let progress = downloadProgress {
+        // Active download state
+        switch progress.state {
+        case .pending:
+          Label {
+            Text("Pending")
+          } icon: {
+            ProgressView()
+              .scaleEffect(0.8)
+          }
+
+        case .downloading:
+          Label {
+            Text("\(Int(progress.fractionCompleted * 100))%")
+          } icon: {
+            ZStack {
+              Circle()
+                .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+              Circle()
+                .trim(from: 0, to: progress.fractionCompleted)
+                .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            }
+            .frame(width: 18, height: 18)
+          }
+
+        case .paused:
+          Label("Paused", systemImage: "pause.circle.fill")
+            .foregroundStyle(.gray)
+
+        case .completed:
+          Label("Downloaded", systemImage: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+
+        case .failed, .cancelled:
+          Label("Retry", systemImage: "exclamationmark.circle")
+            .foregroundStyle(.orange)
+        }
+      } else if isDownloaded {
+        // Already downloaded (persisted)
+        Label("Downloaded", systemImage: "checkmark.circle.fill")
+          .foregroundStyle(.green)
+      } else {
+        // Not downloaded
+        Label("Download", systemImage: "arrow.down.circle")
       }
     }
   }
@@ -908,12 +1247,14 @@ enum SubtitleSource {
   case youtube
   case imported
   case saved
+  case transcribed
 
   var displayName: String {
     switch self {
     case .youtube: return "YouTube"
     case .imported: return "Imported"
     case .saved: return "Saved"
+    case .transcribed: return "Transcribed"
     }
   }
 }

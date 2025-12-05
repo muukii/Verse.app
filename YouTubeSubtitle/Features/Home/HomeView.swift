@@ -10,7 +10,8 @@ import SwiftData
 import AppIntents
 
 struct HomeView: View {
-  @Environment(\.modelContext) private var modelContext
+  @Environment(VideoHistoryService.self) private var historyService
+  @Environment(DownloadManager.self) private var downloadManager
   @Query(sort: \VideoHistoryItem.timestamp, order: .reverse) private var history: [VideoHistoryItem]
 
   @State private var selectedVideoID: String?
@@ -46,17 +47,18 @@ struct HomeView: View {
               } label: {
                 VideoHistoryCell(
                   item: item,
-                  namespace: heroNamespace
+                  namespace: heroNamespace,
+                  downloadManager: downloadManager
                 )
               }
               .buttonStyle(.plain)
             }
             .onDelete { indexSet in
-              for index in indexSet {
-                let item = history[index]
-                // Cancel any active downloads for this video
-                DownloadManager.shared.cancelDownloads(for: item.videoID)
-                modelContext.delete(item)
+              Task {
+                for index in indexSet {
+                  let item = history[index]
+                  try? await historyService.deleteHistoryItem(item)
+                }
               }
             }
           }
@@ -76,7 +78,9 @@ struct HomeView: View {
         if !history.isEmpty {
           ToolbarItem(placement: .secondaryAction) {
             Button(role: .destructive) {
-              clearHistory()
+              Task {
+                try? await historyService.clearAllHistory()
+              }
             } label: {
               Label("Clear History", systemImage: "trash")
             }
@@ -108,7 +112,10 @@ struct HomeView: View {
         NavigationStack {
           YouTubeWebView { videoID in
             Task {
-              await addToHistory(videoID: videoID, url: "https://www.youtube.com/watch?v=\(videoID)")
+              try? await historyService.addToHistory(
+                videoID: videoID,
+                url: "https://www.youtube.com/watch?v=\(videoID)"
+              )
             }
             showWebView = false
             selectedVideoID = videoID
@@ -154,7 +161,7 @@ struct HomeView: View {
     // Extract video ID and navigate to player
     if let videoID = YouTubeURLParser.extractVideoID(from: url) {
       Task {
-        await addToHistory(videoID: videoID, url: urlText)
+        try? await historyService.addToHistory(videoID: videoID, url: urlText)
       }
       selectedVideoID = videoID
     }
@@ -164,46 +171,9 @@ struct HomeView: View {
     let demoVideoID = "JKpsGXPqMd8"
     let demoURL = "https://www.youtube.com/watch?v=\(demoVideoID)"
     Task {
-      await addToHistory(videoID: demoVideoID, url: demoURL)
+      try? await historyService.addToHistory(videoID: demoVideoID, url: demoURL)
     }
     selectedVideoID = demoVideoID
-  }
-  
-  private func addToHistory(videoID: String, url: String) async {
-    // メタデータを取得
-    let metadata = await VideoMetadataFetcher.fetch(videoID: videoID)
-    
-    // 既存の同じvideoIDを削除（重複防止）
-    let existingItems = history.filter { $0.videoID == videoID }
-    for item in existingItems {
-      modelContext.delete(item)
-    }
-    
-    // 新しいアイテムを追加
-    let newItem = VideoHistoryItem(
-      videoID: videoID,
-      url: url,
-      title: metadata.title,
-      author: metadata.author,
-      thumbnailURL: metadata.thumbnailURL
-    )
-    modelContext.insert(newItem)
-    
-    // 最大50件を超えたら古いものを削除
-    if history.count > 50 {
-      let itemsToDelete = history.suffix(history.count - 50)
-      for item in itemsToDelete {
-        modelContext.delete(item)
-      }
-    }
-  }
-  
-  private func clearHistory() {
-    for item in history {
-      // Cancel any active downloads
-      DownloadManager.shared.cancelDownloads(for: item.videoID)
-      modelContext.delete(item)
-    }
   }
   
   private func formatDate(_ date: Date) -> String {
@@ -218,10 +188,11 @@ struct HomeView: View {
 struct VideoHistoryCell: View {
   let item: VideoHistoryItem
   let namespace: Namespace.ID
+  let downloadManager: DownloadManager
 
   /// Download progress from DownloadManager
   private var downloadProgress: DownloadProgress? {
-    DownloadManager.shared.downloadProgress(for: item.videoID)
+    downloadManager.downloadProgress(for: item.videoID)
   }
 
   var body: some View {
@@ -250,14 +221,11 @@ struct VideoHistoryCell: View {
             .font(.caption2)
             .foregroundStyle(.tertiary)
 
-          // Show download status text
+          // Show download status text (only for active downloads)
           if let progress = downloadProgress {
             downloadStatusText(for: progress)
-          } else if item.downloadedFileName != nil {
-            Text("Downloaded")
-              .font(.caption2)
-              .foregroundStyle(.green)
           }
+          // Note: Already downloaded state is shown via badge only (no redundant text)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -288,6 +256,14 @@ struct VideoHistoryCell: View {
           .background(Circle().fill(.white).padding(2))
           .padding(4)
 
+      case .paused:
+        // Paused indicator
+        Image(systemName: "pause.circle.fill")
+          .font(.system(size: 20))
+          .foregroundStyle(.gray)
+          .background(Circle().fill(.white).padding(2))
+          .padding(4)
+
       case .failed, .cancelled:
         Image(systemName: "exclamationmark.circle.fill")
           .font(.system(size: 20))
@@ -297,9 +273,9 @@ struct VideoHistoryCell: View {
       }
     } else if item.downloadedFileName != nil {
       // Already downloaded (persisted)
-      Image(systemName: "arrow.down.circle.fill")
+      Image(systemName: "checkmark.circle.fill")
         .font(.system(size: 20))
-        .foregroundStyle(.blue)
+        .foregroundStyle(.green)
         .background(Circle().fill(.white).padding(2))
         .padding(4)
     }
@@ -328,6 +304,10 @@ struct VideoHistoryCell: View {
       Text("Cancelled")
         .font(.caption2)
         .foregroundStyle(.orange)
+    case .paused:
+      Text("Paused")
+        .font(.caption2)
+        .foregroundStyle(.gray)
     }
   }
 

@@ -19,6 +19,7 @@ final class TranscriptionService {
   // MARK: - Types
 
   enum TranscriptionError: LocalizedError {
+    case notAvailable
     case unsupportedLocale(Locale)
     case assetInstallationFailed(any Error)
     case audioFileCreationFailed(any Error)
@@ -27,6 +28,8 @@ final class TranscriptionService {
 
     var errorDescription: String? {
       switch self {
+      case .notAvailable:
+        return "Speech transcription is not available on this device. Please use a physical device with iOS 26 or later."
       case .unsupportedLocale(let locale):
         return "Language '\(locale.identifier)' is not supported for transcription"
       case .assetInstallationFailed(let error):
@@ -73,14 +76,24 @@ final class TranscriptionService {
     locale: Locale = .current,
     onStateChange: @escaping @MainActor (TranscriptionState) -> Void
   ) async throws -> Subtitles {
+    // 0. Check device availability (not available on Simulator)
+    guard SpeechTranscriber.isAvailable else {
+      throw TranscriptionError.notAvailable
+    }
+
     // 1. Check supported locale
     guard let supportedLocale = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
       throw TranscriptionError.unsupportedLocale(locale)
     }
 
-    // 2. Create transcriber with appropriate preset
-    // Using .transcription for accurate offline transcription of recorded audio
-    let transcriber = SpeechTranscriber(locale: supportedLocale, preset: .transcription)
+    // 2. Create transcriber with explicit options to include timing information
+    // Must specify attributeOptions: [.audioTimeRange] to get timing data in results
+    let transcriber = SpeechTranscriber(
+      locale: supportedLocale,
+      transcriptionOptions: [],
+      reportingOptions: [],
+      attributeOptions: [.audioTimeRange]
+    )
 
     // 3. Install assets if needed (offline model download)
     onStateChange(.preparingAssets)
@@ -121,28 +134,39 @@ final class TranscriptionService {
           let text = String(result.text.characters)
 
           // Extract time range from AttributedString runs
-          var startSeconds: Double = 0
-          var endSeconds: Double = 0
+          // We need to find the earliest start time and latest end time across all runs
+          var startSeconds: Double?
+          var endSeconds: Double?
 
           for run in result.text.runs {
             if let timeRange = run.audioTimeRange {
-              startSeconds = timeRange.start.seconds
-              endSeconds = timeRange.end.seconds
-              break
+              let runStart = timeRange.start.seconds
+              let runEnd = timeRange.end.seconds
+
+              if startSeconds == nil || runStart < startSeconds! {
+                startSeconds = runStart
+              }
+              if endSeconds == nil || runEnd > endSeconds! {
+                endSeconds = runEnd
+              }
             }
           }
 
+          // Use 0 as fallback if no timing info available
+          let finalStartSeconds = startSeconds ?? 0
+          let finalEndSeconds = endSeconds ?? 0
+
           let cue = Subtitles.Cue(
             position: position,
-            startTime: Subtitles.Time(timeInSeconds: startSeconds),
-            endTime: Subtitles.Time(timeInSeconds: endSeconds),
+            startTime: Subtitles.Time(timeInSeconds: finalStartSeconds),
+            endTime: Subtitles.Time(timeInSeconds: finalEndSeconds),
             text: text
           )
           cues.append(cue)
 
           // Update progress based on end time
-          if totalDuration > 0 {
-            let progress = min(endSeconds / totalDuration, 1.0)
+          if totalDuration > 0 && finalEndSeconds > 0 {
+            let progress = min(finalEndSeconds / totalDuration, 1.0)
             onStateChange(.transcribing(progress: progress))
           }
         }

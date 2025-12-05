@@ -192,6 +192,9 @@ private struct SubtitleScrollContent: View {
                 onAction(.setRepeatA(time: cue.startTimeSeconds))
               case .setRepeatB:
                 onAction(.setRepeatB(time: cue.endTimeSeconds))
+              case .explain:
+                // Handled internally by SubtitleRowView
+                break
               }
             }
           )
@@ -211,11 +214,14 @@ struct SubtitleRowView: View {
     case tap
     case setRepeatA
     case setRepeatB
+    case explain
   }
 
   let cue: Subtitles.Cue
   let isCurrent: Bool
   let onAction: (Action) -> Void
+
+  @State private var showExplanationSheet = false
 
   var body: some View {
     HStack(alignment: .top, spacing: 8) {
@@ -240,6 +246,9 @@ struct SubtitleRowView: View {
       .font(.subheadline)
       .foregroundStyle(isCurrent ? .primary : .secondary)
       .frame(maxWidth: .infinity, alignment: .leading)
+      .onTapGesture {
+        onAction(.tap)
+      }
 
       // Menu button for actions
       Menu {
@@ -253,6 +262,15 @@ struct SubtitleRowView: View {
         } label: {
           Label("Copy", systemImage: "doc.on.doc")
         }
+
+        Button {
+          showExplanationSheet = true
+          onAction(.explain)
+        } label: {
+          Label("Explain", systemImage: "sparkles")
+        }
+
+        Divider()
 
         Button {
           onAction(.setRepeatA)
@@ -273,6 +291,12 @@ struct SubtitleRowView: View {
           .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
+    }
+    .sheet(isPresented: $showExplanationSheet) {
+      WordExplanationSheet(
+        text: cue.text.htmlDecoded,
+        context: cue.text.htmlDecoded
+      )
     }
     .padding(.vertical, 10)
     .padding(.horizontal, 12)
