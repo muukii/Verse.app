@@ -1,5 +1,5 @@
 {
-  "originHash" : "5b6197c8c50f13928091b13321e09d987ca74ea788480b1784967ef6fbcf29ce",
+  "originHash" : "4ebf9418f56664d3da89610eae01c184ee10c3156c2b803e3741a6d21b779a09",
   "pins" : [
     {
       "identity" : "anylanguagemodel",
@@ -53,6 +53,15 @@
       "state" : {
         "branch" : "main",
         "revision" : "051c3e1b663335ac615184589b2d7548aadce388"
+      }
+    },
+    {
+      "identity" : "nuke",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kean/Nuke.git",
+      "state" : {
+        "revision" : "0ead44350d2737db384908569c012fe67c421e4d",
+        "version" : "12.8.0"
       }
     },
     {
@@ -146,6 +155,15 @@
       }
     },
     {
+      "identity" : "swiftui-async-multiplex-image",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FluidGroup/swiftui-async-multiplex-image.git",
+      "state" : {
+        "revision" : "2c0dc7bd7dd7fa51b4161b6ae6b15ff59412f2c2",
+        "version" : "1.0.0"
+      }
+    },
+    {
       "identity" : "swiftui-introspect",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/siteline/swiftui-introspect",
@@ -170,6 +188,15 @@
       "state" : {
         "revision" : "835f6d46d5fbfb844a9ef79fb2a8bb6067f07129",
         "version" : "0.2.0"
+      }
+    },
+    {
+      "identity" : "swiftui-support",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FluidGroup/swiftui-support.git",
+      "state" : {
+        "revision" : "fbc3f1770889f74818a56eea3d7099a0d3a9c5e1",
+        "version" : "0.13.0"
       }
     },
     {

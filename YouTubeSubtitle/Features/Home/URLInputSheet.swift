@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import AsyncMultiplexImage
+import AsyncMultiplexImage_Nuke
 
 struct URLInputSheet: View {
   @Environment(\.dismiss) private var dismiss
@@ -111,14 +113,10 @@ struct URLInputSheet: View {
         // Thumbnail
         if let thumbnailURLString = metadata.thumbnailURL,
            let thumbnailURL = URL(string: thumbnailURLString) {
-          AsyncImage(url: thumbnailURL) { image in
-            image
-              .resizable()
-              .aspectRatio(contentMode: .fill)
-          } placeholder: {
-            Rectangle()
-              .fill(Color.gray.opacity(0.3))
-          }
+          AsyncMultiplexImageNuke(
+            imageRepresentation: .remote(.init(constant: thumbnailURL))
+          )
+          .aspectRatio(contentMode: .fill)
           .frame(width: 100, height: 56)
           .clipShape(RoundedRectangle(cornerRadius: 8))
         }

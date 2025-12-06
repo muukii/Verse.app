@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B00C03192EE47DEF00FA7361 /* AsyncMultiplexImage in Frameworks */ = {isa = PBXBuildFile; productRef = B00C03182EE47DEF00FA7361 /* AsyncMultiplexImage */; };
+		B00C031B2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = B00C031A2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke */; };
 		B00CF0B12EE43A3700FA7361 /* TypedIdentifier in Frameworks */ = {isa = PBXBuildFile; productRef = B00CF0B02EE43A3700FA7361 /* TypedIdentifier */; };
 		B046D4AE2EE324FC00367936 /* AnyLanguageModelMLX in Frameworks */ = {isa = PBXBuildFile; productRef = B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */; };
 		B07A2DA52EE42AE800E05A39 /* SwiftUIRingSlider in Frameworks */ = {isa = PBXBuildFile; productRef = B07A2DA42EE42AE800E05A39 /* SwiftUIRingSlider */; };
@@ -48,6 +50,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B00C03192EE47DEF00FA7361 /* AsyncMultiplexImage in Frameworks */,
 				B0FAE6862EDC2500008493F1 /* YouTubeKit in Frameworks */,
 				B00CF0B12EE43A3700FA7361 /* TypedIdentifier in Frameworks */,
 				B0FAE68A2EDC2600008493F1 /* YouTubePlayerKit in Frameworks */,
@@ -57,6 +60,7 @@
 				B0FAE6962EDC6000008493F1 /* RichText in Frameworks */,
 				B046D4AE2EE324FC00367936 /* AnyLanguageModelMLX in Frameworks */,
 				B07A2DA52EE42AE800E05A39 /* SwiftUIRingSlider in Frameworks */,
+				B00C031B2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -108,6 +112,8 @@
 				B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */,
 				B07A2DA42EE42AE800E05A39 /* SwiftUIRingSlider */,
 				B00CF0B02EE43A3700FA7361 /* TypedIdentifier */,
+				B00C03182EE47DEF00FA7361 /* AsyncMultiplexImage */,
+				B00C031A2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke */,
 			);
 			productName = YouTubeSubtitle;
 			productReference = B0FAE6772EDC249B008493F1 /* YouTubeSubtitle.app */;
@@ -147,6 +153,7 @@
 				B046D4AC2EE324FC00367936 /* XCLocalSwiftPackageReference "Packages/AnyLanguageModelMLX" */,
 				B07A2DA32EE42AE800E05A39 /* XCRemoteSwiftPackageReference "swiftui-ring-slider" */,
 				B00CF0AF2EE43A3700FA7361 /* XCRemoteSwiftPackageReference "swift-typed-identifier" */,
+				B00C03172EE47DEF00FA7361 /* XCRemoteSwiftPackageReference "swiftui-async-multiplex-image" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0FAE6782EDC249B008493F1 /* Products */;
@@ -433,6 +440,14 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		B00C03172EE47DEF00FA7361 /* XCRemoteSwiftPackageReference "swiftui-async-multiplex-image" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidGroup/swiftui-async-multiplex-image.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 		B00CF0AF2EE43A3700FA7361 /* XCRemoteSwiftPackageReference "swift-typed-identifier" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/VergeGroup/swift-typed-identifier.git";
@@ -500,6 +515,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		B00C03182EE47DEF00FA7361 /* AsyncMultiplexImage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B00C03172EE47DEF00FA7361 /* XCRemoteSwiftPackageReference "swiftui-async-multiplex-image" */;
+			productName = AsyncMultiplexImage;
+		};
+		B00C031A2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B00C03172EE47DEF00FA7361 /* XCRemoteSwiftPackageReference "swiftui-async-multiplex-image" */;
+			productName = "AsyncMultiplexImage-Nuke";
+		};
 		B00CF0B02EE43A3700FA7361 /* TypedIdentifier */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B00CF0AF2EE43A3700FA7361 /* XCRemoteSwiftPackageReference "swift-typed-identifier" */;
