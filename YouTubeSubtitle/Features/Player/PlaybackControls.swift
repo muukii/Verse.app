@@ -34,7 +34,7 @@ struct PlayerControls: View {
         duration: model.duration,
         onSeek: onSeek
       )
-      .padding(.horizontal, 16)
+      .padding(.horizontal, 20)
       .padding(.top, 12)
 
       PlaybackButtonsControl(
@@ -62,6 +62,7 @@ struct PlayerControls: View {
         .padding(.bottom, 16)
         .animation(.smooth(duration: 0.3), value: controlsMode)
     }
+    
   }
 
   @ViewBuilder
@@ -127,15 +128,16 @@ extension PlayerControls {
     private var timeDisplay: some View {
       HStack {
         Text(formatTime(displayTime))
-          .font(.system(.caption, design: .monospaced))
+          .font(.system(.caption, design: .default).monospacedDigit())
           .foregroundStyle(.secondary)
 
         Spacer()
 
         Text(formatTime(duration))
-          .font(.system(.caption, design: .monospaced))
+          .font(.system(.caption, design: .default).monospacedDigit())
           .foregroundStyle(.secondary)
       }
+      .padding(.horizontal, 4)
     }
 
     private func formatTime(_ seconds: Double) -> String {
@@ -205,10 +207,10 @@ extension PlayerControls {
               onChange: onForwardSeekIntervalChange
             )
           }
-          
+                    
         }
-     
-              
+        .tint(.black)
+                   
       }
       .padding(.horizontal, 20)
     }
@@ -387,8 +389,6 @@ extension PlayerControls {
             .font(.headline)
           Spacer()
           Button("Done", action: onDone)
-            .buttonStyle(.borderedProminent)
-            .tint(.blue)
         }
         
         // A-B RingSlider row
@@ -468,56 +468,59 @@ extension PlayerControls {
         }
       }
     }
-  }
-  
-  // MARK: - RingSliderPointControl
-  
-  struct RingSliderPointControl: View {
-    let labelImage: Image
-    @Binding var value: Double
-    let duration: Double
-    let onSetToCurrent: () -> Void
-    let currentButtonImage: Image
     
-    var body: some View {
-      VStack(spacing: 8) {
-        
-        labelImage
-        
-        Text(formatTime(value))
-          .font(.system(.caption, design: .rounded, weight: .medium))
-        
-        RingSlider(
-          value: $value,
-          stride: 0.25,
-          valueRange: 0...max(1, duration)
-        )
-        .frame(height: 120)
-        
-        Button {
-          onSetToCurrent()
-        } label: {
-          currentButtonImage
-        }
-        .tint(.secondary)
-        .buttonStyle(.bordered)
-      }
-      .padding(.vertical, 8)
-    }
     
-    private func formatTime(_ seconds: Double) -> String {
-      let totalSeconds = Int(seconds)
-      let hours = totalSeconds / 3600
-      let minutes = (totalSeconds % 3600) / 60
-      let secs = totalSeconds % 60
-      let millis = Int((seconds - Double(totalSeconds)) * 1000)
+    // MARK: - RingSliderPointControl
+    
+    struct RingSliderPointControl: View {
+      let labelImage: Image
+      @Binding var value: Double
+      let duration: Double
+      let onSetToCurrent: () -> Void
+      let currentButtonImage: Image
       
-      if hours > 0 {
-        return String(format: "%d:%02d:%02d.%03d", hours, minutes, secs, millis)
-      } else {
-        return String(format: "%d:%02d.%03d", minutes, secs, millis)
+      var body: some View {
+        VStack(spacing: 8) {
+          
+          labelImage
+          
+          Text(formatTime(value))
+            .font(.system(.caption, design: .rounded, weight: .medium))
+          
+          RingSlider(
+            value: $value,
+            stride: 0.25,
+            valueRange: 0...max(1, duration)
+          )
+          .frame(height: 60)
+          .foregroundStyle(.black)
+          
+          Button {
+            onSetToCurrent()
+          } label: {
+            currentButtonImage
+          }
+          .tint(.secondary)
+          .buttonStyle(.bordered)
+        }
+        .padding(.vertical, 8)
+      }
+      
+      private func formatTime(_ seconds: Double) -> String {
+        let totalSeconds = Int(seconds)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let secs = totalSeconds % 60
+        let millis = Int((seconds - Double(totalSeconds)) * 1000)
+        
+        if hours > 0 {
+          return String(format: "%d:%02d:%02d.%03d", hours, minutes, secs, millis)
+        } else {
+          return String(format: "%d:%02d.%03d", minutes, secs, millis)
+        }
       }
     }
+    
   }
   
   // MARK: - NormalModeControls
@@ -549,26 +552,23 @@ extension PlayerControls {
     
     var body: some View {
       HStack(spacing: 12) {
-        Text("Subtitle Seek")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        
+               
         HStack(spacing: 16) {
           Button(action: onBackward) {
             Image(systemName: "backward.frame.fill")
               .font(.system(size: 20))
               .foregroundStyle(.primary)
           }
-          .buttonStyle(.glass)
           
           Button(action: onForward) {
             Image(systemName: "forward.frame.fill")
               .font(.system(size: 20))
               .foregroundStyle(.primary)
           }
-          .buttonStyle(.glass)
+
         }
       }
+      .tint(.black)
     }
   }
 }
