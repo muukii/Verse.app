@@ -3,15 +3,17 @@ import SwiftData
 import SwiftSubtitles
 import TypedIdentifier
 
+// MARK: - Video Item
+
 @Model
 final class VideoItem: TypedIdentifiable {
-  
+
   typealias TypedIdentifierRawValue = UUID
-  
+
   var typedID: TypedIdentifier<VideoItem> {
     .init(id)
   }
-  
+
   var id: UUID
 
   // Database storage (primitive String for SwiftData optimization)
@@ -35,6 +37,20 @@ final class VideoItem: TypedIdentifiable {
 
   // Downloaded file (relative path from Documents directory)
   var downloadedFileName: String?
+
+  // MARK: - Download State Relationship
+
+  /// Active download state (exists only during download).
+  /// When download completes, fails, or is cancelled, this entity is deleted.
+  @Relationship(deleteRule: .cascade, inverse: \DownloadStateEntity.videoItem)
+  var downloadState: DownloadStateEntity?
+
+  // MARK: - Computed Download Properties
+
+  /// Whether there is an active download in progress
+  var hasActiveDownload: Bool {
+    downloadState != nil
+  }
 
   /// Whether the video has been downloaded
   var isDownloaded: Bool {
@@ -79,7 +95,3 @@ final class VideoItem: TypedIdentifiable {
     self.timestamp = Date()
   }
 }
-
-// MARK: - Type Alias for Migration
-/// @available(*, deprecated, renamed: "VideoItem")
-typealias VideoHistoryItem = VideoItem

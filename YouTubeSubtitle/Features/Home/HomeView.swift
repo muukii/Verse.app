@@ -8,6 +8,8 @@
 import SwiftUI
 import SwiftData
 import AppIntents
+import AsyncMultiplexImage
+import AsyncMultiplexImage_Nuke
 
 struct HomeView: View {
   @Environment(\.modelContext) private var modelContext
@@ -289,14 +291,6 @@ struct VideoHistoryCell: View {
           .background(Circle().fill(.white).padding(2))
           .padding(4)
 
-      case .paused:
-        // Paused indicator
-        Image(systemName: "pause.circle.fill")
-          .font(.system(size: 20))
-          .foregroundStyle(.gray)
-          .background(Circle().fill(.white).padding(2))
-          .padding(4)
-
       case .failed, .cancelled:
         Image(systemName: "exclamationmark.circle.fill")
           .font(.system(size: 20))
@@ -337,10 +331,6 @@ struct VideoHistoryCell: View {
       Text("Cancelled")
         .font(.caption2)
         .foregroundStyle(.orange)
-    case .paused:
-      Text("Paused")
-        .font(.caption2)
-        .foregroundStyle(.gray)
     }
   }
 
@@ -348,14 +338,10 @@ struct VideoHistoryCell: View {
   private var thumbnailView: some View {
     if let thumbnailURLString = item.thumbnailURL,
        let thumbnailURL = URL(string: thumbnailURLString) {
-      AsyncImage(url: thumbnailURL) { image in
-        image
-          .resizable()
-          .aspectRatio(contentMode: .fill)
-      } placeholder: {
-        Rectangle()
-          .fill(Color.gray.opacity(0.3))
-      }
+      AsyncMultiplexImageNuke(
+        imageRepresentation: .remote(.init(constant: thumbnailURL))
+      )
+      .aspectRatio(contentMode: .fill)
       .frame(width: 120, height: 68)
       .clipShape(RoundedRectangle(cornerRadius: 8))
     } else {

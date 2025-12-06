@@ -53,8 +53,6 @@ struct DownloadView: View {
     switch progress.state {
     case .pending, .downloading:
       return .downloading(progress.fractionCompleted)
-    case .paused:
-      return .paused(progress.fractionCompleted)
     case .completed:
       return .completed
     case .failed:
@@ -67,7 +65,6 @@ struct DownloadView: View {
   enum ViewDownloadState: Equatable {
     case idle
     case downloading(Double)
-    case paused(Double)
     case completed
     case alreadyDownloaded
     case failed(String)
@@ -248,33 +245,6 @@ struct DownloadView: View {
         .background(Color.green.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
 
-      case .paused(let progress):
-        VStack(spacing: 8) {
-          ProgressView(value: progress)
-            .tint(.gray)
-          HStack {
-            Text("Paused")
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
-            Spacer()
-            Text("\(Int(progress * 100))%")
-              .font(.subheadline.monospacedDigit())
-              .foregroundStyle(.secondary)
-          }
-
-          // Resume button
-          Button {
-            resumeDownload()
-          } label: {
-            Text("Resume")
-              .font(.subheadline)
-              .foregroundStyle(.blue)
-          }
-        }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-
       case .failed(let message):
         HStack(spacing: 12) {
           Image(systemName: "xmark.circle.fill")
@@ -420,8 +390,6 @@ struct DownloadView: View {
       return "Download"
     case .downloading:
       return "Downloading..."
-    case .paused:
-      return "Resume"
     case .completed, .alreadyDownloaded:
       return "Downloaded"
     case .failed:
@@ -432,7 +400,7 @@ struct DownloadView: View {
   private var canDownload: Bool {
     guard selectedStream != nil else { return false }
     switch downloadState {
-    case .idle, .failed, .paused:
+    case .idle, .failed:
       return true
     case .downloading, .completed, .alreadyDownloaded:
       return false
@@ -491,11 +459,6 @@ struct DownloadView: View {
 
   private func cancelDownload() {
     downloadManager.cancelDownloads(for: videoID)
-  }
-
-  private func resumeDownload() {
-    guard let progress = currentProgress else { return }
-    downloadManager.resumeDownload(recordID: progress.recordID)
   }
 
   private func startTranscription(fileURL: URL) async {

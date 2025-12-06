@@ -21,7 +21,7 @@ struct YouTubeSubtitleApp: App {
     // Configure ModelContainer with all schemas
     let schema = Schema([
       VideoItem.self,
-      DownloadRecord.self,
+      DownloadStateEntity.self,
     ])
 
     do {

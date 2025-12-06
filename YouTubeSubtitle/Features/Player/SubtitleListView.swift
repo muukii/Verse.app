@@ -275,6 +275,12 @@ struct SubtitleListView: View {
           proxy.scrollTo(newID, anchor: .center)
         }
       }
+      .onChange(of: isTrackingEnabled) { _, isEnabled in
+        guard isEnabled, let currentCueID else { return }
+        withAnimation(.bouncy) {
+          proxy.scrollTo(currentCueID, anchor: .center)
+        }
+      }
     }
   }
 }

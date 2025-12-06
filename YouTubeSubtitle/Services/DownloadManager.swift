@@ -11,10 +11,22 @@ import SwiftData
 import TypedIdentifier
 import YouTubeKit
 
+// MARK: - Download State (for UI)
+
+/// UI state representation for downloads.
+/// Note: This is different from DownloadStateEntity.Status which is for persistence.
+enum DownloadState: String, Sendable {
+  case pending
+  case downloading
+  case completed
+  case failed
+  case cancelled
+}
+
 // MARK: - Download Progress
 
 struct DownloadProgress: Sendable {
-  let recordID: TypedIdentifier<DownloadRecord>
+  let itemID: TypedIdentifier<VideoItem>
   let videoID: YouTubeContentID
   let videoTitle: String?
   var fractionCompleted: Double
@@ -29,6 +41,8 @@ enum DownloadError: LocalizedError {
   case noData
   case fileWriteFailed(any Error)
   case cancelled
+  case videoItemNotFound
+  case downloadStateNotFound
 
   var errorDescription: String? {
     switch self {
@@ -42,6 +56,10 @@ enum DownloadError: LocalizedError {
       return "Failed to save file: \(error.localizedDescription)"
     case .cancelled:
       return "Download was cancelled"
+    case .videoItemNotFound:
+      return "Video item not found"
+    case .downloadStateNotFound:
+      return "Download state not found"
     }
   }
 }
@@ -131,10 +149,10 @@ final class DownloadManager: Sendable {
   // MARK: - Observable State
 
   /// Active downloads with their progress (for UI observation)
-  private(set) var activeDownloads: [TypedIdentifier<DownloadRecord>: DownloadProgress] = [:]
+  private(set) var activeDownloads: [TypedIdentifier<VideoItem>: DownloadProgress] = [:]
 
   /// Pending downloads in queue
-  private(set) var pendingRecordIDs: [TypedIdentifier<DownloadRecord>] = []
+  private(set) var pendingItemIDs: [TypedIdentifier<VideoItem>] = []
 
   // MARK: - Constants
 
@@ -146,8 +164,8 @@ final class DownloadManager: Sendable {
   private let scheduler = BGTaskScheduler.shared
   private let modelContainer: ModelContainer
   private var activeTask: BGContinuedProcessingTask?
-  private var downloadTasks: [TypedIdentifier<DownloadRecord>: Task<Void, Never>] = [:]
-  private var urlSessionTasks: [TypedIdentifier<DownloadRecord>: URLSessionDownloadTask] = [:]
+  private var downloadTasks: [TypedIdentifier<VideoItem>: Task<Void, Never>] = [:]
+  private var urlSessionTasks: [TypedIdentifier<VideoItem>: URLSessionDownloadTask] = [:]
   private var isTaskRegistered = false
 
   // MARK: - Initialization
@@ -161,153 +179,91 @@ final class DownloadManager: Sendable {
   // MARK: - Public API
 
   /// Queue a new download for the specified video and stream.
-  /// Returns the record ID for tracking.
+  /// Returns the VideoItem ID for tracking.
   @discardableResult
   func queueDownload(
     videoID: YouTubeContentID,
     stream: YouTubeKit.Stream
-  ) async throws -> TypedIdentifier<DownloadRecord> {
+  ) async throws -> TypedIdentifier<VideoItem> {
 
-    // Fetch video title from VideoItem
+    // Fetch VideoItem
     let context = ModelContext(modelContainer)
     let videoIDRaw = videoID.rawValue
-    let historyDescriptor = FetchDescriptor<VideoItem>(
+    let descriptor = FetchDescriptor<VideoItem>(
       predicate: #Predicate { $0._videoID == videoIDRaw }
     )
-    let videoTitle = try? context.fetch(historyDescriptor).first?.title
+    guard let item = try? context.fetch(descriptor).first else {
+      throw DownloadError.videoItemNotFound
+    }
 
-    // Create download record
-    let record = DownloadRecord(
-      videoID: videoID,
+    // Create DownloadStateEntity and attach to VideoItem
+    let entity = DownloadStateEntity(
       streamURL: stream.url.absoluteString,
-      fileExtension: stream.fileExtension.rawValue,
-      resolution: stream.videoResolution
+      fileExtension: stream.fileExtension.rawValue
     )
+    item.downloadState = entity
+    context.insert(entity)
 
-    // Save to SwiftData
-    context.insert(record)
     try context.save()
 
-    let recordID = record.typedID
+    let itemID = item.typedID
 
     // Update observable state
-    activeDownloads[recordID] = DownloadProgress(
-      recordID: recordID,
+    activeDownloads[itemID] = DownloadProgress(
+      itemID: itemID,
       videoID: videoID,
-      videoTitle: videoTitle,
+      videoTitle: item.title,
       fractionCompleted: 0,
       state: .pending
     )
-    pendingRecordIDs.append(recordID)
+    pendingItemIDs.append(itemID)
 
     // Try to submit BGTask, fall back to foreground download if unavailable
     do {
-      try submitTask(for: recordID)
+      try submitTask(for: itemID)
     } catch {
       // BGTask unavailable (e.g., simulator), run foreground download
       print("BGTask unavailable, falling back to foreground download: \(error)")
-      startDownload(recordID: recordID, bgTask: nil)
+      startDownload(itemID: itemID, bgTask: nil)
     }
 
-    return recordID
+    return itemID
   }
 
   /// Cancel a specific download.
-  func cancelDownload(recordID: TypedIdentifier<DownloadRecord>) {
+  func cancelDownload(itemID: TypedIdentifier<VideoItem>) {
     // Cancel the URLSession download task
-    urlSessionTasks[recordID]?.cancel()
-    urlSessionTasks[recordID] = nil
+    urlSessionTasks[itemID]?.cancel()
+    urlSessionTasks[itemID] = nil
 
     // Cancel the Swift Task
-    downloadTasks[recordID]?.cancel()
-    downloadTasks[recordID] = nil
+    downloadTasks[itemID]?.cancel()
+    downloadTasks[itemID] = nil
 
-    // Update state
+    // Delete DownloadStateEntity
     Task {
-      await updateRecordState(recordID: recordID, state: .cancelled)
+      await deleteDownloadState(itemID: itemID)
     }
 
     // Remove from active downloads
-    activeDownloads.removeValue(forKey: recordID)
-    pendingRecordIDs.removeAll { $0 == recordID }
+    activeDownloads.removeValue(forKey: itemID)
+    pendingItemIDs.removeAll { $0 == itemID }
   }
 
   /// Cancel all downloads for a specific video ID.
-  /// Call this when deleting a VideoHistoryItem.
+  /// Call this when deleting a VideoItem.
   func cancelDownloads(for videoID: YouTubeContentID) {
-    let recordsToCancel = activeDownloads.filter { $0.value.videoID == videoID }
-    for (recordID, _) in recordsToCancel {
-      cancelDownload(recordID: recordID)
-    }
-  }
-
-  /// Pause a specific download and save resume data.
-  private func pauseDownload(recordID: TypedIdentifier<DownloadRecord>) {
-    guard let urlTask = urlSessionTasks[recordID] else { return }
-
-    // Cancel with resume data
-    urlTask.cancel { [weak self] resumeDataOrNil in
-      Task { @MainActor [weak self] in
-        guard let self else { return }
-
-        // Cancel the Swift Task
-        self.downloadTasks[recordID]?.cancel()
-        self.downloadTasks[recordID] = nil
-        self.urlSessionTasks[recordID] = nil
-
-        // Save resume data to persistent storage
-        await self.saveResumeData(recordID: recordID, resumeData: resumeDataOrNil)
-
-        // Update observable state
-        if var progress = self.activeDownloads[recordID] {
-          progress.state = .paused
-          self.activeDownloads[recordID] = progress
-        }
-
-        // Remove from pending
-        self.pendingRecordIDs.removeAll { $0 == recordID }
-      }
+    let itemsToCancel = activeDownloads.filter { $0.value.videoID == videoID }
+    for (itemID, _) in itemsToCancel {
+      cancelDownload(itemID: itemID)
     }
   }
 
   /// Resume a paused download.
-  func resumeDownload(recordID: TypedIdentifier<DownloadRecord>) {
-
-    // Check if already downloading
-    if downloadTasks[recordID] != nil { return }
-
-    Task {
-      let context = ModelContext(modelContainer)
-      let rawID = recordID.raw
-      let descriptor = FetchDescriptor<DownloadRecord>(
-        predicate: #Predicate { $0.id == rawID }
-      )
-      guard let record = try? context.fetch(descriptor).first else { return }
-
-      // Check if we have resume data
-      if let resumeData = record.resumeData {
-        // Resume with saved data
-        startDownloadWithResumeData(
-          recordID: recordID,
-          resumeData: resumeData,
-          bgTask: nil
-        )
-      } else {
-        // No resume data, start from beginning
-        startDownload(recordID: recordID, bgTask: nil)
-      }
-
-      // Update state
-      record.state = .downloading
-      record.resumeData = nil  // Clear resume data
-      try? context.save()
-
-      // Update observable state
-      if var progress = activeDownloads[recordID] {
-        progress.state = .downloading
-        activeDownloads[recordID] = progress
-      }
-    }
+  /// - Note: Currently not implemented. Paused downloads need to be restarted.
+  func resumeDownload(itemID: TypedIdentifier<VideoItem>) {
+    // TODO: Implement resume functionality
+    // For now, this is a no-op as the download system doesn't support pause/resume yet
   }
 
   /// Get download progress for a specific video ID.
@@ -320,43 +276,38 @@ final class DownloadManager: Sendable {
   func restorePendingDownloads() async {
 
     let context = ModelContext(modelContainer)
-    let descriptor = FetchDescriptor<DownloadRecord>(
-      predicate: #Predicate {
-        $0.stateRawValue == "pending" || $0.stateRawValue == "downloading"
-      }
-    )
+    // Find VideoItems that have active download state
+    let descriptor = FetchDescriptor<VideoItem>()
 
-    guard let records = try? context.fetch(descriptor) else { return }
+    guard let items = try? context.fetch(descriptor) else { return }
 
-    for record in records {
-      // Fetch video title from VideoItem
-      let targetVideoIDRaw = record.videoID.rawValue
-      let historyDescriptor = FetchDescriptor<VideoItem>(
-        predicate: #Predicate { $0._videoID == targetVideoIDRaw }
-      )
-      let videoTitle = try? context.fetch(historyDescriptor).first?.title
+    // Filter items with downloadState
+    let pendingItems = items.filter { $0.downloadState != nil }
 
-      activeDownloads[record.typedID] = DownloadProgress(
-        recordID: record.typedID,
-        videoID: record.videoID,
-        videoTitle: videoTitle,
-        fractionCompleted: record.fractionCompleted,
-        state: record.state
+    for item in pendingItems {
+      guard let downloadState = item.downloadState else { continue }
+
+      activeDownloads[item.typedID] = DownloadProgress(
+        itemID: item.typedID,
+        videoID: item.videoID,
+        videoTitle: item.title,
+        fractionCompleted: 0,
+        state: downloadState.status == .pending ? .pending : .downloading
       )
 
-      if record.state == .pending {
-        pendingRecordIDs.append(record.typedID)
+      if downloadState.status == .pending {
+        pendingItemIDs.append(item.typedID)
       }
     }
 
     // Submit tasks for all pending downloads
-    for recordID in pendingRecordIDs {
+    for itemID in pendingItemIDs {
       do {
-        try submitTask(for: recordID)
+        try submitTask(for: itemID)
       } catch {
         // BGTask unavailable, fall back to foreground download
         print("BGTask unavailable for restored download, falling back to foreground: \(error)")
-        startDownload(recordID: recordID, bgTask: nil)
+        startDownload(itemID: itemID, bgTask: nil)
         break // Only start one foreground download at a time
       }
     }
@@ -365,7 +316,7 @@ final class DownloadManager: Sendable {
   // MARK: - BGTask Management
 
   /// Handle the background task for a specific download.
-  private func handleBackgroundTask(_ task: BGContinuedProcessingTask, recordID: TypedIdentifier<DownloadRecord>) async {
+  private func handleBackgroundTask(_ task: BGContinuedProcessingTask, itemID: TypedIdentifier<VideoItem>) async {
     // Track active task
     activeTask = task
 
@@ -374,7 +325,7 @@ final class DownloadManager: Sendable {
     task.expirationHandler = { [weak self] in
       wasExpired = true
       Task { @MainActor in
-        self?.downloadTasks[recordID]?.cancel()
+        self?.downloadTasks[itemID]?.cancel()
       }
     }
 
@@ -382,31 +333,31 @@ final class DownloadManager: Sendable {
     task.progress.totalUnitCount = 100
 
     // Execute download
-    startDownload(recordID: recordID, bgTask: task, checkExpired: { wasExpired })
+    startDownload(itemID: itemID, bgTask: task, checkExpired: { wasExpired })
 
     // Wait for download to complete
-    await downloadTasks[recordID]?.value
+    await downloadTasks[itemID]?.value
 
     // Cleanup
     activeTask = nil
     task.setTaskCompleted(success: true)
 
     // Remove from pending
-    pendingRecordIDs.removeAll { $0 == recordID }
+    pendingItemIDs.removeAll { $0 == itemID }
   }
 
   /// Submit a task request for a specific download.
-  private func submitTask(for recordID: TypedIdentifier<DownloadRecord>) throws {
-    guard let progress = activeDownloads[recordID] else { return }
+  private func submitTask(for itemID: TypedIdentifier<VideoItem>) throws {
+    guard let progress = activeDownloads[itemID] else { return }
 
-    let fullIdentifier = Self.taskIdentifier + ".\(recordID.raw.uuidString)"
+    let fullIdentifier = Self.taskIdentifier + ".\(itemID.raw.uuidString)"
 
     // Dynamically register handler for this specific task identifier
     scheduler.register(forTaskWithIdentifier: fullIdentifier, using: nil) { @Sendable [weak self] task in
       guard let bgTask = task as? BGContinuedProcessingTask else { return }
 
       Task { @MainActor [weak self, bgTask] in
-        await self?.handleBackgroundTask(bgTask, recordID: recordID)
+        await self?.handleBackgroundTask(bgTask, itemID: itemID)
       }
     }
 
@@ -428,102 +379,119 @@ final class DownloadManager: Sendable {
 
   /// Start a download task (unified for both foreground and BGTask).
   private func startDownload(
-    recordID: TypedIdentifier<DownloadRecord>,
+    itemID: TypedIdentifier<VideoItem>,
     bgTask: BGContinuedProcessingTask?,
     checkExpired: @escaping () -> Bool = { false }
   ) {
     let downloadTask = Task { [weak self] in
       guard let self else { return }
       await self.performDownload(
-        recordID: recordID,
+        itemID: itemID,
         bgTask: bgTask,
         checkExpired: checkExpired
       )
     }
-    downloadTasks[recordID] = downloadTask
+    downloadTasks[itemID] = downloadTask
   }
 
   /// Perform the download (unified for both foreground and BGTask).
   private func performDownload(
-    recordID: TypedIdentifier<DownloadRecord>,
+    itemID: TypedIdentifier<VideoItem>,
     bgTask: BGContinuedProcessingTask?,
     checkExpired: @escaping () -> Bool
   ) async {
 
-    // Fetch record
+    // Fetch item
     let context = ModelContext(modelContainer)
-    let rawID = recordID.raw
-    let descriptor = FetchDescriptor<DownloadRecord>(
+    let rawID = itemID.raw
+    let descriptor = FetchDescriptor<VideoItem>(
       predicate: #Predicate { $0.id == rawID }
     )
-    guard let record = try? context.fetch(descriptor).first else { return }
+    guard let item = try? context.fetch(descriptor).first else { return }
 
-    // Update state to downloading
-    record.state = .downloading
-    try? context.save()
-    updateProgress(recordID: recordID, fraction: 0, state: .downloading)
-
-    // Parse URL
-    guard let url = URL(string: record.streamURL) else {
-      await markFailed(recordID: recordID, error: DownloadError.invalidURL, context: context)
+    // Get download state entity
+    guard let downloadStateEntity = item.downloadState else {
+      await markFailed(itemID: itemID, context: context)
       return
     }
+
+    // Update state to downloading
+    downloadStateEntity.status = .downloading
+    try? context.save()
+    updateProgress(itemID: itemID, fraction: 0, state: .downloading)
+
+    // Parse URL
+    guard let url = URL(string: downloadStateEntity.streamURL) else {
+      await markFailed(itemID: itemID, context: context)
+      return
+    }
+
+    let fileExtension = downloadStateEntity.fileExtension
 
     do {
       // Download with progress using URLSessionDownloadTask
       let destinationURL = try await downloadFile(
         from: url,
-        record: record,
-        context: context,
+        videoID: item.videoID,
+        fileExtension: fileExtension,
+        itemID: itemID,
         bgTask: bgTask,
         checkExpired: checkExpired
       )
 
       // Mark as completed
-      record.state = .completed
-      record.completedAt = Date()
-      record.destinationFileName = destinationURL.lastPathComponent
+      item.downloadedFileName = destinationURL.lastPathComponent
+
+      // Delete DownloadStateEntity (download complete)
+      if let entity = item.downloadState {
+        context.delete(entity)
+      }
+      item.downloadState = nil
+
       try? context.save()
 
-      // Update VideoHistoryItem
-      await updateVideoHistory(
-        videoID: record.videoID,
-        fileName: destinationURL.lastPathComponent
-      )
+      // Update progress to 100% before removing
+      updateProgress(itemID: itemID, fraction: 1.0, state: .completed)
 
       // Remove from active downloads - UI will now use item.downloadedFileName
-      activeDownloads.removeValue(forKey: recordID)
-      pendingRecordIDs.removeAll { $0 == recordID }
-      downloadTasks.removeValue(forKey: recordID)
+      activeDownloads.removeValue(forKey: itemID)
+      pendingItemIDs.removeAll { $0 == itemID }
+      downloadTasks.removeValue(forKey: itemID)
 
       // Process next in queue (only for foreground downloads)
-      if bgTask == nil, let nextID = pendingRecordIDs.first {
-        startDownload(recordID: nextID, bgTask: nil)
+      if bgTask == nil, let nextID = pendingItemIDs.first {
+        startDownload(itemID: nextID, bgTask: nil)
       }
 
     } catch is CancellationError {
-      record.state = .cancelled
+      // Delete DownloadStateEntity (cancelled)
+      if let entity = item.downloadState {
+        context.delete(entity)
+      }
+      item.downloadState = nil
       try? context.save()
-      activeDownloads.removeValue(forKey: recordID)
-      downloadTasks.removeValue(forKey: recordID)
+
+      activeDownloads.removeValue(forKey: itemID)
+      downloadTasks.removeValue(forKey: itemID)
 
     } catch {
-      await markFailed(recordID: recordID, error: error, context: context)
-      downloadTasks.removeValue(forKey: recordID)
+      await markFailed(itemID: itemID, context: context)
+      downloadTasks.removeValue(forKey: itemID)
     }
   }
 
   /// Download file using URLSessionDownloadTask (efficient, runs in background).
   private func downloadFile(
     from url: URL,
-    record: DownloadRecord,
-    context: ModelContext,
+    videoID: YouTubeContentID,
+    fileExtension: String,
+    itemID: TypedIdentifier<VideoItem>,
     bgTask: BGContinuedProcessingTask?,
     checkExpired: @escaping () -> Bool
   ) async throws -> URL {
 
     // Prepare destination file path
-    let fileName = "\(record.videoID).\(record.fileExtension)"
+    let fileName = "\(videoID).\(fileExtension)"
     let destinationURL = URL.documentsDirectory.appendingPathComponent(fileName)
 
     // Create AsyncStream for delegate events
@@ -545,7 +513,7 @@ final class DownloadManager: Sendable {
 
     // Start download task
     let downloadTask = session.downloadTask(with: url)
-    urlSessionTasks[record.typedID] = downloadTask
+    urlSessionTasks[itemID] = downloadTask
     downloadTask.resume()
 
     // Track for progress throttling
@@ -563,11 +531,6 @@ final class DownloadManager: Sendable {
 
       switch event {
       case .progress(let update):
-        // Update total bytes if known
-        if update.totalBytesExpectedToWrite > 0 {
-          record.totalBytes = update.totalBytesExpectedToWrite
-        }
-
         // Throttle progress updates to avoid excessive main thread work
         let now = Date()
         if now.timeIntervalSince(lastProgressUpdate) >= 0.3 {
@@ -581,12 +544,8 @@ final class DownloadManager: Sendable {
             bgTask.updateTitle("Downloading video", subtitle: "\(Int(fraction * 100))%")
           }
 
-          // Update record
-          record.downloadedBytes = update.totalBytesWritten
-          try? context.save()
-
           // Update observable state on main thread
-          updateProgress(recordID: record.typedID, fraction: fraction, state: .downloading)
+          updateProgress(itemID: itemID, fraction: fraction, state: .downloading)
         }
 
       case .completed(let movedURL):
@@ -594,14 +553,14 @@ final class DownloadManager: Sendable {
         finalURL = movedURL
 
       case .failed(let error):
-        urlSessionTasks[record.typedID] = nil
+        urlSessionTasks[itemID] = nil
         session.invalidateAndCancel()
         throw error
       }
     }
 
     // Clean up
-    urlSessionTasks[record.typedID] = nil
+    urlSessionTasks[itemID] = nil
     session.finishTasksAndInvalidate()
 
     guard let resultURL = finalURL else {
@@ -613,238 +572,47 @@ final class DownloadManager: Sendable {
 
   // MARK: - Helpers
 
-  private func updateProgress(recordID: TypedIdentifier<DownloadRecord>, fraction: Double, state: DownloadState) {
-    if var progress = activeDownloads[recordID] {
+  private func updateProgress(itemID: TypedIdentifier<VideoItem>, fraction: Double, state: DownloadState) {
+    if var progress = activeDownloads[itemID] {
       progress.fractionCompleted = fraction
       progress.state = state
-      activeDownloads[recordID] = progress
+      activeDownloads[itemID] = progress
     }
   }
 
   private func markFailed(
-    recordID: TypedIdentifier<DownloadRecord>,
-    error: any Error,
+    itemID: TypedIdentifier<VideoItem>,
     context: ModelContext
   ) async {
-    let rawID = recordID.raw
-    let descriptor = FetchDescriptor<DownloadRecord>(
-      predicate: #Predicate { $0.id == rawID }
-    )
-    if let record = try? context.fetch(descriptor).first {
-      record.state = .failed
-      record.errorMessage = error.localizedDescription
-      try? context.save()
-    }
-
-    updateProgress(recordID: recordID, fraction: 0, state: .failed)
-    pendingRecordIDs.removeAll { $0 == recordID }
-  }
-
-  private func updateRecordState(recordID: TypedIdentifier<DownloadRecord>, state: DownloadState) async {
-
-    let context = ModelContext(modelContainer)
-    let rawID = recordID.raw
-    let descriptor = FetchDescriptor<DownloadRecord>(
-      predicate: #Predicate { $0.id == rawID }
-    )
-    if let record = try? context.fetch(descriptor).first {
-      record.state = state
-      try? context.save()
-    }
-  }
-
-  private func updateVideoHistory(videoID: YouTubeContentID, fileName: String) async {
-
-    let context = ModelContext(modelContainer)
-    let videoIDRaw = videoID.rawValue
+    let rawID = itemID.raw
     let descriptor = FetchDescriptor<VideoItem>(
-      predicate: #Predicate { $0._videoID == videoIDRaw }
+      predicate: #Predicate { $0.id == rawID }
     )
     if let item = try? context.fetch(descriptor).first {
-      item.downloadedFileName = fileName
+      // Delete DownloadStateEntity (failed)
+      if let entity = item.downloadState {
+        context.delete(entity)
+      }
+      item.downloadState = nil
       try? context.save()
     }
+
+    updateProgress(itemID: itemID, fraction: 0, state: .failed)
+    pendingItemIDs.removeAll { $0 == itemID }
   }
 
-  /// Save resume data to persistent storage.
-  private func saveResumeData(recordID: TypedIdentifier<DownloadRecord>, resumeData: Data?) async {
-
+  private func deleteDownloadState(itemID: TypedIdentifier<VideoItem>) async {
     let context = ModelContext(modelContainer)
-    let rawID = recordID.raw
-    let descriptor = FetchDescriptor<DownloadRecord>(
+    let rawID = itemID.raw
+    let descriptor = FetchDescriptor<VideoItem>(
       predicate: #Predicate { $0.id == rawID }
     )
-    if let record = try? context.fetch(descriptor).first {
-      record.resumeData = resumeData
-      record.state = .paused
-      try? context.save()
-    }
-  }
-
-  /// Start a download with resume data (for resuming paused downloads).
-  private func startDownloadWithResumeData(
-    recordID: TypedIdentifier<DownloadRecord>,
-    resumeData: Data,
-    bgTask: BGContinuedProcessingTask?,
-    checkExpired: @escaping () -> Bool = { false }
-  ) {
-    let downloadTask = Task { [weak self] in
-      guard let self else { return }
-      await self.performDownloadWithResumeData(
-        recordID: recordID,
-        resumeData: resumeData,
-        bgTask: bgTask,
-        checkExpired: checkExpired
-      )
-    }
-    downloadTasks[recordID] = downloadTask
-  }
-
-  /// Perform a download with resume data.
-  private func performDownloadWithResumeData(
-    recordID: TypedIdentifier<DownloadRecord>,
-    resumeData: Data,
-    bgTask: BGContinuedProcessingTask?,
-    checkExpired: @escaping () -> Bool
-  ) async {
-
-    // Fetch record
-    let context = ModelContext(modelContainer)
-    let rawID = recordID.raw
-    let descriptor = FetchDescriptor<DownloadRecord>(
-      predicate: #Predicate { $0.id == rawID }
-    )
-    guard let record = try? context.fetch(descriptor).first else { return }
-
-    // Update state to downloading
-    record.state = .downloading
-    try? context.save()
-    updateProgress(recordID: recordID, fraction: record.fractionCompleted, state: .downloading)
-
-    do {
-      // Resume download with resume data
-      let destinationURL = try await downloadFileWithResumeData(
-        resumeData: resumeData,
-        record: record,
-        context: context,
-        bgTask: bgTask,
-        checkExpired: checkExpired
-      )
-
-      // Mark as completed
-      record.state = .completed
-      record.completedAt = Date()
-      record.destinationFileName = destinationURL.lastPathComponent
-      try? context.save()
-
-      // Update VideoHistoryItem
-      await updateVideoHistory(
-        videoID: record.videoID,
-        fileName: destinationURL.lastPathComponent
-      )
-
-      updateProgress(recordID: recordID, fraction: 1.0, state: .completed)
-      pendingRecordIDs.removeAll { $0 == recordID }
-      downloadTasks.removeValue(forKey: recordID)
-
-    } catch is CancellationError {
-      record.state = .cancelled
-      try? context.save()
-      updateProgress(recordID: recordID, fraction: record.fractionCompleted, state: .cancelled)
-      downloadTasks.removeValue(forKey: recordID)
-
-    } catch {
-      await markFailed(recordID: recordID, error: error, context: context)
-      downloadTasks.removeValue(forKey: recordID)
-    }
-  }
-
-  /// Download file using resume data.
-  private func downloadFileWithResumeData(
-    resumeData: Data,
-    record: DownloadRecord,
-    context: ModelContext,
-    bgTask: BGContinuedProcessingTask?,
-    checkExpired: @escaping () -> Bool
-  ) async throws -> URL {
-
-    // Prepare destination file path
-    let fileName = "\(record.videoID).\(record.fileExtension)"
-    let destinationURL = URL.documentsDirectory.appendingPathComponent(fileName)
-
-    // Create AsyncStream for delegate events
-    var downloadDelegate: DownloadSessionDelegate?
-    let eventStream = AsyncStream<DownloadSessionDelegate.DownloadEvent> { continuation in
-      downloadDelegate = DownloadSessionDelegate(
-        continuation: continuation,
-        destinationURL: destinationURL
-      )
-    }
-
-    // Create URLSession with delegate
-    let session = URLSession(
-      configuration: .default,
-      delegate: downloadDelegate,
-      delegateQueue: nil
-    )
-
-    // Start download task with resume data
-    let downloadTask = session.downloadTask(withResumeData: resumeData)
-    urlSessionTasks[record.typedID] = downloadTask
-    downloadTask.resume()
-
-    // Track for progress throttling
-    var lastProgressUpdate = Date()
-    var finalURL: URL?
-
-    // Process events from delegate
-    for await event in eventStream {
-      try Task.checkCancellation()
-      if checkExpired() {
-        downloadTask.cancel()
-        throw DownloadError.taskExpired
+    if let item = try? context.fetch(descriptor).first {
+      if let entity = item.downloadState {
+        context.delete(entity)
       }
-
-      switch event {
-      case .progress(let update):
-        if update.totalBytesExpectedToWrite > 0 {
-          record.totalBytes = update.totalBytesExpectedToWrite
-        }
-
-        let now = Date()
-        if now.timeIntervalSince(lastProgressUpdate) >= 0.3 {
-          lastProgressUpdate = now
-
-          let fraction = update.fractionCompleted
-
-          if let bgTask {
-            bgTask.progress.completedUnitCount = Int64(fraction * 100)
-            bgTask.updateTitle("Downloading video", subtitle: "\(Int(fraction * 100))%")
-          }
-
-          record.downloadedBytes = update.totalBytesWritten
-          try? context.save()
-
-          updateProgress(recordID: record.typedID, fraction: fraction, state: .downloading)
-        }
-
-      case .completed(let movedURL):
-        finalURL = movedURL
-
-      case .failed(let error):
-        urlSessionTasks[record.typedID] = nil
-        session.invalidateAndCancel()
-        throw error
-      }
+      item.downloadState = nil
+      try? context.save()
     }
-
-    urlSessionTasks[record.typedID] = nil
-    session.finishTasksAndInvalidate()
-
-    guard let resultURL = finalURL else {
-      throw DownloadError.noData
-    }
-
-    return resultURL
   }
 }
