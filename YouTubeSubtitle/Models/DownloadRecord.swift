@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import TypedIdentifier
 
 // MARK: - Download State
 
@@ -24,14 +25,26 @@ enum DownloadState: String, Codable, Sendable {
 /// SwiftData model for persistent download state.
 /// Tracks download progress, state, and metadata for background downloads.
 @Model
-final class DownloadRecord {
+final class DownloadRecord: TypedIdentifiable {
+
+  typealias TypedIdentifierRawValue = UUID
+
+  var typedID: TypedIdentifier<DownloadRecord> {
+    .init(id)
+  }
 
   // MARK: - Identifiers
 
   @Attribute(.unique) var id: UUID
 
-  /// The YouTube video ID
-  var videoID: String
+  // Database storage (primitive String for SwiftData optimization)
+  internal var _videoID: String
+
+  // Public API (type-safe)
+  var videoID: YouTubeContentID {
+    get { YouTubeContentID(rawValue: _videoID) }
+    set { _videoID = newValue.rawValue }
+  }
 
   // MARK: - Stream Info
 
@@ -96,13 +109,13 @@ final class DownloadRecord {
   // MARK: - Initialization
 
   init(
-    videoID: String,
+    videoID: YouTubeContentID,
     streamURL: String,
     fileExtension: String,
     resolution: Int? = nil
   ) {
     self.id = UUID()
-    self.videoID = videoID
+    self._videoID = videoID.rawValue  // Store as primitive String
     self.streamURL = streamURL
     self.fileExtension = fileExtension
     self.resolution = resolution

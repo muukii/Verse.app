@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B00CF0B12EE43A3700FA7361 /* TypedIdentifier in Frameworks */ = {isa = PBXBuildFile; productRef = B00CF0B02EE43A3700FA7361 /* TypedIdentifier */; };
 		B046D4AE2EE324FC00367936 /* AnyLanguageModelMLX in Frameworks */ = {isa = PBXBuildFile; productRef = B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */; };
+		B07A2DA52EE42AE800E05A39 /* SwiftUIRingSlider in Frameworks */ = {isa = PBXBuildFile; productRef = B07A2DA42EE42AE800E05A39 /* SwiftUIRingSlider */; };
 		B0FAE6862EDC2500008493F1 /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE6852EDC2500008493F1 /* YouTubeKit */; };
 		B0FAE68A2EDC2600008493F1 /* YouTubePlayerKit in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE6892EDC2600008493F1 /* YouTubePlayerKit */; };
 		B0FAE68C2EDC3000008493F1 /* YoutubeTranscript in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE68B2EDC3000008493F1 /* YoutubeTranscript */; };
@@ -47,12 +49,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				B0FAE6862EDC2500008493F1 /* YouTubeKit in Frameworks */,
+				B00CF0B12EE43A3700FA7361 /* TypedIdentifier in Frameworks */,
 				B0FAE68A2EDC2600008493F1 /* YouTubePlayerKit in Frameworks */,
 				B0FAE68C2EDC3000008493F1 /* YoutubeTranscript in Frameworks */,
 				B0FAE68E2EDC4000008493F1 /* SwiftSubtitles in Frameworks */,
 				B0FAE6912EDC5000008493F1 /* ObjectEdge in Frameworks */,
 				B0FAE6962EDC6000008493F1 /* RichText in Frameworks */,
 				B046D4AE2EE324FC00367936 /* AnyLanguageModelMLX in Frameworks */,
+				B07A2DA52EE42AE800E05A39 /* SwiftUIRingSlider in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -102,6 +106,8 @@
 				B0FAE6922EDC5000008493F1 /* ObjectEdge */,
 				B0FAE6952EDC6000008493F1 /* RichText */,
 				B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */,
+				B07A2DA42EE42AE800E05A39 /* SwiftUIRingSlider */,
+				B00CF0B02EE43A3700FA7361 /* TypedIdentifier */,
 			);
 			productName = YouTubeSubtitle;
 			productReference = B0FAE6772EDC249B008493F1 /* YouTubeSubtitle.app */;
@@ -139,6 +145,8 @@
 				B0FAE6932EDC5000008493F1 /* XCRemoteSwiftPackageReference "swiftui-object-edge" */,
 				B0FAE6942EDC6000008493F1 /* XCRemoteSwiftPackageReference "RichText" */,
 				B046D4AC2EE324FC00367936 /* XCLocalSwiftPackageReference "Packages/AnyLanguageModelMLX" */,
+				B07A2DA32EE42AE800E05A39 /* XCRemoteSwiftPackageReference "swiftui-ring-slider" */,
+				B00CF0AF2EE43A3700FA7361 /* XCRemoteSwiftPackageReference "swift-typed-identifier" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0FAE6782EDC249B008493F1 /* Products */;
@@ -425,6 +433,22 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		B00CF0AF2EE43A3700FA7361 /* XCRemoteSwiftPackageReference "swift-typed-identifier" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/VergeGroup/swift-typed-identifier.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.4;
+			};
+		};
+		B07A2DA32EE42AE800E05A39 /* XCRemoteSwiftPackageReference "swiftui-ring-slider" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidGroup/swiftui-ring-slider";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.0;
+			};
+		};
 		B0FAE6872EDC2500008493F1 /* XCRemoteSwiftPackageReference "YouTubeKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/alexeichhorn/YouTubeKit";
@@ -476,9 +500,19 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		B00CF0B02EE43A3700FA7361 /* TypedIdentifier */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B00CF0AF2EE43A3700FA7361 /* XCRemoteSwiftPackageReference "swift-typed-identifier" */;
+			productName = TypedIdentifier;
+		};
 		B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AnyLanguageModelMLX;
+		};
+		B07A2DA42EE42AE800E05A39 /* SwiftUIRingSlider */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B07A2DA32EE42AE800E05A39 /* XCRemoteSwiftPackageReference "swiftui-ring-slider" */;
+			productName = SwiftUIRingSlider;
 		};
 		B0FAE6852EDC2500008493F1 /* YouTubeKit */ = {
 			isa = XCSwiftPackageProductDependency;

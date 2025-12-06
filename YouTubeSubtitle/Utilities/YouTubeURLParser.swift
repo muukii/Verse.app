@@ -10,9 +10,9 @@ import YouTubeKit
 
 struct YouTubeURLParser {
   /// Extracts the video ID from a YouTube URL using YouTubeKit
-  static func extractVideoID(from url: URL) -> String? {
+  static func extractVideoID(from url: URL) -> YouTubeContentID? {
     let youtube = YouTube(url: url)
-    return youtube.videoID
+    return YouTubeContentID(rawValue: youtube.videoID)
   }
   
   /// Converts a YouTube URL to an embedded player URL

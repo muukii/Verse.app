@@ -26,11 +26,11 @@ struct OpenYouTubeVideoIntent: AppIntent {
 @MainActor
 final class DeepLinkManager: ObservableObject {
   static let shared = DeepLinkManager()
-  
-  @Published var pendingVideoID: String?
-  
+
+  @Published var pendingVideoID: YouTubeContentID?
+
   private init() {}
-  
+
   func handleURL(_ url: URL) {
     if let videoID = YouTubeURLParser.extractVideoID(from: url) {
       pendingVideoID = videoID

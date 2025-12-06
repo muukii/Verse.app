@@ -35,7 +35,7 @@ final class SubtitleStorage {
   /// Save subtitles for a video with specified format
   func save(
     _ subtitles: Subtitles,
-    videoID: String,
+    videoID: YouTubeContentID,
     format: SubtitleFormat
   ) throws {
     let filename = "\(videoID).\(format.fileExtension)"
@@ -48,7 +48,7 @@ final class SubtitleStorage {
   /// Save subtitles from YouTube transcripts
   func saveFromYouTube(
     _ transcripts: [TranscriptResponse],
-    videoID: String,
+    videoID: YouTubeContentID,
     format: SubtitleFormat
   ) throws {
     let subtitles = SubtitleAdapter.toSwiftSubtitles(transcripts)
@@ -58,7 +58,7 @@ final class SubtitleStorage {
   // MARK: - Load Subtitles
 
   /// Load subtitles for a video with specified format
-  func load(videoID: String, format: SubtitleFormat) throws -> Subtitles {
+  func load(videoID: YouTubeContentID, format: SubtitleFormat) throws -> Subtitles {
     let filename = "\(videoID).\(format.fileExtension)"
     let fileURL = subtitlesDirectory.appendingPathComponent(filename)
 
@@ -70,14 +70,14 @@ final class SubtitleStorage {
   }
 
   /// Check if subtitles exist for a video
-  func exists(videoID: String, format: SubtitleFormat) -> Bool {
+  func exists(videoID: YouTubeContentID, format: SubtitleFormat) -> Bool {
     let filename = "\(videoID).\(format.fileExtension)"
     let fileURL = subtitlesDirectory.appendingPathComponent(filename)
     return FileManager.default.fileExists(atPath: fileURL.path)
   }
 
   /// List all saved subtitle files for a video
-  func listSavedFormats(videoID: String) -> [SubtitleFormat] {
+  func listSavedFormats(videoID: YouTubeContentID) -> [SubtitleFormat] {
     SubtitleFormat.allCases.filter { format in
       exists(videoID: videoID, format: format)
     }
@@ -86,7 +86,7 @@ final class SubtitleStorage {
   // MARK: - Delete Subtitles
 
   /// Delete subtitles for a video with specified format
-  func delete(videoID: String, format: SubtitleFormat) throws {
+  func delete(videoID: YouTubeContentID, format: SubtitleFormat) throws {
     let filename = "\(videoID).\(format.fileExtension)"
     let fileURL = subtitlesDirectory.appendingPathComponent(filename)
 
@@ -94,7 +94,7 @@ final class SubtitleStorage {
   }
 
   /// Delete all subtitles for a video
-  func deleteAll(videoID: String) throws {
+  func deleteAll(videoID: YouTubeContentID) throws {
     for format in SubtitleFormat.allCases {
       if exists(videoID: videoID, format: format) {
         try? delete(videoID: videoID, format: format)
@@ -105,7 +105,7 @@ final class SubtitleStorage {
   // MARK: - Import External Subtitle
 
   /// Import subtitle file from external source
-  func importSubtitle(from url: URL, videoID: String) throws -> SubtitleFormat {
+  func importSubtitle(from url: URL, videoID: YouTubeContentID) throws -> SubtitleFormat {
     // Decode subtitle (auto-detect format from extension)
     let subtitles = try SubtitleAdapter.decode(from: url)
 
@@ -126,7 +126,7 @@ final class SubtitleStorage {
 
   /// Export subtitle to specified URL
   func export(
-    videoID: String,
+    videoID: YouTubeContentID,
     format: SubtitleFormat,
     to destinationURL: URL
   ) throws {

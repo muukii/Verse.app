@@ -12,7 +12,7 @@ import UniformTypeIdentifiers
 
 /// View for managing subtitles and playback options
 struct SubtitleManagementView: View {
-  let videoID: String
+  let videoID: YouTubeContentID
   let subtitles: Subtitles?
   let localFileURL: URL?
   let playbackSource: PlaybackSource
@@ -273,7 +273,7 @@ struct SubtitleManagementView: View {
 // MARK: - Export Sheet View
 
 struct ExportSheetView: View {
-  let videoID: String
+  let videoID: YouTubeContentID
   let subtitles: Subtitles?
   @Binding var selectedFormat: SubtitleFormat
 

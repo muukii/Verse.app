@@ -45,7 +45,8 @@
       "mcp__sosumi__searchAppleDocumentation",
       "mcp__XcodeBuildMCP__build_macos",
       "Bash(xcrun swift:*)",
-      "Bash(xcrun:*)"
+      "Bash(xcrun:*)",
+      "Bash(plutil:*)"
     ],
     "deny": [],
     "ask": []
