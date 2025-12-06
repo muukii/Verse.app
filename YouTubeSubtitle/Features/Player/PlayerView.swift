@@ -50,6 +50,17 @@ struct PlayerView: View {
   // Computed property to access videoID from the entity
   private var videoID: YouTubeContentID { videoItem.videoID }
 
+  /// Returns true when transcription is actively in progress (preparing or transcribing)
+  /// Used to prevent interactive dismissal of the sheet during processing
+  private var isTranscriptionInProgress: Bool {
+    switch transcriptionState {
+    case .preparingAssets, .transcribing:
+      return true
+    case .idle, .completed, .failed:
+      return false
+    }
+  }
+
   var body: some View {
     if let controller = playerController {
 
@@ -150,7 +161,8 @@ struct PlayerView: View {
           }
         )
         .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
+        .presentationDragIndicator(isTranscriptionInProgress ? .hidden : .visible)
+        .interactiveDismissDisabled(isTranscriptionInProgress)
       }
       .sheet(item: $selectedCueForExplanation) { cue in
         WordExplanationSheet(
