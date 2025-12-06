@@ -28,30 +28,26 @@ struct PlayerControls: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      ProgressBar(
+      ProgressSection(
         currentTime: model.currentTime,
+        displayTime: model.displayTime,
         duration: model.duration,
         onSeek: onSeek
       )
       .padding(.horizontal, 16)
       .padding(.top, 12)
 
-      TimeDisplay(
-        currentTime: model.displayTime,
-        duration: model.duration
-      )
-      .padding(.horizontal, 20)
-      .padding(.top, 4)
-
       PlaybackButtonsControl(
         isPlaying: model.isPlaying,
         backwardSeekInterval: backwardSeekInterval,
         forwardSeekInterval: forwardSeekInterval,
+        playbackRate: model.playbackRate,
         onBackward: onSeekBackward,
         onForward: onSeekForward,
         onTogglePlayPause: onTogglePlayPause,
         onBackwardSeekIntervalChange: onBackwardSeekIntervalChange,
-        onForwardSeekIntervalChange: onForwardSeekIntervalChange
+        onForwardSeekIntervalChange: onForwardSeekIntervalChange,
+        onRateChange: onRateChange
       )
       .padding(.top, 8)
 
@@ -74,8 +70,6 @@ struct PlayerControls: View {
     case .normal:
       NormalModeControls(
         model: model,
-        playbackRate: model.playbackRate,
-        onRateChange: onRateChange,
         onEnterRepeatMode: { controlsMode = .repeatSetup }
       )
       .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -92,14 +86,22 @@ struct PlayerControls: View {
 
 extension PlayerControls {
   
-  // MARK: - ProgressBar
-  
-  struct ProgressBar: View {
+  // MARK: - ProgressSection
+
+  struct ProgressSection: View {
     let currentTime: Double
+    let displayTime: Double
     let duration: Double
     let onSeek: (Double) -> Void
-    
+
     var body: some View {
+      VStack(spacing: 4) {
+        progressBar
+        timeDisplay
+      }
+    }
+
+    private var progressBar: some View {
       let normalizedValue = Binding<Double>(
         get: {
           guard duration > 0 else { return 0 }
@@ -111,8 +113,8 @@ extension PlayerControls {
           onSeek(seekTime)
         }
       )
-      
-      TouchSlider(
+
+      return TouchSlider(
         direction: .horizontal,
         value: normalizedValue,
         speed: 0.5,
@@ -121,34 +123,27 @@ extension PlayerControls {
       )
       .frame(height: 16)
     }
-  }
-  
-  // MARK: - TimeDisplay
-  
-  struct TimeDisplay: View {
-    let currentTime: Double
-    let duration: Double
-    
-    var body: some View {
+
+    private var timeDisplay: some View {
       HStack {
-        Text(formatTime(currentTime))
+        Text(formatTime(displayTime))
           .font(.system(.caption, design: .monospaced))
           .foregroundStyle(.secondary)
-        
+
         Spacer()
-        
+
         Text(formatTime(duration))
           .font(.system(.caption, design: .monospaced))
           .foregroundStyle(.secondary)
       }
     }
-    
+
     private func formatTime(_ seconds: Double) -> String {
       let totalSeconds = Int(seconds)
       let hours = totalSeconds / 3600
       let minutes = (totalSeconds % 3600) / 60
       let secs = totalSeconds % 60
-      
+
       if hours > 0 {
         return String(format: "%d:%02d:%02d", hours, minutes, secs)
       } else {
@@ -163,46 +158,59 @@ extension PlayerControls {
     let isPlaying: Bool
     let backwardSeekInterval: Double
     let forwardSeekInterval: Double
+    let playbackRate: Double
     let onBackward: () -> Void
     let onForward: () -> Void
     let onTogglePlayPause: () -> Void
     let onBackwardSeekIntervalChange: (Double) -> Void
     let onForwardSeekIntervalChange: (Double) -> Void
+    let onRateChange: (Double) -> Void
     
     private let availableIntervals: [Double] = [3, 5, 10, 15, 30]
     
     var body: some View {
-      HStack(spacing: 32) {
-        Button(action: onBackward) {
-          seekIcon(direction: .backward, interval: backwardSeekInterval)
-        }
-        .buttonStyle(.glass)
-        .contextMenu {
-          seekIntervalMenu(
-            currentInterval: backwardSeekInterval,
-            onChange: onBackwardSeekIntervalChange
-          )
-        }
+      ZStack {
+                
+        SpeedControls(
+          playbackRate: playbackRate,
+          onRateChange: onRateChange
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
         
-        Button(action: onTogglePlayPause) {
-          Image(
-            systemName: isPlaying ? "pause.fill" : "play.fill"
-          )
-          .font(.system(size: 32))
+        HStack(spacing: 32) {
+          
+          Button(action: onBackward) {
+            seekIcon(direction: .backward, interval: backwardSeekInterval)
+          }
+          .contextMenu {
+            seekIntervalMenu(
+              currentInterval: backwardSeekInterval,
+              onChange: onBackwardSeekIntervalChange
+            )
+          }
+          
+          Button(action: onTogglePlayPause) {
+            Image(
+              systemName: isPlaying ? "pause.fill" : "play.fill"
+            )
+            .font(.system(size: 32))
+          }
+          
+          Button(action: onForward) {
+            seekIcon(direction: .forward, interval: forwardSeekInterval)
+          }
+          .contextMenu {
+            seekIntervalMenu(
+              currentInterval: forwardSeekInterval,
+              onChange: onForwardSeekIntervalChange
+            )
+          }
+          
         }
-        .buttonStyle(.glass)
-        
-        Button(action: onForward) {
-          seekIcon(direction: .forward, interval: forwardSeekInterval)
-        }
-        .buttonStyle(.glass)
-        .contextMenu {
-          seekIntervalMenu(
-            currentInterval: forwardSeekInterval,
-            onChange: onForwardSeekIntervalChange
-          )
-        }
+     
+              
       }
+      .padding(.horizontal, 20)
     }
     
     private enum SeekDirection {
@@ -276,9 +284,6 @@ extension PlayerControls {
     
     var body: some View {
       HStack(spacing: 8) {
-        Image(systemName: "speedometer")
-          .foregroundStyle(.secondary)
-          .font(.system(size: 14))
         
         Menu {
           ForEach(availableRates, id: \.self) { rate in
@@ -294,12 +299,16 @@ extension PlayerControls {
             }
           }
         } label: {
-          Text(formatRate(playbackRate))
-            .font(.system(.caption, design: .monospaced))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.gray.opacity(0.15))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+          HStack(alignment: .firstTextBaseline, spacing: -8) {
+            Text("\(formatRate(playbackRate))")
+              .font(.system(size: 17, weight: .bold, design: .rounded))
+              .padding(.horizontal, 8)
+              .padding(.vertical, 4)
+            
+            Text(Image.init(systemName: "multiply"))
+              .font(.system(size: 11, weight: .bold, design: .rounded))
+          }
+          .foregroundStyle(.primary)
         }
         .buttonStyle(.plain)
       }
@@ -307,11 +316,11 @@ extension PlayerControls {
     
     private func formatRate(_ rate: Double) -> String {
       if rate == 1.0 {
-        return "1x"
+        return "1"
       } else if rate == floor(rate) {
-        return String(format: "%.0fx", rate)
+        return String(format: "%.0f", rate)
       } else {
-        return String(format: "%.2gx", rate)
+        return String(format: "%.2g", rate)
       }
     }
   }
@@ -515,20 +524,14 @@ extension PlayerControls {
   
   struct NormalModeControls: View {
     let model: PlayerModel
-    let playbackRate: Double
-    let onRateChange: (Double) -> Void
     let onEnterRepeatMode: () -> Void
-    
+
     var body: some View {
       HStack(spacing: 24) {
-        SpeedControls(playbackRate: playbackRate, onRateChange: onRateChange)
-        
-        Divider().frame(height: 24)
-        
         LoopControl(model: model)
-        
+
         Divider().frame(height: 24)
-        
+
         RepeatEntryButton(
           isActive: model.isRepeating,
           hasRepeatPoints: model.repeatStartTime != nil || model.repeatEndTime != nil,
@@ -569,3 +572,33 @@ extension PlayerControls {
     }
   }
 }
+
+#if DEBUG
+
+import SwiftData
+#Preview {
+  let container = try! ModelContainer(
+    for: VideoItem.self,
+    configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+  )
+  let downloadManager = DownloadManager(modelContainer: container)
+  let historyService = VideoHistoryService(
+    modelContext: container.mainContext,
+    downloadManager: downloadManager
+  )
+
+  let item = VideoItem(
+    videoID: "oRc4sndVaWo",
+    url: "https://www.youtube.com/watch?v=oRc4sndVaWo",
+    title: "Preview Video"
+  )
+
+  return NavigationStack {
+    PlayerView(videoItem: item)
+  }
+  .modelContainer(container)
+  .environment(downloadManager)
+  .environment(historyService)
+}
+
+#endif
