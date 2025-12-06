@@ -186,8 +186,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/FluidGroup/swiftui-ring-slider",
       "state" : {
-        "revision" : "835f6d46d5fbfb844a9ef79fb2a8bb6067f07129",
-        "version" : "0.2.0"
+        "revision" : "bdbe23fdd6f83f9eb8fd0d033c67ceb5fea3b8e1",
+        "version" : "0.3.0"
       }
     },
     {
