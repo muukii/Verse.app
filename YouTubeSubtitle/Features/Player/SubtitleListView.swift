@@ -5,9 +5,9 @@
 //  Created by Claude on 2025/12/02.
 //
 
+import RichText
 @preconcurrency import SwiftSubtitles
 import SwiftUI
-import RichText
 import Translation
 
 // MARK: - Transcribing View
@@ -226,7 +226,6 @@ struct SubtitleListView: View {
 
   }
 
-
   // MARK: - Error View
 
   private func errorView(error: String) -> some View {
@@ -352,94 +351,106 @@ struct SubtitleRowView: View {
   let onAction: (Action) -> Void
 
   var body: some View {
-    HStack(alignment: .top, spacing: 8) {
-      // Time badge - tappable to seek
-      Button {
-        onAction(.tap)
-      } label: {
-        Text(formatTime(cue.startTimeSeconds))
-          .font(.system(.caption2, design: .monospaced))
-          .foregroundStyle(isCurrent ? .white : .secondary)
-          .padding(.horizontal, 6)
-          .padding(.vertical, 2)
-          .background(isCurrent ? Color.red : Color.gray.opacity(0.2))
-          .clipShape(RoundedRectangle(cornerRadius: 4))
+    VStack(spacing: 4) {
+
+      HStack {
+        Button {
+          onAction(.tap)
+        } label: {
+          Text(formatTime(cue.startTimeSeconds))
+            .font(.system(.caption2, design: .default).monospacedDigit())
+            .foregroundStyle(isCurrent ? .white : .secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)        
+            .background(
+              ConcentricRectangle(
+                corners: .concentric,
+                isUniform: true
+              )
+              .foregroundStyle(isCurrent ? .primary : .quinary)
+            )
+        }
+        .buttonStyle(.plain)
+        
+        Spacer()
+
       }
-      .buttonStyle(.plain)
+      .padding(6)
+     
+      HStack(alignment: .top, spacing: 8) {
 
-      // Text content with selection support
-      TextView {
-        cue.text.htmlDecoded
+        // Text content with selection support        
+        TextView {
+          cue.text.htmlDecoded
+        }
+        .font(.subheadline)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onTapGesture {
+          onAction(.tap)
+        }
+
+        menu
       }
-      .font(.subheadline)
-      .foregroundStyle(isCurrent ? .primary : .secondary)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .onTapGesture {
-        onAction(.tap)
-      }
-
-      // Menu button for actions
-      Menu {
-        Button {
-          #if os(iOS)
-            UIPasteboard.general.string = cue.text.htmlDecoded
-          #else
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(cue.text.htmlDecoded, forType: .string)
-          #endif
-        } label: {
-          Label("Copy", systemImage: "doc.on.doc")
-        }
-
-        Button {
-          onAction(.explain)
-        } label: {
-          Label("Explain", systemImage: "sparkles")
-        }
-
-        Button {
-          onAction(.translate)
-        } label: {
-          Label("Translate", systemImage: "character.book.closed")
-        }
-
-        Divider()
-
-        Button {
-          onAction(.setRepeatA)
-        } label: {
-          Label("Set as A (Start)", systemImage: "a.circle")
-        }
-
-        Button {
-          onAction(.setRepeatB)
-        } label: {
-          Label("Set as B (End)", systemImage: "b.circle")
-        }
-      } label: {
-        Image(systemName: "ellipsis")
-          .font(.system(size: 18))
-          .foregroundStyle(.secondary)
-          .frame(width: 44, height: 44)
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-    }
-    .padding(.vertical, 10)
-    .padding(.horizontal, 12)
+      .padding(.horizontal, 12)
+      .padding(.bottom, 10)
+    }          
     .background(
-      RoundedRectangle(cornerRadius: 8)
-        .fill(isCurrent ? Color.red.opacity(0.15) : Color.clear)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 8)
-        .strokeBorder(
-          isCurrent ? Color.red.opacity(0.3) : Color.clear,
-          lineWidth: 1
-        )
-    )
+      ConcentricRectangle()
+        .fill(.quaternary.opacity(isCurrent ? 1 : 0))
+    )    
+    .containerShape(.rect(cornerRadius: 12))   
     .id(cue.id)
-    .animation(.easeInOut(duration: 0.2), value: isCurrent)
+    .animation(.snappy, value: isCurrent)
+    .foregroundStyle(.tint)
+  }
+
+  private var menu: some View {
+    // Menu button for actions
+    Menu {
+      Button {
+        #if os(iOS)
+          UIPasteboard.general.string = cue.text.htmlDecoded
+        #else
+          NSPasteboard.general.clearContents()
+          NSPasteboard.general.setString(cue.text.htmlDecoded, forType: .string)
+        #endif
+      } label: {
+        Label("Copy", systemImage: "doc.on.doc")
+      }
+
+      Button {
+        onAction(.explain)
+      } label: {
+        Label("Explain", systemImage: "sparkles")
+      }
+
+      Button {
+        onAction(.translate)
+      } label: {
+        Label("Translate", systemImage: "character.book.closed")
+      }
+
+      Divider()
+
+      Button {
+        onAction(.setRepeatA)
+      } label: {
+        Label("Set as A (Start)", systemImage: "a.circle")
+      }
+
+      Button {
+        onAction(.setRepeatB)
+      } label: {
+        Label("Set as B (End)", systemImage: "b.circle")
+      }
+    } label: {
+      Image(systemName: "ellipsis")
+        .font(.system(size: 18))
+        .foregroundStyle(.primary)
+        .frame(width: 32, height: 24)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
   }
 
   private func formatTime(_ seconds: Double) -> String {
@@ -538,4 +549,31 @@ extension String {
 
 #Preview("Transcribing - Failed") {
   TranscribingView(state: .failed("The audio file format is not supported"))
+}
+
+#Preview("SubtitleRowView") {
+  SubtitleRowView(
+    cue: Subtitles.Cue(
+      position: 1,
+      startTime: Subtitles.Time(timeInSeconds: 65.5),
+      endTime: Subtitles.Time(timeInSeconds: 68.2),
+      text:
+        "This is the currently playing subtitle with some longer text to see how it wraps."
+    ),
+    isCurrent: true,
+    onAction: { _ in }
+  )
+  .padding()
+
+  SubtitleRowView(
+    cue: Subtitles.Cue(
+      position: 2,
+      startTime: Subtitles.Time(timeInSeconds: 125.75),
+      endTime: Subtitles.Time(timeInSeconds: 129.0),
+      text: "A subtitle that is not currently active."
+    ),
+    isCurrent: false,
+    onAction: { _ in }
+  )
+  .padding()
 }
