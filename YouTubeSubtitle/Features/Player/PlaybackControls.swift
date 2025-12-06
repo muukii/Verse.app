@@ -209,7 +209,7 @@ extension PlayerControls {
           }
                     
         }
-        .tint(.black)
+        .tint(Color.primary)
                    
       }
       .padding(.horizontal, 20)
@@ -568,7 +568,7 @@ extension PlayerControls {
 
         }
       }
-      .tint(.black)
+      .tint(Color.primary)
     }
   }
 }
