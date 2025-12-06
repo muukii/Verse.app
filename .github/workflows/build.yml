@@ -34,6 +34,7 @@ jobs:
             -scheme YouTubeSubtitle \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
+            -skipMacroValidation \
             build
 
   build-macos:
@@ -58,4 +59,5 @@ jobs:
             -scheme YouTubeSubtitle \
             -configuration Debug \
             -destination 'platform=macOS' \
+            -skipMacroValidation \
             build
