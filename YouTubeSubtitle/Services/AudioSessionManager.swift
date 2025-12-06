@@ -14,7 +14,7 @@ final class AudioSessionManager: Sendable {
   static let shared = AudioSessionManager()
 
   private(set) var isConfigured: Bool = false
-  private(set) var configurationError: Error?
+  private(set) var configurationError: (any Error)?
 
   private init() {
     configureAudioSession()
@@ -26,8 +26,10 @@ final class AudioSessionManager: Sendable {
     do {
       try audioSession.setCategory(
         .playback,
-        mode: .default,
-        options: []
+        mode: .moviePlayback,
+        options: [
+          .mixWithOthers
+        ]
       )
 
       // Activate the audio session

@@ -10,12 +10,14 @@ import ObjectEdge
 import SwiftData
 import SwiftSubtitles
 import SwiftUI
+import SwiftUIRingSlider
 import YouTubeKit
 import YouTubePlayerKit
 import YoutubeTranscript
+import Translation
 
 struct PlayerView: View {
-  let videoID: String
+  let videoItem: VideoItem
 
   @Environment(\.modelContext) private var modelContext
   @Environment(\.scenePhase) private var scenePhase
@@ -36,14 +38,19 @@ struct PlayerView: View {
   @State private var localFileURL: URL?
 
   @State private var height: CGFloat = 0
-  @State private var isShowingSheet: Bool = true
   @State private var isPlayerCollapsed: Bool = false
-  @State private var videoItem: VideoItem?
 
   // Transcription state
   @State private var isTranscribing: Bool = false
   @State private var transcriptionState: TranscriptionService.TranscriptionState = .idle
   @State private var showTranscriptionSheet: Bool = false
+
+  // Subtitle interaction state
+  @State private var selectedCueForExplanation: Subtitles.Cue?
+  @State private var selectedCueForTranslation: Subtitles.Cue?
+
+  // Computed property to access videoID from the entity
+  private var videoID: YouTubeContentID { videoItem.videoID }
 
   var body: some View {
     if let controller = playerController {
@@ -147,8 +154,20 @@ struct PlayerView: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
       }
+      .sheet(item: $selectedCueForExplanation) { cue in
+        WordExplanationSheet(
+          text: cue.text.htmlDecoded,
+          context: cue.text.htmlDecoded
+        )
+      }
+      .translationPresentation(
+        isPresented: Binding(
+          get: { selectedCueForTranslation != nil },
+          set: { if !$0 { selectedCueForTranslation = nil } }
+        ),
+        text: selectedCueForTranslation?.text.htmlDecoded ?? ""
+      )
       .onDisappear {
-        isShowingSheet = false
         // Stop playback and cancel tracking
         trackingTask?.cancel()
         trackingTask = nil
@@ -160,6 +179,13 @@ struct PlayerView: View {
       }
       .onChange(of: scenePhase) { oldPhase, newPhase in
         handleScenePhaseChange(from: oldPhase, to: newPhase)
+      }
+      .onChange(of: videoItem.isDownloaded) { oldValue, isDownloaded in
+        // When download completes, automatically switch to local playback
+        if isDownloaded, playbackSource == .youtube, let fileURL = videoItem.downloadedFileURL {
+          localFileURL = fileURL
+          switchPlaybackSource(to: .local)
+        }
       }
       .onChange(of: currentSubtitles?.cues) { _, newCues in
         // Update model's cues when subtitles change
@@ -216,6 +242,7 @@ struct PlayerView: View {
         model: model,
         cues: currentSubtitles?.cues ?? [],
         isLoading: isLoadingTranscripts,
+        transcriptionState: transcriptionState,
         error: transcriptError,
         onAction: { action in
           switch action {
@@ -227,6 +254,10 @@ struct PlayerView: View {
             model.repeatStartTime = time
           case .setRepeatB(let time):
             model.repeatEndTime = time
+          case .explain(let cue):
+            selectedCueForExplanation = cue
+          case .translate(let cue):
+            selectedCueForTranslation = cue
           }
         }
       )     
@@ -252,7 +283,7 @@ struct PlayerView: View {
       }
     }
     // Check persisted download status from VideoItem
-    if videoItem?.isDownloaded == true {
+    if videoItem.isDownloaded {
       return .completed
     }
     return .idle
@@ -264,17 +295,9 @@ struct PlayerView: View {
     // Prevent multiple loads
     guard playerController == nil else { return }
 
-    // Check for downloaded file
-    let descriptor = FetchDescriptor<VideoItem>(
-      predicate: #Predicate { $0.videoID == videoID }
-    )
-
-    let item = try? modelContext.fetch(descriptor).first
-    videoItem = item
-
-    if let item,
-       item.isDownloaded,
-       let fileURL = item.downloadedFileURL {
+    // Check if video is downloaded
+    if videoItem.isDownloaded,
+       let fileURL = videoItem.downloadedFileURL {
       // Store local file URL for later switching
       localFileURL = fileURL
       // Use local file playback by default when available
@@ -282,7 +305,7 @@ struct PlayerView: View {
       playbackSource = .local
     } else {
       // Use YouTube playback
-      playerController = .youtube(YouTubeVideoPlayerController(videoID: videoID))
+      playerController = .youtube(YouTubeVideoPlayerController(videoID: videoID.rawValue))
       playbackSource = .youtube
     }
 
@@ -292,15 +315,16 @@ struct PlayerView: View {
     fetchTranscripts(videoID: videoID)
   }
 
-  private func fetchTranscripts(videoID: String) {
+  private func fetchTranscripts(videoID: YouTubeContentID) {
     isLoadingTranscripts = true
     transcriptError = nil
     currentSubtitles = nil
 
     Task {
       // Check cache first
+      let videoIDRaw = videoID.rawValue
       let descriptor = FetchDescriptor<VideoItem>(
-        predicate: #Predicate { $0.videoID == videoID }
+        predicate: #Predicate { $0._videoID == videoIDRaw }
       )
 
       if let historyItem = try? modelContext.fetch(descriptor).first,
@@ -318,7 +342,7 @@ struct PlayerView: View {
       do {
         let config = TranscriptConfig(lang: nil)
         let fetchedTranscripts = try await YoutubeTranscript.fetchTranscript(
-          for: videoID,
+          for: videoID.rawValue,
           config: config
         )
 
@@ -453,7 +477,7 @@ struct PlayerView: View {
     // Create new controller based on source
     switch source {
     case .youtube:
-      playerController = .youtube(YouTubeVideoPlayerController(videoID: videoID))
+      playerController = .youtube(YouTubeVideoPlayerController(videoID: videoID.rawValue))
     case .local:
       guard let fileURL = localFileURL else { return }
       playerController = .local(LocalVideoPlayerController(url: fileURL))
@@ -564,6 +588,8 @@ extension PlayerView {
     let onSubtitleSeekBackward: () -> Void
     let onSubtitleSeekForward: () -> Void
 
+    @State private var controlsMode: ControlsMode = .normal
+
     var body: some View {
       VStack(spacing: 0) {
         ProgressBar(
@@ -599,24 +625,31 @@ extension PlayerView {
         )
         .padding(.top, 4)
 
-        HStack(spacing: 24) {
-          RepeatControls(model: model)
+        bottomControlsSection
+          .padding(.top, 8)
+          .padding(.bottom, 16)
+          .animation(.smooth(duration: 0.3), value: controlsMode)
+      }
+    }
 
-          Divider()
-            .frame(height: 24)
+    @ViewBuilder
+    private var bottomControlsSection: some View {
+      switch controlsMode {
+      case .normal:
+        NormalModeControls(
+          model: model,
+          playbackRate: model.playbackRate,
+          onRateChange: onRateChange,
+          onEnterRepeatMode: { controlsMode = .repeatSetup }
+        )
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
 
-          SpeedControls(
-            playbackRate: model.playbackRate,
-            onRateChange: onRateChange
-          )
-
-          Divider()
-            .frame(height: 24)
-
-          LoopControl(model: model)
-        }
-        .padding(.top, 8)
-        .padding(.bottom, 16)
+      case .repeatSetup:
+        RepeatSetupControls(
+          model: model,
+          onDone: { controlsMode = .normal }
+        )
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
       }
     }
   }
@@ -793,90 +826,6 @@ extension PlayerView {
     }
   }
 
-  // MARK: - RepeatControls
-
-  struct RepeatControls: View {
-    let model: PlayerModel
-
-    var body: some View {
-      HStack(spacing: 16) {
-        Button {
-          model.setRepeatStartToCurrent()
-        } label: {
-          HStack(spacing: 4) {
-            Text("A")
-              .font(.system(.caption, design: .rounded).bold())
-            Text(model.repeatStartTime.map { formatTime($0) } ?? "--:--")
-              .font(.system(.caption, design: .monospaced))
-          }
-          .padding(.horizontal, 10)
-          .padding(.vertical, 6)
-          .background(
-            model.repeatStartTime != nil
-              ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15)
-          )
-          .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
-
-        Button {
-          model.setRepeatEndToCurrent()
-        } label: {
-          HStack(spacing: 4) {
-            Text("B")
-              .font(.system(.caption, design: .rounded).bold())
-            Text(model.repeatEndTime.map { formatTime($0) } ?? "--:--")
-              .font(.system(.caption, design: .monospaced))
-          }
-          .padding(.horizontal, 10)
-          .padding(.vertical, 6)
-          .background(
-            model.repeatEndTime != nil
-              ? Color.orange.opacity(0.2) : Color.gray.opacity(0.15)
-          )
-          .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
-
-        Button {
-          model.toggleRepeat()
-        } label: {
-          Image(
-            systemName: model.isRepeating ? "repeat.circle.fill" : "repeat.circle"
-          )
-          .font(.system(size: 24))
-          .foregroundStyle(model.isRepeating ? .orange : .secondary)
-        }
-        .buttonStyle(.plain)
-        .disabled(!model.canToggleRepeat)
-
-        if model.repeatStartTime != nil || model.repeatEndTime != nil {
-          Button {
-            model.clearRepeat()
-          } label: {
-            Image(systemName: "xmark.circle")
-              .font(.system(size: 20))
-              .foregroundStyle(.secondary)
-          }
-          .buttonStyle(.plain)
-        }
-      }
-    }
-
-    private func formatTime(_ seconds: Double) -> String {
-      let totalSeconds = Int(seconds)
-      let hours = totalSeconds / 3600
-      let minutes = (totalSeconds % 3600) / 60
-      let secs = totalSeconds % 60
-
-      if hours > 0 {
-        return String(format: "%d:%02d:%02d", hours, minutes, secs)
-      } else {
-        return String(format: "%d:%02d", minutes, secs)
-      }
-    }
-  }
-
   // MARK: - SpeedControls
 
   struct SpeedControls: View {
@@ -943,6 +892,204 @@ extension PlayerView {
           .foregroundStyle(model.isLoopingEnabled ? .blue : .secondary)
       }
       .buttonStyle(.plain)
+    }
+  }
+
+  // MARK: - ControlsMode
+
+  enum ControlsMode {
+    case normal
+    case repeatSetup
+  }
+
+  // MARK: - RingSliderPointControl
+
+  struct RingSliderPointControl: View {
+    let label: String
+    @Binding var value: Double
+    let duration: Double
+    let onSetToCurrent: () -> Void
+
+    var body: some View {
+      VStack(spacing: 8) {
+        Text(label)
+          .font(.system(.title2, design: .rounded).bold())
+          .foregroundStyle(label == "A" ? .orange : .blue)
+
+        RingSlider(
+          value: $value,
+          stride: 1,
+          valueRange: 0...max(1, duration)
+        )
+        .frame(width: 80, height: 80)
+
+        Text(formatTime(value))
+          .font(.system(.caption, design: .monospaced))
+
+        Button("Set to Current", action: onSetToCurrent)
+          .font(.caption2)
+          .buttonStyle(.bordered)
+      }
+      .padding(.vertical, 8)
+    }
+
+    private func formatTime(_ seconds: Double) -> String {
+      let totalSeconds = Int(seconds)
+      let hours = totalSeconds / 3600
+      let minutes = (totalSeconds % 3600) / 60
+      let secs = totalSeconds % 60
+
+      if hours > 0 {
+        return String(format: "%d:%02d:%02d", hours, minutes, secs)
+      } else {
+        return String(format: "%d:%02d", minutes, secs)
+      }
+    }
+  }
+
+  // MARK: - RepeatEntryButton
+
+  struct RepeatEntryButton: View {
+    let isActive: Bool
+    let hasRepeatPoints: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+      Button(action: onTap) {
+        HStack(spacing: 6) {
+          Image(systemName: isActive ? "repeat.1.circle.fill" : "repeat.1.circle")
+            .font(.system(size: 20))
+          Text("A-B")
+            .font(.system(.caption, design: .rounded).bold())
+        }
+        .foregroundStyle(isActive ? .orange : (hasRepeatPoints ? .primary : .secondary))
+      }
+      .buttonStyle(.plain)
+    }
+  }
+
+  // MARK: - RepeatSetupControls
+
+  struct RepeatSetupControls: View {
+    let model: PlayerModel
+    let onDone: () -> Void
+
+    @State private var startValue: Double = 0
+    @State private var endValue: Double = 0
+
+    var body: some View {
+      VStack(spacing: 12) {
+        // Header row
+        HStack {
+          Text("Set A-B Repeat")
+            .font(.headline)
+          Spacer()
+          Button("Done", action: onDone)
+            .buttonStyle(.borderedProminent)
+            .tint(.blue)
+        }
+
+        // A-B RingSlider row
+        HStack(spacing: 24) {
+          RingSliderPointControl(
+            label: "A",
+            value: $startValue,
+            duration: model.duration,
+            onSetToCurrent: { model.setRepeatStartToCurrent() }
+          )
+
+          RingSliderPointControl(
+            label: "B",
+            value: $endValue,
+            duration: model.duration,
+            onSetToCurrent: { model.setRepeatEndToCurrent() }
+          )
+        }
+
+        // Actions row
+        HStack(spacing: 16) {
+          if model.repeatStartTime != nil || model.repeatEndTime != nil {
+            Button {
+              model.clearRepeat()
+            } label: {
+              Label("Clear", systemImage: "xmark.circle")
+                .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+          }
+
+          Spacer()
+
+          if model.isRepeating {
+            Button {
+              model.toggleRepeat()
+            } label: {
+              Label("Repeating", systemImage: "repeat.circle.fill")
+                .font(.subheadline)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+          } else {
+            Button {
+              model.toggleRepeat()
+            } label: {
+              Label("Start Repeat", systemImage: "repeat.circle")
+                .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!model.canToggleRepeat)
+          }
+        }
+      }
+      .padding(.horizontal, 16)
+      .onAppear {
+        // Initialize with model values or defaults
+        startValue = model.repeatStartTime ?? 0
+        endValue = model.repeatEndTime ?? model.duration
+      }
+      .onChange(of: startValue) { _, newValue in
+        model.repeatStartTime = newValue
+      }
+      .onChange(of: endValue) { _, newValue in
+        model.repeatEndTime = newValue
+      }
+      .onChange(of: model.repeatStartTime) { _, newValue in
+        if let value = newValue, value != startValue {
+          startValue = value
+        }
+      }
+      .onChange(of: model.repeatEndTime) { _, newValue in
+        if let value = newValue, value != endValue {
+          endValue = value
+        }
+      }
+    }
+  }
+
+  // MARK: - NormalModeControls
+
+  struct NormalModeControls: View {
+    let model: PlayerModel
+    let playbackRate: Double
+    let onRateChange: (Double) -> Void
+    let onEnterRepeatMode: () -> Void
+
+    var body: some View {
+      HStack(spacing: 24) {
+        SpeedControls(playbackRate: playbackRate, onRateChange: onRateChange)
+
+        Divider().frame(height: 24)
+
+        LoopControl(model: model)
+
+        Divider().frame(height: 24)
+
+        RepeatEntryButton(
+          isActive: model.isRepeating,
+          hasRepeatPoints: model.repeatStartTime != nil || model.repeatEndTime != nil,
+          onTap: onEnterRepeatMode
+        )
+      }
     }
   }
 
@@ -1208,6 +1355,12 @@ enum SubtitleSource {
 
 #Preview {
   NavigationStack {
-    PlayerView(videoID: "oRc4sndVaWo")
+    let item = VideoItem(
+      videoID: "oRc4sndVaWo",
+      url: "https://www.youtube.com/watch?v=oRc4sndVaWo",
+      title: "Preview Video"
+    )
+    PlayerView(videoItem: item)
   }
 }
+

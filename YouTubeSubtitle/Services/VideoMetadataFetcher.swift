@@ -10,9 +10,9 @@ struct VideoMetadata {
 @MainActor
 final class VideoMetadataFetcher {
   
-  static func fetch(videoID: String) async -> VideoMetadata {
+  static func fetch(videoID: YouTubeContentID) async -> VideoMetadata {
     do {
-      let youtube = YouTube(videoID: videoID)
+      let youtube = YouTube(videoID: videoID.rawValue)
       let metadata = try await youtube.metadata
       
       return VideoMetadata(

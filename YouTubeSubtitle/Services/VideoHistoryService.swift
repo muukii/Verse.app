@@ -28,7 +28,7 @@ final class VideoHistoryService {
   /// Add a video to history with metadata.
   /// Removes any existing entry for the same videoID to prevent duplicates.
   /// Keeps only the most recent 50 items.
-  func addToHistory(videoID: String, url: String) async throws {
+  func addToHistory(videoID: YouTubeContentID, url: String) async throws {
     // Fetch metadata
     let metadata = await VideoMetadataFetcher.fetch(videoID: videoID)
 
@@ -129,9 +129,10 @@ final class VideoHistoryService {
   // MARK: - Update Subtitles
 
   /// Update cached subtitles for a video.
-  func updateCachedSubtitles(videoID: String, subtitles: Subtitles) throws {
+  func updateCachedSubtitles(videoID: YouTubeContentID, subtitles: Subtitles) throws {
+    let videoIDRaw = videoID.rawValue
     let descriptor = FetchDescriptor<VideoItem>(
-      predicate: #Predicate { $0.videoID == videoID }
+      predicate: #Predicate { $0._videoID == videoIDRaw }
     )
 
     guard let item = try modelContext.fetch(descriptor).first else {
@@ -146,9 +147,10 @@ final class VideoHistoryService {
   // MARK: - Find Item
 
   /// Find a video item by videoID.
-  func findItem(videoID: String) throws -> VideoItem? {
+  func findItem(videoID: YouTubeContentID) throws -> VideoItem? {
+    let videoIDRaw = videoID.rawValue
     let descriptor = FetchDescriptor<VideoItem>(
-      predicate: #Predicate { $0.videoID == videoID }
+      predicate: #Predicate { $0._videoID == videoIDRaw }
     )
     return try modelContext.fetch(descriptor).first
   }

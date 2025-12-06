@@ -8,13 +8,14 @@
 @preconcurrency import BackgroundTasks
 import Foundation
 import SwiftData
+import TypedIdentifier
 import YouTubeKit
 
 // MARK: - Download Progress
 
 struct DownloadProgress: Sendable {
-  let recordID: UUID
-  let videoID: String
+  let recordID: TypedIdentifier<DownloadRecord>
+  let videoID: YouTubeContentID
   let videoTitle: String?
   var fractionCompleted: Double
   var state: DownloadState
@@ -130,10 +131,10 @@ final class DownloadManager: Sendable {
   // MARK: - Observable State
 
   /// Active downloads with their progress (for UI observation)
-  private(set) var activeDownloads: [UUID: DownloadProgress] = [:]
+  private(set) var activeDownloads: [TypedIdentifier<DownloadRecord>: DownloadProgress] = [:]
 
   /// Pending downloads in queue
-  private(set) var pendingRecordIDs: [UUID] = []
+  private(set) var pendingRecordIDs: [TypedIdentifier<DownloadRecord>] = []
 
   // MARK: - Constants
 
@@ -143,20 +144,17 @@ final class DownloadManager: Sendable {
   // MARK: - Private Properties
 
   private let scheduler = BGTaskScheduler.shared
-  private var modelContainer: ModelContainer?
+  private let modelContainer: ModelContainer
   private var activeTask: BGContinuedProcessingTask?
-  private var downloadTasks: [UUID: Task<Void, Never>] = [:]
-  private var urlSessionTasks: [UUID: URLSessionDownloadTask] = [:]
+  private var downloadTasks: [TypedIdentifier<DownloadRecord>: Task<Void, Never>] = [:]
+  private var urlSessionTasks: [TypedIdentifier<DownloadRecord>: URLSessionDownloadTask] = [:]
   private var isTaskRegistered = false
 
   // MARK: - Initialization
 
-  init() {}
-
-  // MARK: - Configuration
-
-  /// Configure the manager with ModelContainer. Call this on app launch.
-  func configure(modelContainer: ModelContainer) {
+  init(
+    modelContainer: ModelContainer
+  ) {
     self.modelContainer = modelContainer
   }
 
@@ -166,17 +164,15 @@ final class DownloadManager: Sendable {
   /// Returns the record ID for tracking.
   @discardableResult
   func queueDownload(
-    videoID: String,
+    videoID: YouTubeContentID,
     stream: YouTubeKit.Stream
-  ) async throws -> UUID {
-    guard let modelContainer else {
-      fatalError("DownloadManager not configured. Call configure(modelContainer:) first.")
-    }
+  ) async throws -> TypedIdentifier<DownloadRecord> {
 
     // Fetch video title from VideoItem
     let context = ModelContext(modelContainer)
+    let videoIDRaw = videoID.rawValue
     let historyDescriptor = FetchDescriptor<VideoItem>(
-      predicate: #Predicate { $0.videoID == videoID }
+      predicate: #Predicate { $0._videoID == videoIDRaw }
     )
     let videoTitle = try? context.fetch(historyDescriptor).first?.title
 
@@ -192,7 +188,7 @@ final class DownloadManager: Sendable {
     context.insert(record)
     try context.save()
 
-    let recordID = record.id
+    let recordID = record.typedID
 
     // Update observable state
     activeDownloads[recordID] = DownloadProgress(
@@ -217,7 +213,7 @@ final class DownloadManager: Sendable {
   }
 
   /// Cancel a specific download.
-  func cancelDownload(recordID: UUID) {
+  func cancelDownload(recordID: TypedIdentifier<DownloadRecord>) {
     // Cancel the URLSession download task
     urlSessionTasks[recordID]?.cancel()
     urlSessionTasks[recordID] = nil
@@ -238,7 +234,7 @@ final class DownloadManager: Sendable {
 
   /// Cancel all downloads for a specific video ID.
   /// Call this when deleting a VideoHistoryItem.
-  func cancelDownloads(for videoID: String) {
+  func cancelDownloads(for videoID: YouTubeContentID) {
     let recordsToCancel = activeDownloads.filter { $0.value.videoID == videoID }
     for (recordID, _) in recordsToCancel {
       cancelDownload(recordID: recordID)
@@ -246,7 +242,7 @@ final class DownloadManager: Sendable {
   }
 
   /// Pause a specific download and save resume data.
-  func pauseDownload(recordID: UUID) {
+  private func pauseDownload(recordID: TypedIdentifier<DownloadRecord>) {
     guard let urlTask = urlSessionTasks[recordID] else { return }
 
     // Cancel with resume data
@@ -275,16 +271,16 @@ final class DownloadManager: Sendable {
   }
 
   /// Resume a paused download.
-  func resumeDownload(recordID: UUID) {
-    guard let modelContainer else { return }
+  func resumeDownload(recordID: TypedIdentifier<DownloadRecord>) {
 
     // Check if already downloading
     if downloadTasks[recordID] != nil { return }
 
     Task {
       let context = ModelContext(modelContainer)
+      let rawID = recordID.raw
       let descriptor = FetchDescriptor<DownloadRecord>(
-        predicate: #Predicate { $0.id == recordID }
+        predicate: #Predicate { $0.id == rawID }
       )
       guard let record = try? context.fetch(descriptor).first else { return }
 
@@ -315,14 +311,13 @@ final class DownloadManager: Sendable {
   }
 
   /// Get download progress for a specific video ID.
-  func downloadProgress(for videoID: String) -> DownloadProgress? {
+  func downloadProgress(for videoID: YouTubeContentID) -> DownloadProgress? {
     activeDownloads.values.first { $0.videoID == videoID }
   }
 
   /// Restore pending downloads on app launch.
   /// Call this after configure(modelContainer:).
   func restorePendingDownloads() async {
-    guard let modelContainer else { return }
 
     let context = ModelContext(modelContainer)
     let descriptor = FetchDescriptor<DownloadRecord>(
@@ -335,14 +330,14 @@ final class DownloadManager: Sendable {
 
     for record in records {
       // Fetch video title from VideoItem
-      let targetVideoID = record.videoID
+      let targetVideoIDRaw = record.videoID.rawValue
       let historyDescriptor = FetchDescriptor<VideoItem>(
-        predicate: #Predicate { $0.videoID == targetVideoID }
+        predicate: #Predicate { $0._videoID == targetVideoIDRaw }
       )
       let videoTitle = try? context.fetch(historyDescriptor).first?.title
 
-      activeDownloads[record.id] = DownloadProgress(
-        recordID: record.id,
+      activeDownloads[record.typedID] = DownloadProgress(
+        recordID: record.typedID,
         videoID: record.videoID,
         videoTitle: videoTitle,
         fractionCompleted: record.fractionCompleted,
@@ -350,7 +345,7 @@ final class DownloadManager: Sendable {
       )
 
       if record.state == .pending {
-        pendingRecordIDs.append(record.id)
+        pendingRecordIDs.append(record.typedID)
       }
     }
 
@@ -370,7 +365,7 @@ final class DownloadManager: Sendable {
   // MARK: - BGTask Management
 
   /// Handle the background task for a specific download.
-  private func handleBackgroundTask(_ task: BGContinuedProcessingTask, recordID: UUID) async {
+  private func handleBackgroundTask(_ task: BGContinuedProcessingTask, recordID: TypedIdentifier<DownloadRecord>) async {
     // Track active task
     activeTask = task
 
@@ -401,10 +396,10 @@ final class DownloadManager: Sendable {
   }
 
   /// Submit a task request for a specific download.
-  private func submitTask(for recordID: UUID) throws {
+  private func submitTask(for recordID: TypedIdentifier<DownloadRecord>) throws {
     guard let progress = activeDownloads[recordID] else { return }
 
-    let fullIdentifier = Self.taskIdentifier + ".\(recordID.uuidString)"
+    let fullIdentifier = Self.taskIdentifier + ".\(recordID.raw.uuidString)"
 
     // Dynamically register handler for this specific task identifier
     scheduler.register(forTaskWithIdentifier: fullIdentifier, using: nil) { @Sendable [weak self] task in
@@ -433,7 +428,7 @@ final class DownloadManager: Sendable {
 
   /// Start a download task (unified for both foreground and BGTask).
   private func startDownload(
-    recordID: UUID,
+    recordID: TypedIdentifier<DownloadRecord>,
     bgTask: BGContinuedProcessingTask?,
     checkExpired: @escaping () -> Bool = { false }
   ) {
@@ -450,16 +445,16 @@ final class DownloadManager: Sendable {
 
   /// Perform the download (unified for both foreground and BGTask).
   private func performDownload(
-    recordID: UUID,
+    recordID: TypedIdentifier<DownloadRecord>,
     bgTask: BGContinuedProcessingTask?,
     checkExpired: @escaping () -> Bool
   ) async {
-    guard let modelContainer else { return }
 
     // Fetch record
     let context = ModelContext(modelContainer)
+    let rawID = recordID.raw
     let descriptor = FetchDescriptor<DownloadRecord>(
-      predicate: #Predicate { $0.id == recordID }
+      predicate: #Predicate { $0.id == rawID }
     )
     guard let record = try? context.fetch(descriptor).first else { return }
 
@@ -550,7 +545,7 @@ final class DownloadManager: Sendable {
 
     // Start download task
     let downloadTask = session.downloadTask(with: url)
-    urlSessionTasks[record.id] = downloadTask
+    urlSessionTasks[record.typedID] = downloadTask
     downloadTask.resume()
 
     // Track for progress throttling
@@ -591,7 +586,7 @@ final class DownloadManager: Sendable {
           try? context.save()
 
           // Update observable state on main thread
-          updateProgress(recordID: record.id, fraction: fraction, state: .downloading)
+          updateProgress(recordID: record.typedID, fraction: fraction, state: .downloading)
         }
 
       case .completed(let movedURL):
@@ -599,14 +594,14 @@ final class DownloadManager: Sendable {
         finalURL = movedURL
 
       case .failed(let error):
-        urlSessionTasks[record.id] = nil
+        urlSessionTasks[record.typedID] = nil
         session.invalidateAndCancel()
         throw error
       }
     }
 
     // Clean up
-    urlSessionTasks[record.id] = nil
+    urlSessionTasks[record.typedID] = nil
     session.finishTasksAndInvalidate()
 
     guard let resultURL = finalURL else {
@@ -618,7 +613,7 @@ final class DownloadManager: Sendable {
 
   // MARK: - Helpers
 
-  private func updateProgress(recordID: UUID, fraction: Double, state: DownloadState) {
+  private func updateProgress(recordID: TypedIdentifier<DownloadRecord>, fraction: Double, state: DownloadState) {
     if var progress = activeDownloads[recordID] {
       progress.fractionCompleted = fraction
       progress.state = state
@@ -627,12 +622,13 @@ final class DownloadManager: Sendable {
   }
 
   private func markFailed(
-    recordID: UUID,
+    recordID: TypedIdentifier<DownloadRecord>,
     error: any Error,
     context: ModelContext
   ) async {
+    let rawID = recordID.raw
     let descriptor = FetchDescriptor<DownloadRecord>(
-      predicate: #Predicate { $0.id == recordID }
+      predicate: #Predicate { $0.id == rawID }
     )
     if let record = try? context.fetch(descriptor).first {
       record.state = .failed
@@ -644,12 +640,12 @@ final class DownloadManager: Sendable {
     pendingRecordIDs.removeAll { $0 == recordID }
   }
 
-  private func updateRecordState(recordID: UUID, state: DownloadState) async {
-    guard let modelContainer else { return }
+  private func updateRecordState(recordID: TypedIdentifier<DownloadRecord>, state: DownloadState) async {
 
     let context = ModelContext(modelContainer)
+    let rawID = recordID.raw
     let descriptor = FetchDescriptor<DownloadRecord>(
-      predicate: #Predicate { $0.id == recordID }
+      predicate: #Predicate { $0.id == rawID }
     )
     if let record = try? context.fetch(descriptor).first {
       record.state = state
@@ -657,12 +653,12 @@ final class DownloadManager: Sendable {
     }
   }
 
-  private func updateVideoHistory(videoID: String, fileName: String) async {
-    guard let modelContainer else { return }
+  private func updateVideoHistory(videoID: YouTubeContentID, fileName: String) async {
 
     let context = ModelContext(modelContainer)
+    let videoIDRaw = videoID.rawValue
     let descriptor = FetchDescriptor<VideoItem>(
-      predicate: #Predicate { $0.videoID == videoID }
+      predicate: #Predicate { $0._videoID == videoIDRaw }
     )
     if let item = try? context.fetch(descriptor).first {
       item.downloadedFileName = fileName
@@ -671,12 +667,12 @@ final class DownloadManager: Sendable {
   }
 
   /// Save resume data to persistent storage.
-  private func saveResumeData(recordID: UUID, resumeData: Data?) async {
-    guard let modelContainer else { return }
+  private func saveResumeData(recordID: TypedIdentifier<DownloadRecord>, resumeData: Data?) async {
 
     let context = ModelContext(modelContainer)
+    let rawID = recordID.raw
     let descriptor = FetchDescriptor<DownloadRecord>(
-      predicate: #Predicate { $0.id == recordID }
+      predicate: #Predicate { $0.id == rawID }
     )
     if let record = try? context.fetch(descriptor).first {
       record.resumeData = resumeData
@@ -687,7 +683,7 @@ final class DownloadManager: Sendable {
 
   /// Start a download with resume data (for resuming paused downloads).
   private func startDownloadWithResumeData(
-    recordID: UUID,
+    recordID: TypedIdentifier<DownloadRecord>,
     resumeData: Data,
     bgTask: BGContinuedProcessingTask?,
     checkExpired: @escaping () -> Bool = { false }
@@ -706,17 +702,17 @@ final class DownloadManager: Sendable {
 
   /// Perform a download with resume data.
   private func performDownloadWithResumeData(
-    recordID: UUID,
+    recordID: TypedIdentifier<DownloadRecord>,
     resumeData: Data,
     bgTask: BGContinuedProcessingTask?,
     checkExpired: @escaping () -> Bool
   ) async {
-    guard let modelContainer else { return }
 
     // Fetch record
     let context = ModelContext(modelContainer)
+    let rawID = recordID.raw
     let descriptor = FetchDescriptor<DownloadRecord>(
-      predicate: #Predicate { $0.id == recordID }
+      predicate: #Predicate { $0.id == rawID }
     )
     guard let record = try? context.fetch(descriptor).first else { return }
 
@@ -794,7 +790,7 @@ final class DownloadManager: Sendable {
 
     // Start download task with resume data
     let downloadTask = session.downloadTask(withResumeData: resumeData)
-    urlSessionTasks[record.id] = downloadTask
+    urlSessionTasks[record.typedID] = downloadTask
     downloadTask.resume()
 
     // Track for progress throttling
@@ -829,20 +825,20 @@ final class DownloadManager: Sendable {
           record.downloadedBytes = update.totalBytesWritten
           try? context.save()
 
-          updateProgress(recordID: record.id, fraction: fraction, state: .downloading)
+          updateProgress(recordID: record.typedID, fraction: fraction, state: .downloading)
         }
 
       case .completed(let movedURL):
         finalURL = movedURL
 
       case .failed(let error):
-        urlSessionTasks[record.id] = nil
+        urlSessionTasks[record.typedID] = nil
         session.invalidateAndCancel()
         throw error
       }
     }
 
-    urlSessionTasks[record.id] = nil
+    urlSessionTasks[record.typedID] = nil
     session.finishTasksAndInvalidate()
 
     guard let resultURL = finalURL else {

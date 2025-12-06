@@ -10,11 +10,12 @@ import SwiftData
 import AppIntents
 
 struct HomeView: View {
+  @Environment(\.modelContext) private var modelContext
   @Environment(VideoHistoryService.self) private var historyService
   @Environment(DownloadManager.self) private var downloadManager
   @Query(sort: \VideoItem.timestamp, order: .reverse) private var history: [VideoItem]
 
-  @State private var selectedVideoID: String?
+  @State private var selectedVideoItem: VideoItem?
   @State private var showWebView: Bool = false
   @State private var showSettings: Bool = false
   @State private var showURLInput: Bool = false
@@ -43,7 +44,7 @@ struct HomeView: View {
           List {
             ForEach(history) { item in
               Button {
-                selectedVideoID = item.videoID
+                selectedVideoItem = item
               } label: {
                 VideoHistoryCell(
                   item: item,
@@ -104,9 +105,9 @@ struct HomeView: View {
           }
         }
       }
-      .navigationDestination(item: $selectedVideoID) { videoID in
-        PlayerView(videoID: videoID)
-          .navigationTransition(.zoom(sourceID: videoID, in: heroNamespace))
+      .navigationDestination(item: $selectedVideoItem) { videoItem in
+        PlayerView(videoItem: videoItem)
+          .navigationTransition(.zoom(sourceID: videoItem.videoID, in: heroNamespace))
       }
       .sheet(isPresented: $showWebView) {
         NavigationStack {
@@ -116,9 +117,16 @@ struct HomeView: View {
                 videoID: videoID,
                 url: "https://www.youtube.com/watch?v=\(videoID)"
               )
+              // Fetch the VideoItem to navigate to PlayerView
+              let videoIDRaw = videoID.rawValue
+              let descriptor = FetchDescriptor<VideoItem>(
+                predicate: #Predicate { $0._videoID == videoIDRaw }
+              )
+              if let item = try? modelContext.fetch(descriptor).first {
+                selectedVideoItem = item
+              }
             }
             showWebView = false
-            selectedVideoID = videoID
           }
           .navigationTitle("YouTube")
           #if os(iOS)
@@ -135,7 +143,14 @@ struct HomeView: View {
       }
       .onChange(of: deepLinkManager.pendingVideoID) { _, newVideoID in
         if let videoID = newVideoID {
-          selectedVideoID = videoID
+          // Fetch the VideoItem for this videoID
+          let videoIDRaw = videoID.rawValue
+          let descriptor = FetchDescriptor<VideoItem>(
+            predicate: #Predicate { $0._videoID == videoIDRaw }
+          )
+          if let item = try? modelContext.fetch(descriptor).first {
+            selectedVideoItem = item
+          }
           deepLinkManager.pendingVideoID = nil
         }
       }
@@ -162,18 +177,36 @@ struct HomeView: View {
     if let videoID = YouTubeURLParser.extractVideoID(from: url) {
       Task {
         try? await historyService.addToHistory(videoID: videoID, url: urlText)
+        // Fetch the VideoItem to navigate to PlayerView
+        let videoIDRaw = videoID.rawValue
+        let descriptor = FetchDescriptor<VideoItem>(
+          predicate: #Predicate { $0._videoID == videoIDRaw }
+        )
+        if let item = try? modelContext.fetch(descriptor).first {
+          await MainActor.run {
+            selectedVideoItem = item
+          }
+        }
       }
-      selectedVideoID = videoID
     }
   }
 
   private func loadDemoVideo() {
-    let demoVideoID = "JKpsGXPqMd8"
+    let demoVideoID: YouTubeContentID = "JKpsGXPqMd8"
     let demoURL = "https://www.youtube.com/watch?v=\(demoVideoID)"
     Task {
       try? await historyService.addToHistory(videoID: demoVideoID, url: demoURL)
+      // Fetch the VideoItem to navigate to PlayerView
+      let videoIDRaw = demoVideoID.rawValue
+      let descriptor = FetchDescriptor<VideoItem>(
+        predicate: #Predicate { $0._videoID == videoIDRaw }
+      )
+      if let item = try? modelContext.fetch(descriptor).first {
+        await MainActor.run {
+          selectedVideoItem = item
+        }
+      }
     }
-    selectedVideoID = demoVideoID
   }
   
   private func formatDate(_ date: Date) -> String {
@@ -205,7 +238,7 @@ struct VideoHistoryCell: View {
 
       // テキスト情報
       VStack(alignment: .leading, spacing: 4) {
-        Text(item.title ?? item.videoID)
+        Text(item.title ?? item.videoID.rawValue)
           .font(.headline)
           .lineLimit(2)
 

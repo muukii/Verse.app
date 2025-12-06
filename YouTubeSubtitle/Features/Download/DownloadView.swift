@@ -10,7 +10,7 @@ import SwiftUI
 import YouTubeKit
 
 struct DownloadView: View {
-  let videoID: String
+  let videoID: YouTubeContentID
 
   @Environment(\.dismiss) private var dismiss
   @Environment(\.modelContext) private var modelContext
@@ -26,8 +26,9 @@ struct DownloadView: View {
 
   /// Check if file is already downloaded (persisted in SwiftData)
   private var isAlreadyDownloaded: Bool {
+    let videoIDRaw = videoID.rawValue
     let descriptor = FetchDescriptor<VideoItem>(
-      predicate: #Predicate { $0.videoID == videoID }
+      predicate: #Predicate { $0._videoID == videoIDRaw }
     )
     guard let item = try? modelContext.fetch(descriptor).first else {
       return false
@@ -446,7 +447,7 @@ struct DownloadView: View {
     streams = []
 
     do {
-      let youtube = YouTube(videoID: videoID)
+      let youtube = YouTube(videoID: videoID.rawValue)
       async let fetchedStreams = youtube.streams
       let result = try await fetchedStreams
 
@@ -508,8 +509,9 @@ struct DownloadView: View {
       }
 
       // Save transcription result to VideoItem
+      let videoIDRaw = videoID.rawValue
       let descriptor = FetchDescriptor<VideoItem>(
-        predicate: #Predicate { $0.videoID == videoID }
+        predicate: #Predicate { $0._videoID == videoIDRaw }
       )
       if let item = try? modelContext.fetch(descriptor).first {
         item.cachedSubtitles = subtitles

@@ -12,7 +12,7 @@ struct URLInputSheet: View {
   @State private var urlText: String = ""
   @State private var loadedMetadata: VideoMetadata?
   @State private var isLoadingMetadata: Bool = false
-  @State private var currentVideoID: String?
+  @State private var currentVideoID: YouTubeContentID?
   @FocusState private var isTextFieldFocused: Bool
 
   let onSubmit: (String) -> Void

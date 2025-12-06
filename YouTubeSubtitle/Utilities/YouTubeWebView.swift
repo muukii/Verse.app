@@ -10,7 +10,7 @@ import WebKit
 import AuthenticationServices
 
 struct YouTubeWebView: View {
-  let onOpenPlayer: (String) -> Void
+  let onOpenPlayer: (YouTubeContentID) -> Void
 
   @State private var webView: WKWebView?
   @State private var currentURL: URL?
@@ -26,7 +26,7 @@ struct YouTubeWebView: View {
     return path.hasPrefix("/watch") || path.hasPrefix("/shorts/")
   }
 
-  private var detectedVideoID: String? {
+  private var detectedVideoID: YouTubeContentID? {
     guard let url = currentURL, isVideoPage else { return nil }
     return YouTubeURLParser.extractVideoID(from: url)
   }

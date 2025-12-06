@@ -1,11 +1,28 @@
 import Foundation
 import SwiftData
 import SwiftSubtitles
+import TypedIdentifier
 
 @Model
-final class VideoItem {
+final class VideoItem: TypedIdentifiable {
+  
+  typealias TypedIdentifierRawValue = UUID
+  
+  var typedID: TypedIdentifier<VideoItem> {
+    .init(id)
+  }
+  
   var id: UUID
-  var videoID: String
+
+  // Database storage (primitive String for SwiftData optimization)
+  internal var _videoID: String
+
+  // Public API (type-safe)
+  var videoID: YouTubeContentID {
+    get { YouTubeContentID(rawValue: _videoID) }
+    set { _videoID = newValue.rawValue }
+  }
+
   var url: String
   var title: String?
   var author: String?
@@ -47,14 +64,14 @@ final class VideoItem {
   }
 
   init(
-    videoID: String,
+    videoID: YouTubeContentID,
     url: String,
     title: String? = nil,
     author: String? = nil,
     thumbnailURL: String? = nil
   ) {
     self.id = UUID()
-    self.videoID = videoID
+    self._videoID = videoID.rawValue  // Store as primitive String
     self.url = url
     self.title = title
     self.author = author

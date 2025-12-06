@@ -12,7 +12,7 @@ import SwiftUI
 struct YouTubeSubtitleApp: App {
 
   let modelContainer: ModelContainer
-  @State private var downloadManager = DownloadManager()
+  let downloadManager: DownloadManager
 
   init() {
     // Configure audio session for video playback (allows audio in silent mode)
@@ -26,8 +26,34 @@ struct YouTubeSubtitleApp: App {
 
     do {
       modelContainer = try ModelContainer(for: schema)
+      self.downloadManager = DownloadManager(modelContainer: modelContainer)
     } catch {
-      fatalError("Failed to create ModelContainer: \(error)")
+      // Migration failed - delete existing database and retry
+      print("ModelContainer creation failed: \(error). Deleting database and retrying...")
+      Self.deleteSwiftDataStore()
+      
+      do {
+        modelContainer = try ModelContainer(for: schema)
+        self.downloadManager = DownloadManager(modelContainer: modelContainer)
+      } catch {
+        fatalError("Failed to create ModelContainer after database reset: \(error)")
+      }
+    }
+  }
+
+  /// Delete SwiftData SQLite files to reset the database
+  private static func deleteSwiftDataStore() {
+    let fileManager = FileManager.default
+    guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+      return
+    }
+
+    // SwiftData stores files with "default.store" prefix
+    let storeFiles = ["default.store", "default.store-shm", "default.store-wal"]
+
+    for fileName in storeFiles {
+      let fileURL = appSupportURL.appendingPathComponent(fileName)
+      try? fileManager.removeItem(at: fileURL)
     }
   }
 
@@ -35,8 +61,6 @@ struct YouTubeSubtitleApp: App {
     WindowGroup {
       ContentView()
         .task {
-          // Configure and restore pending downloads on app launch
-          downloadManager.configure(modelContainer: modelContainer)
           await downloadManager.restorePendingDownloads()
         }
     }
