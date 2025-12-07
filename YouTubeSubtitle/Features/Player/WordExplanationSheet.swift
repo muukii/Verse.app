@@ -19,6 +19,11 @@ struct WordExplanationSheet: View {
   @State private var streamedContent: String = ""
   @State private var isStreaming: Bool = false
   @State private var streamTask: Task<Void, Never>?
+  @State private var showModelPicker = false
+
+  // Track previous settings to detect changes
+  @State private var previousBackend: LLMService.Backend?
+  @State private var previousModelId: String?
 
   var body: some View {
     NavigationStack {
@@ -43,6 +48,10 @@ struct WordExplanationSheet: View {
           }
         }
 
+        ToolbarItem(placement: .principal) {
+          modelSelectionMenu
+        }
+
         ToolbarItem(placement: .primaryAction) {
           if service.state == .loading || isStreaming {
             ProgressView()
@@ -53,10 +62,28 @@ struct WordExplanationSheet: View {
     .presentationDetents([.medium, .large])
     .presentationDragIndicator(.visible)
     .onAppear {
+      // Store initial settings
+      previousBackend = service.preferredBackend
+      previousModelId = service.selectedMLXModelId
+
       // Start streaming explanation when sheet appears
       streamTask = Task {
         await generateExplanation()
       }
+    }
+    .onChange(of: service.preferredBackend) { oldValue, newValue in
+      // Regenerate when backend changes
+      if oldValue != newValue && previousBackend != nil {
+        regenerateExplanation()
+      }
+      previousBackend = newValue
+    }
+    .onChange(of: service.selectedMLXModelId) { oldValue, newValue in
+      // Regenerate when MLX model changes (only if MLX is selected)
+      if service.preferredBackend == .mlx && oldValue != newValue && previousModelId != nil {
+        regenerateExplanation()
+      }
+      previousModelId = newValue
     }
     .onDisappear {
       // Cancel streaming when sheet is dismissed
@@ -66,6 +93,77 @@ struct WordExplanationSheet: View {
   }
 
   // MARK: - Subviews
+
+  private var modelSelectionMenu: some View {
+    Menu {
+      // Backend Selection Section
+      Section("AI Backend") {
+        Picker("Backend", selection: Binding(
+          get: { service.preferredBackend },
+          set: { service.preferredBackend = $0 }
+        )) {
+          ForEach(LLMService.Backend.allCases) { backend in
+            Label(backend.displayName, systemImage: backendIcon(for: backend))
+              .tag(backend)
+          }
+        }
+        .pickerStyle(.inline)
+      }
+
+      // MLX Model Selection (only shown when MLX backend is selected)
+      if service.preferredBackend == .mlx {
+        Section("MLX Model") {
+          Picker("Model", selection: Binding(
+            get: { service.selectedMLXModelId },
+            set: { service.selectedMLXModelId = $0 }
+          )) {
+            ForEach(LLMService.availableMLXModels) { model in
+              VStack(alignment: .leading) {
+                Text(model.name)
+                Text(model.size)
+                  .font(.caption2)
+              }
+              .tag(model.id)
+            }
+          }
+          .pickerStyle(.inline)
+        }
+      }
+    } label: {
+      HStack(spacing: 4) {
+        Image(systemName: backendIcon(for: service.preferredBackend))
+          .font(.caption)
+        Text(currentModelDisplayName)
+          .font(.caption)
+          .fontWeight(.medium)
+        Image(systemName: "chevron.down")
+          .font(.caption2)
+      }
+      .foregroundStyle(.secondary)
+    }
+  }
+
+  private func backendIcon(for backend: LLMService.Backend) -> String {
+    switch backend {
+    case .appleIntelligence:
+      return "apple.logo"
+    case .mlx:
+      return "cpu"
+    }
+  }
+
+  private var currentModelDisplayName: String {
+    switch service.preferredBackend {
+    case .appleIntelligence:
+      return "Apple Intelligence"
+    case .mlx:
+      // Find the selected model
+      if let model = LLMService.availableMLXModels.first(where: { $0.id == service.selectedMLXModelId }) {
+        return model.name
+      }
+      return "MLX"
+    }
+  }
 
   private var selectedTextSection: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -187,6 +285,20 @@ struct WordExplanationSheet: View {
   }
 
   // MARK: - Actions
+
+  private func regenerateExplanation() {
+    // Cancel existing task
+    streamTask?.cancel()
+
+    // Reset state
+    streamedContent = ""
+    service.reset()
+
+    // Start new task
+    streamTask = Task {
+      await generateExplanation()
+    }
+  }
 
   private func generateExplanation() async {
     // Check if task was already cancelled
