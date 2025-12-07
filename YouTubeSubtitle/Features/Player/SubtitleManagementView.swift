@@ -25,7 +25,6 @@ struct SubtitleManagementView: View {
   @State private var showExportSheet = false
   @State private var showImportPicker = false
   @State private var exportFormat: SubtitleFormat = .srt
-  @State private var showSaveConfirmation = false
   @State private var showDeleteConfirmation = false
   @State private var errorMessage: String?
   @State private var showError = false
@@ -86,14 +85,7 @@ struct SubtitleManagementView: View {
 
       // MARK: - Subtitle Management
       Section("Subtitles") {
-        // Save to local storage
         if subtitles != nil {
-          Button {
-            saveSubtitles()
-          } label: {
-            Label("Save Subtitles", systemImage: "square.and.arrow.down")
-          }
-
           // Export to file
           Button {
             showExportSheet = true
@@ -107,22 +99,6 @@ struct SubtitleManagementView: View {
           showImportPicker = true
         } label: {
           Label("Import Subtitle File...", systemImage: "doc.badge.plus")
-        }
-
-        // Load from storage
-        let savedFormats = SubtitleStorage.shared.listSavedFormats(videoID: videoID)
-        if !savedFormats.isEmpty {
-          Menu {
-            ForEach(savedFormats) { format in
-              Button {
-                loadSavedSubtitles(format: format)
-              } label: {
-                Text(format.rawValue)
-              }
-            }
-          } label: {
-            Label("Load Saved", systemImage: "folder")
-          }
         }
       }
     } label: {
@@ -142,11 +118,6 @@ struct SubtitleManagementView: View {
       allowsMultipleSelection: false
     ) { result in
       handleImport(result)
-    }
-    .alert("Saved", isPresented: $showSaveConfirmation) {
-      Button("OK", role: .cancel) {}
-    } message: {
-      Text("Subtitles saved successfully")
     }
     .alert("Error", isPresented: $showError) {
       Button("OK", role: .cancel) {}
@@ -179,28 +150,6 @@ struct SubtitleManagementView: View {
     ]
   }
 
-  private func saveSubtitles() {
-    guard let subtitles else { return }
-
-    do {
-      try SubtitleStorage.shared.save(subtitles, videoID: videoID, format: .srt)
-      showSaveConfirmation = true
-    } catch {
-      errorMessage = error.localizedDescription
-      showError = true
-    }
-  }
-
-  private func loadSavedSubtitles(format: SubtitleFormat) {
-    do {
-      let subtitles = try SubtitleStorage.shared.load(videoID: videoID, format: format)
-      onSubtitlesImported(subtitles)
-    } catch {
-      errorMessage = error.localizedDescription
-      showError = true
-    }
-  }
-
   private func handleImport(_ result: Result<[URL], Error>) {
     switch result {
     case .success(let urls):
@@ -217,14 +166,6 @@ struct SubtitleManagementView: View {
 
       do {
         let subtitles = try SubtitleAdapter.decode(from: url)
-
-        // Also save to storage
-        if let format = SubtitleFormat.allCases.first(where: {
-          url.pathExtension.lowercased() == $0.fileExtension
-        }) {
-          try? SubtitleStorage.shared.save(subtitles, videoID: videoID, format: format)
-        }
-
         onSubtitlesImported(subtitles)
       } catch {
         errorMessage = error.localizedDescription
