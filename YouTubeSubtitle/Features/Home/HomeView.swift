@@ -287,7 +287,7 @@ struct VideoHistoryCell: View {
       case .completed:
         Image(systemName: "checkmark.circle.fill")
           .font(.system(size: 20))
-          .foregroundStyle(.green)
+          .foregroundStyle(.white)
           .background(Circle().fill(.white).padding(2))
           .padding(4)
 
@@ -302,7 +302,7 @@ struct VideoHistoryCell: View {
       // Already downloaded (persisted)
       Image(systemName: "checkmark.circle.fill")
         .font(.system(size: 20))
-        .foregroundStyle(.green)
+        .foregroundStyle(.white)
         .background(Circle().fill(.white).padding(2))
         .padding(4)
     }
