@@ -1,17 +1,81 @@
 default_platform(:ios)
 
 platform :ios do
-  desc "Build the app"
+  # ============================================
+  # IPA Build Lanes
+  # ============================================
+
+  desc "Build IPA for App Store distribution"
   lane :build do
+    build_ipa(export_method: "app-store")
+  end
+
+  desc "Build IPA for Ad-Hoc distribution (for testers)"
+  lane :build_adhoc do
+    build_ipa(export_method: "ad-hoc")
+  end
+
+  desc "Build IPA for Development distribution"
+  lane :build_development do
+    build_ipa(export_method: "development")
+  end
+
+  desc "Build IPA with specified export method"
+  desc "Options: export_method (app-store, ad-hoc, development)"
+  private_lane :build_ipa do |options|
+    export_method = options[:export_method] || "app-store"
+
+    # Determine output name based on export method
+    output_name = case export_method
+                  when "app-store"
+                    "YouTubeSubtitle"
+                  when "ad-hoc"
+                    "YouTubeSubtitle-adhoc"
+                  when "development"
+                    "YouTubeSubtitle-dev"
+                  else
+                    "YouTubeSubtitle"
+                  end
+
     gym(
       project: "YouTubeSubtitle.xcodeproj",
       scheme: "YouTubeSubtitle",
       configuration: "Release",
-      export_method: "app-store",
+      destination: "generic/platform=iOS",
+      export_method: export_method,
       output_directory: "./build",
-      output_name: "YouTubeSubtitle.ipa"
+      output_name: "#{output_name}.ipa",
+      clean: true,
+      export_options: {
+        compileBitcode: false,
+        uploadBitcode: false,
+        uploadSymbols: true,
+        signingStyle: "automatic",
+        teamID: "KU2QEJ9K3Z"
+      }
     )
   end
+
+  # ============================================
+  # Archive Only (without export)
+  # ============================================
+
+  desc "Create archive without exporting IPA"
+  lane :archive_only do
+    gym(
+      project: "YouTubeSubtitle.xcodeproj",
+      scheme: "YouTubeSubtitle",
+      configuration: "Release",
+      destination: "generic/platform=iOS",
+      skip_package_ipa: true,
+      archive_path: "./build/YouTubeSubtitle.xcarchive",
+      clean: true
+    )
+  end
+
+  # ============================================
+  # Distribution Lanes
+  # ============================================
 
   desc "Upload to TestFlight"
   lane :beta do
@@ -29,5 +93,25 @@ platform :ios do
       skip_metadata: true,
       submit_for_review: false
     )
+  end
+
+  # ============================================
+  # Utility Lanes
+  # ============================================
+
+  desc "Clean build artifacts"
+  lane :clean do
+    clear_derived_data
+    sh("rm -rf ../build")
+    UI.success("Build artifacts cleaned!")
+  end
+
+  desc "Increment build number"
+  lane :bump do
+    increment_build_number(
+      xcodeproj: "YouTubeSubtitle.xcodeproj"
+    )
+    build_number = get_build_number(xcodeproj: "YouTubeSubtitle.xcodeproj")
+    UI.success("Build number incremented to #{build_number}")
   end
 end
