@@ -233,10 +233,12 @@ struct PlayerView: View {
           isTranscribing: isTranscribing
         )
 
-        DownloadButton(
-          state: downloadButtonState,
-          onTap: { showDownloadView = true }
-        )
+        if FeatureFlags.shared.isDownloadFeatureEnabled {
+          DownloadButton(
+            state: downloadButtonState,
+            onTap: { showDownloadView = true }
+          )
+        }
       }
     }
   }

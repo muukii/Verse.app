@@ -235,7 +235,9 @@ struct VideoHistoryCell: View {
       // サムネイル画像
       thumbnailView
         .overlay(alignment: .bottomTrailing) {
-          downloadStatusBadge
+          if FeatureFlags.shared.isDownloadFeatureEnabled {
+            downloadStatusBadge
+          }
         }
 
       // テキスト情報
@@ -257,7 +259,7 @@ struct VideoHistoryCell: View {
             .foregroundStyle(.tertiary)
 
           // Show download status text (only for active downloads)
-          if let progress = downloadProgress {
+          if FeatureFlags.shared.isDownloadFeatureEnabled, let progress = downloadProgress {
             downloadStatusText(for: progress)
           }
           // Note: Already downloaded state is shown via badge only (no redundant text)
