@@ -27,6 +27,8 @@ struct PlayerView: View {
   @State private var playerController: PlayerController?
   @State private var trackingTask: Task<Void, Never>?
   @State private var currentSubtitles: Subtitles?
+  @State private var lastSavedPosition: Double = 0
+  @State private var lastPositionSaveTime: Date = Date()
   @State private var isLoadingTranscripts: Bool = false
   @State private var transcriptError: String?
   @AppStorage("backwardSeekInterval") private var backwardSeekInterval: Double = 3
@@ -192,6 +194,9 @@ struct PlayerView: View {
         )
       }
       .onDisappear {
+        // Save playback position before leaving
+        savePlaybackPosition(model.currentTime)
+
         // Stop playback and cancel tracking
         trackingTask?.cancel()
         trackingTask = nil
@@ -342,6 +347,15 @@ struct PlayerView: View {
 
     if let controller = playerController {
       startTrackingTime(controller: controller)
+
+      // Restore saved playback position if available
+      if let savedPosition = videoItem.lastPlaybackPosition, savedPosition > 0 {
+        Task {
+          // Wait a bit for player to be ready
+          try? await Task.sleep(for: .milliseconds(500))
+          await controller.seek(to: savedPosition)
+        }
+      }
     }
     fetchTranscripts(videoID: videoID)
   }
@@ -412,9 +426,22 @@ struct PlayerView: View {
       // Main tracking loop
       while !Task.isCancelled {
         let timeValue = await controller.currentTime
+        let duration = await MainActor.run { model.duration }
         await MainActor.run {
           model.currentTime = timeValue
           model.isPlaying = controller.isPlaying
+        }
+
+        // Save playback position periodically (every 5 seconds)
+        let now = Date()
+        let shouldSave = now.timeIntervalSince(lastPositionSaveTime) >= 5.0
+        let positionChanged = abs(timeValue - lastSavedPosition) > 1.0
+        let notNearEnd = duration > 0 && timeValue < duration * 0.95
+
+        if shouldSave && positionChanged && notNearEnd {
+          await MainActor.run {
+            savePlaybackPosition(timeValue)
+          }
         }
 
         // Check A-B repeat loop
@@ -424,6 +451,10 @@ struct PlayerView: View {
         // Check end-of-video loop
         else if let loopStartTime = model.checkEndOfVideoLoop() {
           await controller.seek(to: loopStartTime)
+          // Clear saved position when looping back to start
+          await MainActor.run {
+            savePlaybackPosition(nil)
+          }
         }
 
         try? await Task.sleep(for: .milliseconds(500))
@@ -473,7 +504,11 @@ struct PlayerView: View {
     Task {
       if controller.isPlaying {
         await controller.pause()
-        await MainActor.run { model.isPlaying = false }
+        await MainActor.run {
+          model.isPlaying = false
+          // Save position when pausing
+          savePlaybackPosition(model.currentTime)
+        }
       } else {
         await controller.play()
         await MainActor.run { model.isPlaying = true }
@@ -525,6 +560,9 @@ struct PlayerView: View {
 
     // When entering background
     if newPhase == .background {
+      // Save playback position when entering background
+      savePlaybackPosition(model.currentTime)
+
       // Only pause YouTube playback in background
       // Local video playback continues in background (thanks to AVAudioSession .playback category)
       if case .youtube = controller {
@@ -537,6 +575,29 @@ struct PlayerView: View {
       }
       // Local video (.local case) continues playing in background - no action needed
     }
+  }
+
+  /// Save the current playback position for resume functionality.
+  /// Positions near the end (>95%) are cleared to restart from beginning next time.
+  /// - Parameter position: Current playback position in seconds, or nil to clear
+  private func savePlaybackPosition(_ position: Double?) {
+    // Don't save positions near the end of the video
+    let shouldClear = if let pos = position, model.duration > 0 {
+      pos >= model.duration * 0.95
+    } else {
+      position == nil
+    }
+
+    let positionToSave = shouldClear ? nil : position
+
+    // Update tracking state
+    if let pos = positionToSave {
+      lastSavedPosition = pos
+    }
+    lastPositionSaveTime = Date()
+
+    // Persist to database
+    try? historyService.updatePlaybackPosition(videoID: videoID, position: positionToSave)
   }
 
   private func transcribeVideo() {
