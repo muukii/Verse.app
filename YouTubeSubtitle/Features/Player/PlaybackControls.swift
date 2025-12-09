@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftUIRingSlider
+import Components
 
 // MARK: - PlayerControls
 
@@ -38,6 +39,7 @@ struct PlayerControls: View {
       .padding(.top, 12)
 
       PlaybackButtonsControl(
+        model: model,
         isPlaying: model.isPlaying,
         backwardSeekInterval: backwardSeekInterval,
         forwardSeekInterval: forwardSeekInterval,
@@ -157,6 +159,8 @@ extension PlayerControls {
   // MARK: - PlaybackButtonsControl
   
   struct PlaybackButtonsControl: View {
+        
+    let model: PlayerModel
     let isPlaying: Bool
     let backwardSeekInterval: Double
     let forwardSeekInterval: Double
@@ -178,6 +182,9 @@ extension PlayerControls {
           onRateChange: onRateChange
         )
         .frame(maxWidth: .infinity, alignment: .leading)
+        
+        LoopControl(model: model)
+          .frame(maxWidth: .infinity, alignment: .trailing)
         
         HStack(spacing: 32) {
           
@@ -336,11 +343,11 @@ extension PlayerControls {
       Button {
         model.toggleLoop()
       } label: {
-        Image(systemName: model.isLoopingEnabled ? "repeat.circle.fill" : "repeat")
+        Image(systemName: "repeat")
           .font(.system(size: 24))
-          .foregroundStyle(model.isLoopingEnabled ? .blue : .secondary)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(ToggleButtonStyle(isOn: model.isLoopingEnabled))
+
     }
   }
   
@@ -360,15 +367,8 @@ extension PlayerControls {
     
     var body: some View {
       Button(action: onTap) {
-        HStack(spacing: 6) {
-          Image(systemName: isActive ? "repeat.1.circle.fill" : "repeat.1.circle")
-            .font(.system(size: 20))
-          Text("A-B")
-            .font(.system(.caption, design: .rounded).bold())
-        }
-        .foregroundStyle(isActive ? .orange : (hasRepeatPoints ? .primary : .secondary))
+        Image(systemName: "point.forward.to.point.capsulepath.fill")
       }
-      .buttonStyle(.plain)
     }
   }
   
@@ -543,7 +543,7 @@ extension PlayerControls {
 
     var body: some View {
       HStack(spacing: 24) {
-        LoopControl(model: model)
+      
 
         Divider().frame(height: 24)
 

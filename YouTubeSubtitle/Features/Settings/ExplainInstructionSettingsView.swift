@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StateGraph
 
 /// Settings view for customizing the AI explanation instructions.
 struct ExplainInstructionSettingsView: View {

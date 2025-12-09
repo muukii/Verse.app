@@ -1,5 +1,5 @@
 {
-  "originHash" : "4ebf9418f56664d3da89610eae01c184ee10c3156c2b803e3741a6d21b779a09",
+  "originHash" : "707b0c3b648ecb636a89bc5cc063f9a4b3a0dd510298c089cfa6d414050cbdcd",
   "pins" : [
     {
       "identity" : "anylanguagemodel",
@@ -107,6 +107,15 @@
       "state" : {
         "revision" : "0c0290ff6b24942dadb83a929ffaaa1481df04a2",
         "version" : "1.1.1"
+      }
+    },
+    {
+      "identity" : "swift-state-graph",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/VergeGroup/swift-state-graph.git",
+      "state" : {
+        "revision" : "f198f7e209133cd2d24e7efa5565d027692b6a62",
+        "version" : "0.16.0"
       }
     },
     {
