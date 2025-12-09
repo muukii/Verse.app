@@ -271,6 +271,84 @@ final class DownloadManager: Sendable {
     activeDownloads.values.first { $0.videoID == videoID }
   }
 
+  // MARK: - Temporary Download (for transcription)
+
+  /// Download a video temporarily for transcription purposes.
+  /// - The file is saved to NSTemporaryDirectory()
+  /// - No SwiftData persistence (caller is responsible for cleanup)
+  /// - Progress is reported via callback
+  /// - Parameters:
+  ///   - streamURL: URL of the video stream to download
+  ///   - videoID: Video ID for filename generation
+  ///   - fileExtension: File extension (e.g., "mp4")
+  ///   - progressHandler: Callback for progress updates (0.0 to 1.0)
+  /// - Returns: URL of the downloaded temporary file
+  func downloadTemporary(
+    streamURL: URL,
+    videoID: YouTubeContentID,
+    fileExtension: String,
+    progressHandler: @MainActor @escaping (Double) -> Void
+  ) async throws -> URL {
+    // Prepare destination file path in temporary directory
+    let tempDir = FileManager.default.temporaryDirectory
+    let fileName = "\(videoID.rawValue)_temp_\(UUID().uuidString).\(fileExtension)"
+    let destinationURL = tempDir.appendingPathComponent(fileName)
+
+    // Create AsyncStream for delegate events
+    var downloadDelegate: DownloadSessionDelegate?
+    let eventStream = AsyncStream<DownloadSessionDelegate.DownloadEvent> { continuation in
+      downloadDelegate = DownloadSessionDelegate(
+        continuation: continuation,
+        destinationURL: destinationURL
+      )
+    }
+
+    // Create URLSession with delegate
+    let session = URLSession(
+      configuration: .default,
+      delegate: downloadDelegate,
+      delegateQueue: nil
+    )
+
+    // Start download task
+    let downloadTask = session.downloadTask(with: streamURL)
+    downloadTask.resume()
+
+    // Track for progress throttling
+    var lastProgressUpdate = Date()
+    var finalURL: URL?
+
+    // Process events from delegate
+    for await event in eventStream {
+      try Task.checkCancellation()
+
+      switch event {
+      case .progress(let update):
+        // Throttle progress updates
+        let now = Date()
+        if now.timeIntervalSince(lastProgressUpdate) >= 0.3 {
+          lastProgressUpdate = now
+          progressHandler(update.fractionCompleted)
+        }
+
+      case .completed(let movedURL):
+        finalURL = movedURL
+
+      case .failed(let error):
+        session.invalidateAndCancel()
+        throw error
+      }
+    }
+
+    session.finishTasksAndInvalidate()
+
+    guard let resultURL = finalURL else {
+      throw DownloadError.noData
+    }
+
+    return resultURL
+  }
+
   /// Restore pending downloads on app launch.
   /// Call this after configure(modelContainer:).
   func restorePendingDownloads() async {

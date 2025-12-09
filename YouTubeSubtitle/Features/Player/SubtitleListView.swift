@@ -305,32 +305,49 @@ private struct SubtitleScrollContent: View {
   let onAction: (SubtitleAction) -> Void
 
   var body: some View {
-    ScrollView {
-      LazyVStack(alignment: .leading, spacing: 6) {
-        ForEach(cues) { cue in
-          SubtitleRowView(
-            cue: cue,
-            isCurrent: cue.id == currentCueID,
-            onAction: { action in
-              switch action {
-              case .tap:
-                onAction(.tap(time: cue.startTimeSeconds))
-              case .setRepeatA:
-                onAction(.setRepeatA(time: cue.startTimeSeconds))
-              case .setRepeatB:
-                onAction(.setRepeatB(time: cue.endTimeSeconds))
-              case .explain:
-                onAction(.explain(cue: cue))
-              case .translate:
-                onAction(.translate(cue: cue))
-              }
+    List {
+      ForEach(cues) { cue in
+        SubtitleRowView(
+          cue: cue,
+          isCurrent: cue.id == currentCueID,
+          onAction: { action in
+            switch action {
+            case .tap:
+              onAction(.tap(time: cue.startTimeSeconds))
+            case .setRepeatA:
+              onAction(.setRepeatA(time: cue.startTimeSeconds))
+            case .setRepeatB:
+              onAction(.setRepeatB(time: cue.endTimeSeconds))
+            case .explain:
+              onAction(.explain(cue: cue))
+            case .translate:
+              onAction(.translate(cue: cue))
             }
-          )
+          }
+        )
+        .listRowInsets(EdgeInsets(top: 3, leading: 12, bottom: 3, trailing: 12))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+          Button {
+            onAction(.translate(cue: cue))
+          } label: {
+            Label("Translate", systemImage: "character.book.closed")
+          }
+          .tint(.blue)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+          Button {
+            onAction(.explain(cue: cue))
+          } label: {
+            Label("Explain", systemImage: "sparkles")
+          }
+          .tint(.purple)
         }
       }
-      .scrollTargetLayout()
-      .padding(12)
     }
+    .listStyle(.plain)
+    .scrollContentBackground(.hidden)
   }
 }
 

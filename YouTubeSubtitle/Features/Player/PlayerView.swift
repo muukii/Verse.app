@@ -47,6 +47,10 @@ struct PlayerView: View {
   @State private var selectedCueForExplanation: Subtitles.Cue?
   @State private var selectedCueForTranslation: Subtitles.Cue?
 
+  // On-device transcribe state
+  @State private var showOnDeviceTranscribeSheet: Bool = false
+  @State private var onDeviceTranscribeViewModel = OnDeviceTranscribeViewModel()
+
   // Computed property to access videoID from the entity
   private var videoID: YouTubeContentID { videoItem.videoID }
 
@@ -177,6 +181,16 @@ struct PlayerView: View {
         ),
         text: selectedCueForTranslation?.text.htmlDecoded ?? ""
       )
+      .sheet(isPresented: $showOnDeviceTranscribeSheet) {
+        OnDeviceTranscribeSheet(
+          viewModel: onDeviceTranscribeViewModel,
+          videoID: videoID,
+          onComplete: { subtitles in
+            currentSubtitles = subtitles
+            try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: subtitles)
+          }
+        )
+      }
       .onDisappear {
         // Stop playback and cancel tracking
         trackingTask?.cancel()
@@ -213,6 +227,16 @@ struct PlayerView: View {
   var toolbarContent: some ToolbarContent {
     ToolbarItem(placement: .primaryAction) {
       HStack(spacing: 16) {
+        // On-device transcribe button (only when no local file exists)
+        if localFileURL == nil {
+          Button {
+            showOnDeviceTranscribeSheet = true
+          } label: {
+            Image(systemName: "waveform.badge.mic")
+              .font(.system(size: 20))
+          }
+        }
+
         SubtitleManagementView(
           videoID: videoID,
           subtitles: currentSubtitles,

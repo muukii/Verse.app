@@ -6,6 +6,7 @@
 //
 
 import AnyLanguageModelMLX  // Re-exports AnyLanguageModel with MLX trait enabled
+import StateGraph
 import SwiftUI
 
 // MARK: - MLX Model Definition
@@ -23,6 +24,26 @@ struct MLXModel: Identifiable, Hashable {
 @MainActor
 @Observable
 final class LLMService {
+
+  // MARK: - Default Instructions
+
+  static let defaultSystemInstruction = """
+    You are a language learning assistant helping users understand words and phrases from video subtitles.
+
+    When given a word or phrase with its surrounding context:
+    1. Explain its meaning clearly and concisely
+    2. Provide usage examples if helpful
+    3. Note any nuances, idioms, or cultural context
+
+    Keep explanations concise (2-4 sentences).
+    """
+
+  static let defaultUserPromptTemplate = """
+    Word/Phrase: "{text}"
+    Context: "{context}"
+
+    Please explain this word/phrase based on its usage in the given context.
+    """
 
   // MARK: - Types
 
@@ -139,6 +160,26 @@ final class LLMService {
 
   /// AnyLanguageModel session (shared for both Apple Intelligence and MLX)
   private var anyLMSession: AnyLanguageModel.LanguageModelSession?
+
+  // MARK: - Custom Instructions (UserDefaults backed)
+
+  /// Custom system instruction (empty = use default)
+  @GraphStored(backed: .userDefaults(key: "LLMService.customSystemInstruction"))
+  var customSystemInstruction: String = ""
+
+  /// Custom user prompt template (empty = use default)
+  @GraphStored(backed: .userDefaults(key: "LLMService.customUserPromptTemplate"))
+  var customUserPromptTemplate: String = ""
+
+  /// Effective system instruction (custom if set, otherwise default)
+  var effectiveSystemInstruction: String {
+    customSystemInstruction.isEmpty ? Self.defaultSystemInstruction : customSystemInstruction
+  }
+
+  /// Effective user prompt template (custom if set, otherwise default)
+  var effectiveUserPromptTemplate: String {
+    customUserPromptTemplate.isEmpty ? Self.defaultUserPromptTemplate : customUserPromptTemplate
+  }
 
   // MARK: - Public Methods
 
@@ -368,26 +409,14 @@ final class LLMService {
   // MARK: - Shared Helpers
 
   private func buildInstructions(targetLanguage: String) -> String {
-    """
-    You are a language learning assistant helping users understand words and phrases from video subtitles.
-
-    When given a word or phrase with its surrounding context:
-    1. Explain its meaning clearly and concisely
-    2. Provide usage examples if helpful
-    3. Note any nuances, idioms, or cultural context
-
-    Keep explanations concise (2-4 sentences).
-    Respond in \(targetLanguage).
-    """
+    let baseInstruction = effectiveSystemInstruction
+    return "\(baseInstruction)\nRespond in \(targetLanguage)."
   }
 
   private func buildPrompt(text: String, context: String) -> String {
-    """
-    Word/Phrase: "\(text)"
-    Context: "\(context)"
-
-    Please explain this word/phrase based on its usage in the given context.
-    """
+    effectiveUserPromptTemplate
+      .replacingOccurrences(of: "{text}", with: text)
+      .replacingOccurrences(of: "{context}", with: context)
   }
 
   private func handleGenerationError(
