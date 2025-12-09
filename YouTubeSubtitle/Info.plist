@@ -7,6 +7,10 @@
 		<string>app.muukii.verse.download</string>
 		<string>app.muukii.verse.download.*</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app uses the microphone for real-time speech transcription.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>This app uses speech recognition to convert your voice to text.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>processing</string>
