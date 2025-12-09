@@ -64,6 +64,29 @@ struct SettingsView: View {
         #if DEBUG
         FeatureFlagsSettingsView()
         #endif
+
+        // MARK: - Developer / Experimental
+        Section {
+          NavigationLink {
+            RealtimeTranscriptionView()
+          } label: {
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Live Transcription")
+                Text("Real-time speech-to-text from microphone")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            } icon: {
+              Image(systemName: "waveform.badge.mic")
+                .foregroundStyle(.purple)
+            }
+          }
+        } header: {
+          Text("Experimental")
+        } footer: {
+          Text("iOS 26+ only. Requires physical device (not available on Simulator).")
+        }
       }
       .navigationTitle("Settings")
       #if os(iOS)
