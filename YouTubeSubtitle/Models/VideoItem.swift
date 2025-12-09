@@ -38,6 +38,11 @@ final class VideoItem: TypedIdentifiable {
   // Downloaded file (relative path from Documents directory)
   var downloadedFileName: String?
 
+  // MARK: - Playback Resume
+
+  /// Last playback position in seconds for resume functionality
+  var lastPlaybackPosition: Double?
+
   // MARK: - Download State Relationship
 
   /// Active download state (exists only during download).
