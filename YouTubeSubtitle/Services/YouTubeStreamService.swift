@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import YouTubeKit
+@preconcurrency import YouTubeKit
 
 // MARK: - Stream Selection Strategy
 
@@ -64,9 +64,7 @@ enum YouTubeStreamService {
     guard !progressive.isEmpty else { return nil }
 
     // Sort by resolution (ascending for easier middle selection)
-    let sorted = progressive.sorted {
-      ($0.resolution ?? 0) < ($1.resolution ?? 0)
-    }
+    let sorted: [YouTubeKit.Stream] = progressive.sorted(by: { ($0.videoResolution ?? 0) < ($1.videoResolution ?? 0) })
 
     switch strategy {
     case .highest:
@@ -82,7 +80,7 @@ enum YouTubeStreamService {
     case .resolution(let targetResolution):
       // Find closest match to target resolution
       return sorted.min { lhs, rhs in
-        abs((lhs.resolution ?? 0) - targetResolution) < abs((rhs.resolution ?? 0) - targetResolution)
+        abs((lhs.videoResolution ?? 0) - targetResolution) < abs((rhs.videoResolution ?? 0) - targetResolution)
       }
     }
   }

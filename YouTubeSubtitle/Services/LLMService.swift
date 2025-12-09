@@ -165,10 +165,12 @@ final class LLMService {
 
   /// Custom system instruction (empty = use default)
   @GraphStored(backed: .userDefaults(key: "LLMService.customSystemInstruction"))
+  @ObservationIgnored
   var customSystemInstruction: String = ""
 
   /// Custom user prompt template (empty = use default)
   @GraphStored(backed: .userDefaults(key: "LLMService.customUserPromptTemplate"))
+  @ObservationIgnored
   var customUserPromptTemplate: String = ""
 
   /// Effective system instruction (custom if set, otherwise default)
