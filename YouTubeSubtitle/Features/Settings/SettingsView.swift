@@ -59,6 +59,11 @@ struct SettingsView: View {
         } footer: {
           Text("Create custom shortcuts with the Shortcuts app.")
         }
+
+        // MARK: - Feature Flags (DEBUG only)
+        #if DEBUG
+        FeatureFlagsSettingsView()
+        #endif
       }
       .navigationTitle("Settings")
       #if os(iOS)

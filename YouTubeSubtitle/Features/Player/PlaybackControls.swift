@@ -490,10 +490,22 @@ extension PlayerControls {
           RingSlider(
             value: $value,
             stride: 0.25,
-            valueRange: 0...max(1, duration)
+            valueRange: 0...max(1, duration),
+            primaryTickMark: {
+              RoundedRectangle(cornerRadius: 8)
+                .frame(width: 2)
+                .foregroundStyle(.primary)
+                .padding(.vertical, 10)
+            },
+            secondaryTickMark: {
+              RoundedRectangle(cornerRadius: 8)
+                .frame(width: 2)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 15)
+            }
           )
           .frame(height: 60)
-          .foregroundStyle(.black)
+          .foregroundStyle(.primary)
           
           Button {
             onSetToCurrent()

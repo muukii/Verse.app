@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B0091B4A2EE825DF0077B368 /* StateGraph in Frameworks */ = {isa = PBXBuildFile; productRef = B0091B492EE825DF0077B368 /* StateGraph */; };
 		B00C03192EE47DEF00FA7361 /* AsyncMultiplexImage in Frameworks */ = {isa = PBXBuildFile; productRef = B00C03182EE47DEF00FA7361 /* AsyncMultiplexImage */; };
 		B00C031B2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = B00C031A2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke */; };
 		B00CF0B12EE43A3700FA7361 /* TypedIdentifier in Frameworks */ = {isa = PBXBuildFile; productRef = B00CF0B02EE43A3700FA7361 /* TypedIdentifier */; };
@@ -51,6 +52,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B00C03192EE47DEF00FA7361 /* AsyncMultiplexImage in Frameworks */,
+				B0091B4A2EE825DF0077B368 /* StateGraph in Frameworks */,
 				B0FAE6862EDC2500008493F1 /* YouTubeKit in Frameworks */,
 				B00CF0B12EE43A3700FA7361 /* TypedIdentifier in Frameworks */,
 				B0FAE68A2EDC2600008493F1 /* YouTubePlayerKit in Frameworks */,
@@ -114,6 +116,7 @@
 				B00CF0B02EE43A3700FA7361 /* TypedIdentifier */,
 				B00C03182EE47DEF00FA7361 /* AsyncMultiplexImage */,
 				B00C031A2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke */,
+				B0091B492EE825DF0077B368 /* StateGraph */,
 			);
 			productName = YouTubeSubtitle;
 			productReference = B0FAE6772EDC249B008493F1 /* YouTubeSubtitle.app */;
@@ -154,6 +157,7 @@
 				B07A2DA32EE42AE800E05A39 /* XCRemoteSwiftPackageReference "swiftui-ring-slider" */,
 				B00CF0AF2EE43A3700FA7361 /* XCRemoteSwiftPackageReference "swift-typed-identifier" */,
 				B00C03172EE47DEF00FA7361 /* XCRemoteSwiftPackageReference "swiftui-async-multiplex-image" */,
+				B0091B482EE825DF0077B368 /* XCRemoteSwiftPackageReference "swift-state-graph" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0FAE6782EDC249B008493F1 /* Products */;
@@ -440,6 +444,14 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		B0091B482EE825DF0077B368 /* XCRemoteSwiftPackageReference "swift-state-graph" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/VergeGroup/swift-state-graph.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.16.0;
+			};
+		};
 		B00C03172EE47DEF00FA7361 /* XCRemoteSwiftPackageReference "swiftui-async-multiplex-image" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/FluidGroup/swiftui-async-multiplex-image.git";
@@ -515,6 +527,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		B0091B492EE825DF0077B368 /* StateGraph */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B0091B482EE825DF0077B368 /* XCRemoteSwiftPackageReference "swift-state-graph" */;
+			productName = StateGraph;
+		};
 		B00C03182EE47DEF00FA7361 /* AsyncMultiplexImage */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B00C03172EE47DEF00FA7361 /* XCRemoteSwiftPackageReference "swiftui-async-multiplex-image" */;
