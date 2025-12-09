@@ -72,7 +72,7 @@ struct DownloadView: View {
 
   /// Only show progressive MP4 streams (AVPlayer compatible)
   private var availableStreams: [YouTubeKit.Stream] {
-    streams.filter { $0.isProgressive && $0.fileExtension == .mp4 }
+    YouTubeStreamService.filterProgressiveMP4(streams)
   }
 
   var body: some View {
@@ -415,19 +415,19 @@ struct DownloadView: View {
     streams = []
 
     do {
-      let youtube = YouTube(videoID: videoID.rawValue)
-      async let fetchedStreams = youtube.streams
-      let result = try await fetchedStreams
+      // Use shared YouTubeStreamService for fetching
+      let fetchedStreams = try await YouTubeStreamService.fetchStreams(videoID: videoID)
 
       await MainActor.run {
-        // Sort by resolution (highest first)
-        streams = result.sorted { lhs, rhs in
-          (lhs.videoResolution ?? 0) > (rhs.videoResolution ?? 0)
-        }
+        // Streams already sorted by resolution (highest first) from service
+        streams = fetchedStreams
         isLoadingStreams = false
 
-        // Auto-select best progressive mp4
-        if let best = availableStreams.first {
+        // Auto-select highest quality progressive mp4
+        if let best = YouTubeStreamService.selectStream(
+          from: streams,
+          strategy: .highest
+        ) {
           selectedStream = best
         }
       }

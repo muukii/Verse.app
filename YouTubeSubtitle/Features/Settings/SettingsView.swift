@@ -42,6 +42,29 @@ struct SettingsView: View {
           Text("Uses Qwen 2.5 1.5B model (~800MB). Downloads automatically on first use.")
         }
 
+        // MARK: - Explain Instructions
+        Section {
+          NavigationLink {
+            ExplainInstructionSettingsView()
+          } label: {
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Explain Instructions")
+                Text("Customize AI prompts for word explanations")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            } icon: {
+              Image(systemName: "text.bubble")
+                .foregroundStyle(.blue)
+            }
+          }
+        } header: {
+          Text("AI Prompts")
+        } footer: {
+          Text("Customize the system instruction and prompt template used for explanations.")
+        }
+
         // MARK: - Siri & Shortcuts
         Section {
           SiriTipView(intent: OpenYouTubeVideoIntent())
