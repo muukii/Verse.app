@@ -413,11 +413,9 @@ struct SubtitleRowView: View {
 
         // Text content with selection and word tap support
         SelectableSubtitleTextView(
-          attributedText: cue.attributedText(htmlDecoded: true),
-          highlightTimeRange: highlightTime.map { time in
-            // Create a tiny time range around the current time for point-in-time matching
-            CMTimeRange(start: time, duration: CMTime(seconds: 0.001, preferredTimescale: 600))
-          },
+          text: cue.text.htmlDecoded,
+          wordTimings: cue.wordTimings,
+          highlightTime: highlightTime,
           font: .preferredFont(forTextStyle: .subheadline),
           textColor: .tintColor,
           onWordTap: { word, _ in

@@ -49,7 +49,10 @@
       "Bash(plutil:*)",
       "Bash(git -C /Users/hiroshi.kimura/.ghq/github.com/muukii/YouTubeSubtitle log --oneline -20)",
       "Bash(git -C /Users/hiroshi.kimura/.ghq/github.com/muukii/YouTubeSubtitle diff HEAD~2..HEAD --stat)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge-base:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []

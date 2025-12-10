@@ -205,6 +205,30 @@ struct TranscriptionItem: Identifiable, Equatable {
     return formatter.string(from: timestamp)
   }
 
+  /// Extract word timings from AttributedString's audioTimeRange attributes
+  var wordTimings: [Subtitle.WordTiming] {
+    var timings: [Subtitle.WordTiming] = []
+    var index = text.startIndex
+    while index < text.endIndex {
+      let run = text.runs[index]
+      if let timeRange = run.audioTimeRange {
+        let word = String(text[run.range].characters)
+        timings.append(Subtitle.WordTiming(
+          text: word,
+          startTime: timeRange.start.seconds,
+          endTime: timeRange.end.seconds
+        ))
+      }
+      index = run.range.upperBound
+    }
+    return timings
+  }
+
+  /// Plain text representation
+  var plainText: String {
+    String(text.characters)
+  }
+
   static func == (lhs: TranscriptionItem, rhs: TranscriptionItem) -> Bool {
     lhs.id == rhs.id
   }
@@ -214,14 +238,15 @@ struct TranscriptionItem: Identifiable, Equatable {
 
 private struct TranscriptionBubble: View {
   let item: TranscriptionItem
-  var highlightTimeRange: CMTimeRange?
+  var highlightTime: CMTime?
   var onWordTap: ((String) -> Void)?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
       SelectableSubtitleTextView(
-        attributedText: item.text,
-        highlightTimeRange: highlightTimeRange,
+        text: item.plainText,
+        wordTimings: item.wordTimings,
+        highlightTime: highlightTime,
         onWordTap: { word, _ in
           onWordTap?(word)
         }

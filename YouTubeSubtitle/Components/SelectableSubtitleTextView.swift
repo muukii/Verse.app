@@ -6,7 +6,6 @@
 //
 
 import CoreMedia
-import Speech
 import SwiftUI
 import UIKit
 
@@ -15,55 +14,49 @@ import UIKit
 /// - Word tap detection
 /// - Time-based highlighting for audio transcription
 ///
-/// Usage:
-/// ```swift
-/// SelectableSubtitleTextView(
-///   attributedText: transcription.text,
-///   highlightTimeRange: currentPlaybackRange,
-///   onWordTap: { word, rect in
-///     // Handle word tap
-///   }
-/// )
-/// ```
-public struct SelectableSubtitleTextView: UIViewRepresentable {
+/// Performance optimized: Uses NSMutableAttributedString directly
+/// to avoid AttributedString conversion overhead on every update.
+struct SelectableSubtitleTextView: UIViewRepresentable {
 
   // MARK: - Properties
 
-  /// The attributed string to display.
-  /// Supports `audioTimeRange` attributes from SpeechTranscriber.
-  public let attributedText: AttributedString
+  /// The plain text to display.
+  let text: String
 
-  /// Optional time range to highlight.
-  /// Text with matching `audioTimeRange` attributes will be highlighted.
-  public var highlightTimeRange: CMTimeRange?
+  /// Word-level timing information for highlighting.
+  /// If provided, enables time-based word highlighting.
+  let wordTimings: [Subtitle.WordTiming]?
+
+  /// Current playback time for highlighting.
+  /// The word containing this time will be highlighted.
+  var highlightTime: CMTime?
 
   /// Background color for highlighted text.
-  public var highlightColor: UIColor
+  var highlightColor: UIColor
 
-  /// Font to apply to the text. Defaults to `.body` text style.
-  public var font: UIFont
+  /// Font to apply to the text.
+  var font: UIFont
 
-  /// Text color. Defaults to `.label`.
-  public var textColor: UIColor
+  /// Text color.
+  var textColor: UIColor
 
   /// Callback when a word is tapped.
-  /// - Parameters:
-  ///   - word: The tapped word string
-  ///   - rect: The bounding rect of the word in the text view's coordinate space
-  public var onWordTap: ((String, CGRect) -> Void)?
+  var onWordTap: ((String, CGRect) -> Void)?
 
   // MARK: - Initializer
 
-  public init(
-    attributedText: AttributedString,
-    highlightTimeRange: CMTimeRange? = nil,
+  init(
+    text: String,
+    wordTimings: [Subtitle.WordTiming]? = nil,
+    highlightTime: CMTime? = nil,
     highlightColor: UIColor = UIColor.systemYellow.withAlphaComponent(0.4),
     font: UIFont = .preferredFont(forTextStyle: .body),
     textColor: UIColor = .label,
     onWordTap: ((String, CGRect) -> Void)? = nil
   ) {
-    self.attributedText = attributedText
-    self.highlightTimeRange = highlightTimeRange
+    self.text = text
+    self.wordTimings = wordTimings
+    self.highlightTime = highlightTime
     self.highlightColor = highlightColor
     self.font = font
     self.textColor = textColor
@@ -72,7 +65,7 @@ public struct SelectableSubtitleTextView: UIViewRepresentable {
 
   // MARK: - UIViewRepresentable
 
-  public func makeUIView(context: Context) -> UITextView {
+  func makeUIView(context: Context) -> UITextView {
     let textView = UITextView()
     textView.isEditable = false
     textView.isScrollEnabled = false
@@ -89,7 +82,6 @@ public struct SelectableSubtitleTextView: UIViewRepresentable {
     tapGesture.delegate = context.coordinator
 
     // Make tap gesture require long press gestures to fail first
-    // This prevents tap from firing when user is trying to select text
     for gesture in textView.gestureRecognizers ?? [] {
       if let longPress = gesture as? UILongPressGestureRecognizer {
         tapGesture.require(toFail: longPress)
@@ -101,50 +93,130 @@ public struct SelectableSubtitleTextView: UIViewRepresentable {
     return textView
   }
 
-  public func updateUIView(_ textView: UITextView, context: Context) {
-    // Create a mutable copy of the attributed string
-    var styledText = attributedText
+  func updateUIView(_ textView: UITextView, context: Context) {
+    let coordinator = context.coordinator
 
-    // Apply font and color to the entire string
-    if styledText.startIndex < styledText.endIndex {
-      let fullRange = styledText.startIndex..<styledText.endIndex
-      styledText[fullRange].font = font
-      styledText[fullRange].foregroundColor = textColor
+    // Check if we need to rebuild the base attributed string
+    let needsRebuild = coordinator.cachedText != text
+      || coordinator.cachedFont != font
+      || coordinator.cachedTextColor != textColor
 
-      // Apply highlight if timeRange is specified
-      if let timeRange = highlightTimeRange {
-        // Manually find and highlight words that intersect with the time range
-        applyHighlight(to: &styledText, for: timeRange)
-      }
+    if needsRebuild {
+      // Build new base attributed string
+      let baseString = buildBaseAttributedString()
+      coordinator.baseAttributedString = baseString
+      coordinator.cachedText = text
+      coordinator.cachedFont = font
+      coordinator.cachedTextColor = textColor
+      coordinator.wordRanges = buildWordRanges()
     }
 
-    textView.attributedText = NSAttributedString(styledText)
+    // Apply highlight (always, since time changes frequently)
+    let displayString: NSAttributedString
+    if let baseString = coordinator.baseAttributedString {
+      let mutableString = NSMutableAttributedString(attributedString: baseString)
+      applyHighlight(to: mutableString, coordinator: coordinator)
+      displayString = mutableString
+    } else {
+      displayString = NSAttributedString(string: text)
+    }
 
-    // Invalidate intrinsic content size to trigger re-layout
-    textView.invalidateIntrinsicContentSize()
+    // Only update if content changed
+    if textView.attributedText != displayString {
+      textView.attributedText = displayString
+      textView.invalidateIntrinsicContentSize()
+    }
   }
 
-  /// Manually applies highlight to characters whose audioTimeRange intersects with the given time range.
-  private func applyHighlight(to text: inout AttributedString, for timeRange: CMTimeRange) {
-    var index = text.startIndex
-    while index < text.endIndex {
-      // Get the run at this index
-      let run = text.runs[index]
+  // MARK: - Private Methods
 
-      // Check if this run has an audioTimeRange attribute
-      if let wordTimeRange = run.audioTimeRange {
-        // Check if the word's time range intersects with the highlight time range
-        // For point-in-time highlighting, we check if the time is within the word's range
-        let highlightTime = timeRange.start
-        if wordTimeRange.containsTime(highlightTime) {
-          // Apply highlight to this run's range
-          text[run.range].backgroundColor = highlightColor
-        }
-      }
-
-      // Move to the next run
-      index = run.range.upperBound
+  /// Builds the base NSAttributedString with font and color (no highlight)
+  private func buildBaseAttributedString() -> NSAttributedString {
+    let displayText: String
+    if let wordTimings, !wordTimings.isEmpty {
+      // Reconstruct text from word timings with spaces
+      displayText = wordTimings.map(\.text).joined(separator: " ")
+    } else {
+      displayText = text
     }
+
+    let attributes: [NSAttributedString.Key: Any] = [
+      .font: font,
+      .foregroundColor: textColor
+    ]
+
+    return NSAttributedString(string: displayText, attributes: attributes)
+  }
+
+  /// Builds word ranges for efficient highlight lookup
+  private func buildWordRanges() -> [WordRange] {
+    guard let wordTimings, !wordTimings.isEmpty else { return [] }
+
+    var ranges: [WordRange] = []
+    var currentLocation = 0
+
+    for timing in wordTimings {
+      let length = timing.text.count
+      let range = NSRange(location: currentLocation, length: length)
+      ranges.append(WordRange(
+        nsRange: range,
+        startTime: timing.startTime,
+        endTime: timing.endTime
+      ))
+      // Add 1 for space between words
+      currentLocation += length + 1
+    }
+
+    return ranges
+  }
+
+  /// Apply highlight to the word at the current time using binary search
+  private func applyHighlight(to string: NSMutableAttributedString, coordinator: Coordinator) {
+    guard let highlightTime, highlightTime.isValid else { return }
+
+    let time = highlightTime.seconds
+    let wordRanges = coordinator.wordRanges
+
+    // Clear previous highlight if exists
+    if let previousRange = coordinator.highlightedRange {
+      string.removeAttribute(.backgroundColor, range: previousRange)
+      coordinator.highlightedRange = nil
+    }
+
+    // Binary search for the word containing the current time
+    guard let index = binarySearchWord(in: wordRanges, for: time) else { return }
+
+    let wordRange = wordRanges[index]
+
+    // Verify range is valid
+    guard wordRange.nsRange.location + wordRange.nsRange.length <= string.length else { return }
+
+    // Apply highlight
+    string.addAttribute(.backgroundColor, value: highlightColor, range: wordRange.nsRange)
+    coordinator.highlightedRange = wordRange.nsRange
+  }
+
+  /// Binary search to find the word containing the given time
+  private func binarySearchWord(in ranges: [WordRange], for time: Double) -> Int? {
+    guard !ranges.isEmpty else { return nil }
+
+    var low = 0
+    var high = ranges.count - 1
+
+    while low <= high {
+      let mid = (low + high) / 2
+      let range = ranges[mid]
+
+      if time >= range.startTime && time < range.endTime {
+        return mid
+      } else if time < range.startTime {
+        high = mid - 1
+      } else {
+        low = mid + 1
+      }
+    }
+
+    return nil
   }
 
   @MainActor
@@ -154,10 +226,7 @@ public struct SelectableSubtitleTextView: UIViewRepresentable {
     context: Context
   ) -> CGSize? {
     let width = proposal.width ?? UIView.layoutFittingExpandedSize.width
-
-    // Calculate the size that fits the content
     let size = textView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-
     return CGSize(width: width, height: size.height)
   }
 
@@ -165,10 +234,26 @@ public struct SelectableSubtitleTextView: UIViewRepresentable {
     Coordinator(onWordTap: onWordTap)
   }
 
+  // MARK: - WordRange
+
+  struct WordRange {
+    let nsRange: NSRange
+    let startTime: Double
+    let endTime: Double
+  }
+
   // MARK: - Coordinator
 
   public class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
     var onWordTap: ((String, CGRect) -> Void)?
+
+    // Cache for avoiding unnecessary rebuilds
+    var cachedText: String?
+    var cachedFont: UIFont?
+    var cachedTextColor: UIColor?
+    var baseAttributedString: NSAttributedString?
+    var wordRanges: [WordRange] = []
+    var highlightedRange: NSRange?
 
     init(onWordTap: ((String, CGRect) -> Void)?) {
       self.onWordTap = onWordTap
@@ -178,7 +263,6 @@ public struct SelectableSubtitleTextView: UIViewRepresentable {
       guard let textView = gesture.view as? UITextView else { return }
       let point = gesture.location(in: textView)
 
-      // Get tapped word using tokenizer
       if let position = textView.closestPosition(to: point),
         let range = textView.tokenizer.rangeEnclosingPosition(
           position, with: .word, inDirection: UITextDirection.storage(.forward)
@@ -192,7 +276,6 @@ public struct SelectableSubtitleTextView: UIViewRepresentable {
       }
     }
 
-    // Allow tap gesture to work alongside text selection
     public func gestureRecognizer(
       _ gestureRecognizer: UIGestureRecognizer,
       shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
@@ -207,7 +290,7 @@ public struct SelectableSubtitleTextView: UIViewRepresentable {
 #Preview {
   VStack(spacing: 20) {
     SelectableSubtitleTextView(
-      attributedText: AttributedString("Hello world, this is a test sentence."),
+      text: "Hello world, this is a test sentence.",
       onWordTap: { word, _ in
         print("Tapped: \(word)")
       }
