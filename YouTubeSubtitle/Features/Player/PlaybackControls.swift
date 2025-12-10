@@ -12,18 +12,7 @@ import Components
 // MARK: - PlayerControls
 
 struct PlayerControls: View {
-  let model: PlayerModel
-  let backwardSeekInterval: Double
-  let forwardSeekInterval: Double
-  let onSeek: (Double) -> Void
-  let onSeekBackward: () -> Void
-  let onSeekForward: () -> Void
-  let onTogglePlayPause: () -> Void
-  let onRateChange: (Double) -> Void
-  let onBackwardSeekIntervalChange: (Double) -> Void
-  let onForwardSeekIntervalChange: (Double) -> Void
-  let onSubtitleSeekBackward: () -> Void
-  let onSubtitleSeekForward: () -> Void
+  @Bindable var model: PlayerModel
 
   @State private var controlsMode: ControlsMode = .normal
 
@@ -33,29 +22,17 @@ struct PlayerControls: View {
         currentTime: model.currentTime,
         displayTime: model.displayTime,
         duration: model.duration,
-        onSeek: onSeek
+        onSeek: { model.seek(to: $0) }
       )
       .padding(.horizontal, 20)
       .padding(.top, 12)
 
-      PlaybackButtonsControl(
-        model: model,
-        isPlaying: model.isPlaying,
-        backwardSeekInterval: backwardSeekInterval,
-        forwardSeekInterval: forwardSeekInterval,
-        playbackRate: model.playbackRate,
-        onBackward: onSeekBackward,
-        onForward: onSeekForward,
-        onTogglePlayPause: onTogglePlayPause,
-        onBackwardSeekIntervalChange: onBackwardSeekIntervalChange,
-        onForwardSeekIntervalChange: onForwardSeekIntervalChange,
-        onRateChange: onRateChange
-      )
-      .padding(.top, 8)
+      PlaybackButtonsControl(model: model)
+        .padding(.top, 8)
 
       SubtitleSeekControls(
-        onBackward: onSubtitleSeekBackward,
-        onForward: onSubtitleSeekForward
+        onBackward: { model.seekToPreviousSubtitle() },
+        onForward: { model.seekToNextSubtitle() }
       )
       .padding(.top, 4)
 
@@ -64,7 +41,6 @@ struct PlayerControls: View {
         .padding(.bottom, 16)
         .animation(.smooth(duration: 0.3), value: controlsMode)
     }
-    
   }
 
   @ViewBuilder
@@ -157,67 +133,50 @@ extension PlayerControls {
   }
   
   // MARK: - PlaybackButtonsControl
-  
+
   struct PlaybackButtonsControl: View {
-        
-    let model: PlayerModel
-    let isPlaying: Bool
-    let backwardSeekInterval: Double
-    let forwardSeekInterval: Double
-    let playbackRate: Double
-    let onBackward: () -> Void
-    let onForward: () -> Void
-    let onTogglePlayPause: () -> Void
-    let onBackwardSeekIntervalChange: (Double) -> Void
-    let onForwardSeekIntervalChange: (Double) -> Void
-    let onRateChange: (Double) -> Void
-    
+    @Bindable var model: PlayerModel
+
     private let availableIntervals: [Double] = [3, 5, 10, 15, 30]
-    
+
     var body: some View {
       ZStack {
-                
         SpeedControls(
-          playbackRate: playbackRate,
-          onRateChange: onRateChange
+          playbackRate: model.playbackRate,
+          onRateChange: { model.setPlaybackRate($0) }
         )
         .frame(maxWidth: .infinity, alignment: .leading)
-        
+
         LoopControl(model: model)
           .frame(maxWidth: .infinity, alignment: .trailing)
-        
+
         HStack(spacing: 32) {
-          
-          Button(action: onBackward) {
-            seekIcon(direction: .backward, interval: backwardSeekInterval)
+          Button { model.seekBackward() } label: {
+            seekIcon(direction: .backward, interval: model.backwardSeekInterval)
           }
           .contextMenu {
             seekIntervalMenu(
-              currentInterval: backwardSeekInterval,
-              onChange: onBackwardSeekIntervalChange
+              currentInterval: model.backwardSeekInterval,
+              onChange: { model.backwardSeekInterval = $0 }
             )
           }
-          
-          Button(action: onTogglePlayPause) {
-            Image(
-              systemName: isPlaying ? "pause.fill" : "play.fill"
-            )
-            .font(.system(size: 32))
+
+          Button { model.togglePlayPause() } label: {
+            Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
+              .font(.system(size: 32))
           }
-          
-          Button(action: onForward) {
-            seekIcon(direction: .forward, interval: forwardSeekInterval)
+
+          Button { model.seekForward() } label: {
+            seekIcon(direction: .forward, interval: model.forwardSeekInterval)
           }
           .contextMenu {
             seekIntervalMenu(
-              currentInterval: forwardSeekInterval,
-              onChange: onForwardSeekIntervalChange
+              currentInterval: model.forwardSeekInterval,
+              onChange: { model.forwardSeekInterval = $0 }
             )
           }
-                    
         }
         .tint(Color.primary)
-                   
       }
       .padding(.horizontal, 20)
     }

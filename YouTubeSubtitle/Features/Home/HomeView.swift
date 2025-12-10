@@ -14,6 +14,7 @@ import AsyncMultiplexImage_Nuke
 struct HomeView: View {
   @Environment(\.modelContext) private var modelContext
   @Environment(VideoHistoryService.self) private var historyService
+  @Environment(VocabularyService.self) private var vocabularyService
   @Environment(DownloadManager.self) private var downloadManager
   @Query(sort: \VideoItem.timestamp, order: .reverse) private var history: [VideoItem]
 
@@ -158,6 +159,7 @@ struct HomeView: View {
       }
       .sheet(isPresented: $showSettings) {
         SettingsView()
+          .environment(vocabularyService)
       }
       .fittingSheet(isPresented: $showURLInput) {
         URLInputSheet { urlText in

@@ -463,7 +463,7 @@ struct DownloadView: View {
 
   private func startTranscription(fileURL: URL) async {
     do {
-      let subtitles = try await TranscriptionService.shared.transcribe(
+      let result = try await TranscriptionService.shared.transcribe(
         fileURL: fileURL
       ) { state in
         Task { @MainActor in
@@ -477,7 +477,7 @@ struct DownloadView: View {
         predicate: #Predicate { $0._videoID == videoIDRaw }
       )
       if let item = try? modelContext.fetch(descriptor).first {
-        item.cachedSubtitles = subtitles
+        item.cachedSubtitles = result.subtitles
       }
     } catch {
       await MainActor.run {
