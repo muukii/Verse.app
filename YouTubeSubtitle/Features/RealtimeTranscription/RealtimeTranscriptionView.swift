@@ -219,7 +219,7 @@ private struct TranscriptionBubble: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      SelectableTextView(
+      SelectableSubtitleTextView(
         attributedText: item.text,
         highlightTimeRange: highlightTimeRange,
         onWordTap: { word, _ in
@@ -236,118 +236,6 @@ private struct TranscriptionBubble: View {
     .background(Color(.secondarySystemBackground))
     .clipShape(RoundedRectangle(cornerRadius: 12))
     .frame(maxWidth: .infinity, alignment: .leading)
-  }
-}
-
-// MARK: - Selectable Text View (UIViewRepresentable)
-
-private struct SelectableTextView: UIViewRepresentable {
-  let attributedText: AttributedString
-  var highlightTimeRange: CMTimeRange?
-  var highlightColor: UIColor = UIColor.systemYellow.withAlphaComponent(0.4)
-  var onWordTap: ((String, CGRect) -> Void)?
-
-  func makeUIView(context: Context) -> UITextView {
-    let textView = UITextView()
-    textView.isEditable = false
-    textView.isScrollEnabled = false
-    textView.backgroundColor = .clear
-    textView.textContainerInset = .zero
-    textView.textContainer.lineFragmentPadding = 0
-    textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-    // Single tap gesture for word detection
-    let tapGesture = UITapGestureRecognizer(
-      target: context.coordinator,
-      action: #selector(Coordinator.handleTap(_:))
-    )
-    tapGesture.delegate = context.coordinator
-
-    // Make tap gesture require long press gestures to fail first
-    // This prevents tap from firing when user is trying to select text
-    for gesture in textView.gestureRecognizers ?? [] {
-      if let longPress = gesture as? UILongPressGestureRecognizer {
-        tapGesture.require(toFail: longPress)
-      }
-    }
-
-    textView.addGestureRecognizer(tapGesture)
-
-    return textView
-  }
-
-  func updateUIView(_ textView: UITextView, context: Context) {
-    // Create a mutable copy of the attributed string
-    var styledText = attributedText
-
-    // Apply default font and color to the entire string
-    if styledText.startIndex < styledText.endIndex {
-      let fullRange = styledText.startIndex..<styledText.endIndex
-      styledText[fullRange].font = UIFont.preferredFont(forTextStyle: .body)
-      styledText[fullRange].foregroundColor = UIColor.label
-
-      // Apply highlight if timeRange is specified
-      if let timeRange = highlightTimeRange,
-         let highlightRange = styledText.rangeOfAudioTimeRangeAttributes(intersecting: timeRange) {
-        styledText[highlightRange].backgroundColor = highlightColor
-      }
-    }
-
-    textView.attributedText = NSAttributedString(styledText)
-
-    // Invalidate intrinsic content size to trigger re-layout
-    textView.invalidateIntrinsicContentSize()
-  }
-
-  @MainActor
-  func sizeThatFits(
-    _ proposal: ProposedViewSize,
-    uiView textView: UITextView,
-    context: Context
-  ) -> CGSize? {
-    let width = proposal.width ?? UIView.layoutFittingExpandedSize.width
-
-    // Calculate the size that fits the content
-    let size = textView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-
-    return CGSize(width: width, height: size.height)
-  }
-
-  func makeCoordinator() -> Coordinator {
-    Coordinator(onWordTap: onWordTap)
-  }
-
-  class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
-    var onWordTap: ((String, CGRect) -> Void)?
-
-    init(onWordTap: ((String, CGRect) -> Void)?) {
-      self.onWordTap = onWordTap
-    }
-
-    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-      guard let textView = gesture.view as? UITextView else { return }
-      let point = gesture.location(in: textView)
-
-      // Get tapped word using tokenizer
-      if let position = textView.closestPosition(to: point),
-         let range = textView.tokenizer.rangeEnclosingPosition(
-           position, with: .word, inDirection: UITextDirection.storage(.forward)
-         ) {
-        let word = textView.text(in: range) ?? ""
-        if !word.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-          let rect = textView.firstRect(for: range)
-          onWordTap?(word, rect)
-        }
-      }
-    }
-
-    // Allow tap gesture to work alongside text selection
-    func gestureRecognizer(
-      _ gestureRecognizer: UIGestureRecognizer,
-      shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-    ) -> Bool {
-      true
-    }
   }
 }
 
