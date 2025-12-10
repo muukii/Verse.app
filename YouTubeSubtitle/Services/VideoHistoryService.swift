@@ -143,6 +143,27 @@ final class VideoHistoryService {
     try modelContext.save()
   }
 
+  // MARK: - Update Playback Position
+
+  /// Update playback position for a video to enable resume functionality.
+  /// - Parameters:
+  ///   - videoID: The video ID to update
+  ///   - position: Current playback position in seconds. Pass nil to clear the position.
+  func updatePlaybackPosition(videoID: YouTubeContentID, position: Double?) throws {
+    let videoIDRaw = videoID.rawValue
+    let descriptor = FetchDescriptor<VideoItem>(
+      predicate: #Predicate { $0._videoID == videoIDRaw }
+    )
+
+    guard let item = try modelContext.fetch(descriptor).first else {
+      throw VideoHistoryError.itemNotFound
+    }
+
+    item.lastPlaybackPosition = position
+
+    try modelContext.save()
+  }
+
   // MARK: - Find Item
 
   /// Find a video item by videoID.

@@ -179,6 +179,8 @@ struct PlayerView: View {
         }
       }
       .onDisappear {
+        // Save playback position before leaving
+        savePlaybackPosition()
         model.cleanup()
       }
       .onChange(of: scenePhase) { _, newPhase in
@@ -200,6 +202,8 @@ struct PlayerView: View {
         .onAppear {
           model.loadVideo(videoItem: videoItem)
           fetchTranscripts(videoID: videoID)
+          // Restore playback position if available
+          restorePlaybackPosition()
         }
     }
   }
@@ -386,6 +390,28 @@ struct PlayerView: View {
           transcriptionState = .failed(error.localizedDescription)
           isTranscribing = false
         }
+      }
+    }
+  }
+
+  // MARK: - Playback Position
+
+  /// Save current playback position to SwiftData for resume functionality
+  private func savePlaybackPosition() {
+    let position = model.currentTime
+    // Only save if position is meaningful (more than 5 seconds)
+    guard position > 5 else { return }
+    try? historyService.updatePlaybackPosition(videoID: videoID, position: position)
+  }
+
+  /// Restore saved playback position when video loads
+  private func restorePlaybackPosition() {
+    guard let savedPosition = videoItem.lastPlaybackPosition, savedPosition > 0 else { return }
+    // Delay slightly to ensure player is ready
+    Task {
+      try? await Task.sleep(for: .milliseconds(500))
+      await MainActor.run {
+        model.seek(to: savedPosition)
       }
     }
   }
