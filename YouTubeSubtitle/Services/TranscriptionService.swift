@@ -44,6 +44,14 @@ final class TranscriptionService {
     }
   }
 
+  /// Result containing both plain subtitles and rich attributed texts with word-level timing
+  struct TranscriptionResult {
+    let subtitles: Subtitles
+    /// Attributed texts with audioTimeRange attributes for word-level highlighting.
+    /// Array indices correspond to cue positions (0-indexed).
+    let attributedTexts: [AttributedString]
+  }
+
   enum TranscriptionState: Equatable {
     case idle
     case preparingAssets
@@ -70,12 +78,12 @@ final class TranscriptionService {
   ///   - fileURL: URL to the video file (MP4)
   ///   - locale: Language locale for transcription (defaults to device locale)
   ///   - onStateChange: Callback for state updates during transcription
-  /// - Returns: Subtitles object containing the transcribed text with timestamps
+  /// - Returns: TranscriptionResult containing subtitles and attributed texts with word-level timing
   func transcribe(
     fileURL: URL,
     locale: Locale = .current,
     onStateChange: @escaping @MainActor (TranscriptionState) -> Void
-  ) async throws -> Subtitles {
+  ) async throws -> TranscriptionResult {
     // 0. Check device availability (not available on Simulator)
     guard SpeechTranscriber.isAvailable else {
       throw TranscriptionError.notAvailable
@@ -123,6 +131,7 @@ final class TranscriptionService {
 
     let analyzer = SpeechAnalyzer(modules: [transcriber])
     var cues: [Subtitles.Cue] = []
+    var attributedTexts: [AttributedString] = []
     var position = 0
 
     // Task to collect results
@@ -132,6 +141,9 @@ final class TranscriptionService {
           position += 1
 
           let text = String(result.text.characters)
+          // Preserve the original AttributedString with audioTimeRange attributes
+          let attributedText = result.text
+          attributedTexts.append(attributedText)
 
           // Extract time range from AttributedString runs
           // We need to find the earliest start time and latest end time across all runs
@@ -195,6 +207,9 @@ final class TranscriptionService {
     }
 
     onStateChange(.completed)
-    return Subtitles(cues)
+    return TranscriptionResult(
+      subtitles: Subtitles(cues),
+      attributedTexts: attributedTexts
+    )
   }
 }

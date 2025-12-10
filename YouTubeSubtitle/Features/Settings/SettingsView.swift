@@ -91,6 +91,22 @@ struct SettingsView: View {
         // MARK: - Developer / Experimental
         Section {
           NavigationLink {
+            VocabularyListView()
+          } label: {
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Vocabulary")
+                Text("Save and review words from subtitles")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            } icon: {
+              Image(systemName: "text.book.closed")
+                .foregroundStyle(.blue)
+            }
+          }
+
+          NavigationLink {
             RealtimeTranscriptionView()
           } label: {
             Label {
@@ -108,7 +124,7 @@ struct SettingsView: View {
         } header: {
           Text("Experimental")
         } footer: {
-          Text("iOS 26+ only. Requires physical device (not available on Simulator).")
+          Text("Features under development. Live Transcription requires iOS 26+ and physical device.")
         }
       }
       .navigationTitle("Settings")

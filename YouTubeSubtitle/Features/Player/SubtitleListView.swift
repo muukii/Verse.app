@@ -5,10 +5,12 @@
 //  Created by Claude on 2025/12/02.
 //
 
-import RichText
+import CoreMedia
+import Speech
 @preconcurrency import SwiftSubtitles
 import SwiftUI
 import Translation
+import UIKit
 
 // MARK: - Transcribing View
 
@@ -145,6 +147,9 @@ struct TranscribingView: View {
 struct SubtitleListViewContainer: View {
   let model: PlayerModel
   let cues: [Subtitles.Cue]
+  /// Attributed texts with audioTimeRange attributes for word-level highlighting.
+  /// Array indices correspond to cue positions (0-indexed).
+  let attributedTexts: [AttributedString]?
   let isLoading: Bool
   let transcriptionState: TranscriptionService.TranscriptionState
   let error: String?
@@ -153,6 +158,7 @@ struct SubtitleListViewContainer: View {
   var body: some View {
     SubtitleListView(
       cues: cues,
+      attributedTexts: attributedTexts,
       currentTime: model.currentTime,
       currentCueID: currentCueID,
       isLoading: isLoading,
@@ -188,6 +194,7 @@ struct SubtitleListViewContainer: View {
 
 struct SubtitleListView: View {
   let cues: [Subtitles.Cue]
+  let attributedTexts: [AttributedString]?
   let currentTime: Double
   let currentCueID: Subtitles.Cue.ID?
   let isLoading: Bool
@@ -260,6 +267,8 @@ struct SubtitleListView: View {
     ScrollViewReader { proxy in
       SubtitleScrollContent(
         cues: cues,
+        attributedTexts: attributedTexts,
+        currentTime: currentTime,
         currentCueID: currentCueID,
         onAction: onAction
       )
@@ -292,6 +301,7 @@ enum SubtitleAction {
   case setRepeatB(time: Double)
   case explain(cue: Subtitles.Cue)
   case translate(cue: Subtitles.Cue)
+  case wordTap(word: String)
 }
 
 // MARK: - Subtitle Scroll Content
@@ -301,14 +311,23 @@ enum SubtitleAction {
 /// this prevents re-renders every 500ms when currentTime updates.
 private struct SubtitleScrollContent: View {
   let cues: [Subtitles.Cue]
+  let attributedTexts: [AttributedString]?
+  let currentTime: Double
   let currentCueID: Subtitles.Cue.ID?
   let onAction: (SubtitleAction) -> Void
 
+  /// Current time as CMTime for highlighting
+  private var currentCMTime: CMTime {
+    CMTime(seconds: currentTime, preferredTimescale: 600)
+  }
+
   var body: some View {
     List {
-      ForEach(cues) { cue in
+      ForEach(Array(cues.enumerated()), id: \.element.id) { index, cue in
         SubtitleRowView(
           cue: cue,
+          attributedText: attributedTexts?[safe: index],
+          highlightTime: cue.id == currentCueID ? currentCMTime : nil,
           isCurrent: cue.id == currentCueID,
           onAction: { action in
             switch action {
@@ -322,6 +341,8 @@ private struct SubtitleScrollContent: View {
               onAction(.explain(cue: cue))
             case .translate:
               onAction(.translate(cue: cue))
+            case .wordTap(let word):
+              onAction(.wordTap(word: word))
             }
           }
         )
@@ -361,9 +382,14 @@ struct SubtitleRowView: View {
     case setRepeatB
     case explain
     case translate
+    case wordTap(String)
   }
 
   let cue: Subtitles.Cue
+  /// Attributed text with audioTimeRange for word-level highlighting (from on-device transcription)
+  let attributedText: AttributedString?
+  /// Current playback time for highlighting (only set when this is the current cue)
+  let highlightTime: CMTime?
   let isCurrent: Bool
   let onAction: (Action) -> Void
 
@@ -396,15 +422,17 @@ struct SubtitleRowView: View {
      
       HStack(alignment: .top, spacing: 8) {
 
-        // Text content with selection support        
-        TextView {
-          cue.text.htmlDecoded
-        }
-        .font(.subheadline)
+        // Text content with selection and word tap support
+        SelectableSubtitleTextView(
+          text: cue.text.htmlDecoded,
+          attributedText: attributedText,
+          highlightTime: highlightTime,
+          onWordTap: { word in
+            onAction(.wordTap(word))
+          }
+        )
+        .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .onTapGesture {
-          onAction(.tap)
-        }
 
         menu
       }
@@ -485,6 +513,127 @@ struct SubtitleRowView: View {
   }
 }
 
+// MARK: - Selectable Text View (UIViewRepresentable)
+
+private struct SelectableSubtitleTextView: UIViewRepresentable {
+  let text: String
+  /// Attributed text with audioTimeRange attributes for word-level highlighting
+  var attributedText: AttributedString?
+  /// Current playback time for highlighting (when this is the active cue)
+  var highlightTime: CMTime?
+  var highlightColor: UIColor = UIColor.systemYellow.withAlphaComponent(0.4)
+  var onWordTap: ((String) -> Void)?
+
+  func makeUIView(context: Context) -> UITextView {
+    let textView = UITextView()
+    textView.isEditable = false
+    textView.isScrollEnabled = false
+    textView.backgroundColor = .clear
+    textView.textContainerInset = .zero
+    textView.textContainer.lineFragmentPadding = 0
+    textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+    // Single tap gesture for word detection
+    let tapGesture = UITapGestureRecognizer(
+      target: context.coordinator,
+      action: #selector(Coordinator.handleTap(_:))
+    )
+    tapGesture.delegate = context.coordinator
+
+    // Make tap gesture require long press gestures to fail first
+    // This prevents tap from firing when user is trying to select text
+    for gesture in textView.gestureRecognizers ?? [] {
+      if let longPress = gesture as? UILongPressGestureRecognizer {
+        tapGesture.require(toFail: longPress)
+      }
+    }
+
+    textView.addGestureRecognizer(tapGesture)
+
+    return textView
+  }
+
+  func updateUIView(_ textView: UITextView, context: Context) {
+    if var attrText = attributedText, attrText.startIndex < attrText.endIndex {
+      // Use AttributedString with potential word-level highlighting
+      let fullRange = attrText.startIndex..<attrText.endIndex
+      attrText[fullRange].font = UIFont.preferredFont(forTextStyle: .subheadline)
+      attrText[fullRange].foregroundColor = UIColor.tintColor
+
+      // Apply highlight if highlightTime is specified
+      if let time = highlightTime {
+        let timeRange = CMTimeRange(start: time, duration: CMTime(seconds: 0.5, preferredTimescale: 600))
+        if let highlightRange = attrText.rangeOfAudioTimeRangeAttributes(intersecting: timeRange) {
+          attrText[highlightRange].backgroundColor = highlightColor
+        }
+      }
+
+      textView.attributedText = NSAttributedString(attrText)
+    } else {
+      // Fallback to plain text (YouTube subtitles)
+      textView.font = UIFont.preferredFont(forTextStyle: .subheadline)
+      textView.textColor = UIColor.tintColor
+      textView.text = text
+    }
+    textView.invalidateIntrinsicContentSize()
+  }
+
+  @MainActor
+  func sizeThatFits(
+    _ proposal: ProposedViewSize,
+    uiView textView: UITextView,
+    context: Context
+  ) -> CGSize? {
+    let width = proposal.width ?? UIView.layoutFittingExpandedSize.width
+    let size = textView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+    return CGSize(width: width, height: size.height)
+  }
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator(onWordTap: onWordTap)
+  }
+
+  class Coordinator: NSObject, UIGestureRecognizerDelegate {
+    var onWordTap: ((String) -> Void)?
+
+    init(onWordTap: ((String) -> Void)?) {
+      self.onWordTap = onWordTap
+    }
+
+    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+      guard let textView = gesture.view as? UITextView else { return }
+      let point = gesture.location(in: textView)
+
+      // Get tapped word using tokenizer
+      if let position = textView.closestPosition(to: point),
+         let range = textView.tokenizer.rangeEnclosingPosition(
+           position, with: .word, inDirection: UITextDirection.storage(.forward)
+         ) {
+        let word = textView.text(in: range) ?? ""
+        if !word.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+          onWordTap?(word)
+        }
+      }
+    }
+
+    // Allow tap gesture to work alongside text selection
+    func gestureRecognizer(
+      _ gestureRecognizer: UIGestureRecognizer,
+      shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+      true
+    }
+  }
+}
+
+// MARK: - Array Safe Subscript
+
+extension Array {
+  subscript(safe index: Int) -> Element? {
+    indices.contains(index) ? self[index] : nil
+  }
+}
+
 // MARK: - HTML Decoding Extension
 
 extension String {
@@ -539,6 +688,7 @@ extension String {
         text: "Testing the subtitle list view."
       ),
     ],
+    attributedTexts: nil,
     currentTime: 4,
     currentCueID: nil,
     isLoading: false,
@@ -577,6 +727,8 @@ extension String {
       text:
         "This is the currently playing subtitle with some longer text to see how it wraps."
     ),
+    attributedText: nil,
+    highlightTime: nil,
     isCurrent: true,
     onAction: { _ in }
   )
@@ -589,6 +741,8 @@ extension String {
       endTime: Subtitles.Time(timeInSeconds: 129.0),
       text: "A subtitle that is not currently active."
     ),
+    attributedText: nil,
+    highlightTime: nil,
     isCurrent: false,
     onAction: { _ in }
   )

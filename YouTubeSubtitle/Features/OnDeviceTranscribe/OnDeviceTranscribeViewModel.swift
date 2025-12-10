@@ -150,7 +150,7 @@ final class OnDeviceTranscribeViewModel {
         // 4. Transcribe using existing service
         let subtitles: Subtitles
         do {
-          subtitles = try await TranscriptionService.shared.transcribe(
+          let result = try await TranscriptionService.shared.transcribe(
             fileURL: fileURL,
             locale: configuration.transcriptionLocale
           ) { [weak self] state in
@@ -163,6 +163,7 @@ final class OnDeviceTranscribeViewModel {
               break
             }
           }
+          subtitles = result.subtitles
         } catch {
           throw OnDeviceTranscribeError.transcriptionFailed(error)
         }

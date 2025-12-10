@@ -24,17 +24,16 @@ struct PlayerView: View {
   @Environment(VideoHistoryService.self) private var historyService
   @ObjectEdge private var model = PlayerModel()
 
-  @State private var playerController: PlayerController?
-  @State private var trackingTask: Task<Void, Never>?
+  // Subtitle state
   @State private var currentSubtitles: Subtitles?
+  @State private var attributedSubtitleTexts: [AttributedString]?
   @State private var isLoadingTranscripts: Bool = false
   @State private var transcriptError: String?
-  @AppStorage("backwardSeekInterval") private var backwardSeekInterval: Double = 3
-  @AppStorage("forwardSeekInterval") private var forwardSeekInterval: Double = 3
-  @State private var showDownloadView: Bool = false
-  @State private var playbackSource: PlaybackSource = .youtube
-  @State private var localFileURL: URL?
 
+  // Sheet state
+  @State private var showDownloadView: Bool = false
+
+  // UI state
   @State private var height: CGFloat = 0
   @State private var isPlayerCollapsed: Bool = false
 
@@ -46,6 +45,8 @@ struct PlayerView: View {
   // Subtitle interaction state
   @State private var selectedCueForExplanation: Subtitles.Cue?
   @State private var selectedCueForTranslation: Subtitles.Cue?
+  @State private var selectedWord: String?
+  @State private var showWordDetail: Bool = false
 
   // On-device transcribe state
   @State private var showOnDeviceTranscribeSheet: Bool = false
@@ -66,11 +67,11 @@ struct PlayerView: View {
   }
 
   var body: some View {
-    if let controller = playerController {
+    if let controller = model.controller {
 
       ZStack {
-        
-        VStack {        
+
+        VStack {
           VideoPlayerSection(controller: controller)
             .compositingGroup()
             .animation(.smooth) {              
@@ -112,24 +113,7 @@ struct PlayerView: View {
             
             subtitleSection
             
-            PlayerControls(
-              model: model,
-              backwardSeekInterval: backwardSeekInterval,
-              forwardSeekInterval: forwardSeekInterval,
-              onSeek: { time in seek(controller: controller, to: time) },
-              onSeekBackward: { seekBackward(controller: controller) },
-              onSeekForward: { seekForward(controller: controller) },
-              onTogglePlayPause: { togglePlayPause(controller: controller) },
-              onRateChange: { rate in setPlaybackRate(controller: controller, rate: rate) },
-              onBackwardSeekIntervalChange: { interval in
-                backwardSeekInterval = interval
-              },
-              onForwardSeekIntervalChange: { interval in
-                forwardSeekInterval = interval
-              },
-              onSubtitleSeekBackward: { seekToPreviousSubtitle(controller: controller) },
-              onSubtitleSeekForward: { seekToNextSubtitle(controller: controller) }
-            )
+            PlayerControls(model: model)
           }
           .background(
             UnevenRoundedRectangle(
@@ -191,24 +175,22 @@ struct PlayerView: View {
           }
         )
       }
-      .onDisappear {
-        // Stop playback and cancel tracking
-        trackingTask?.cancel()
-        trackingTask = nil
-        if let controller = playerController {
-          Task {
-            await controller.pause()
-          }
+      .sheet(isPresented: $showWordDetail) {
+        if let word = selectedWord {
+          WordDetailSheet(word: word)
         }
       }
-      .onChange(of: scenePhase) { oldPhase, newPhase in
-        handleScenePhaseChange(from: oldPhase, to: newPhase)
+      .onDisappear {
+        model.cleanup()
       }
-      .onChange(of: videoItem.isDownloaded) { oldValue, isDownloaded in
+      .onChange(of: scenePhase) { _, newPhase in
+        model.handleScenePhaseChange(to: newPhase)
+      }
+      .onChange(of: videoItem.isDownloaded) { _, isDownloaded in
         // When download completes, automatically switch to local playback
-        if isDownloaded, playbackSource == .youtube, let fileURL = videoItem.downloadedFileURL {
-          localFileURL = fileURL
-          switchPlaybackSource(to: .local)
+        if isDownloaded, model.playbackSource == .youtube, let fileURL = videoItem.downloadedFileURL {
+          model.localFileURL = fileURL
+          model.switchToLocal()
         }
       }
       .onChange(of: currentSubtitles?.cues) { _, newCues in
@@ -218,7 +200,8 @@ struct PlayerView: View {
     } else {
       ProgressView()
         .onAppear {
-          loadVideo()
+          model.loadVideo(videoItem: videoItem)
+          fetchTranscripts(videoID: videoID)
         }
     }
   }
@@ -228,7 +211,7 @@ struct PlayerView: View {
     ToolbarItem(placement: .primaryAction) {
       HStack(spacing: 16) {
         // On-device transcribe button (only when no local file exists)
-        if localFileURL == nil {
+        if model.localFileURL == nil {
           Button {
             showOnDeviceTranscribeSheet = true
           } label: {
@@ -240,16 +223,20 @@ struct PlayerView: View {
         SubtitleManagementView(
           videoID: videoID,
           subtitles: currentSubtitles,
-          localFileURL: localFileURL,
-          playbackSource: playbackSource,
+          localFileURL: model.localFileURL,
+          playbackSource: model.playbackSource,
           onSubtitlesImported: { subtitles in
             currentSubtitles = subtitles
           },
           onPlaybackSourceChange: { source in
-            switchPlaybackSource(to: source)
+            if source == .youtube {
+              model.switchToYouTube(videoID: videoID.rawValue)
+            } else {
+              model.switchToLocal()
+            }
           },
           onLocalVideoDeleted: {
-            localFileURL = nil
+            model.localFileURL = nil
           },
           onTranscribe: {
             showTranscriptionSheet = true
@@ -274,15 +261,14 @@ struct PlayerView: View {
       SubtitleListViewContainer(
         model: model,
         cues: currentSubtitles?.cues ?? [],
+        attributedTexts: attributedSubtitleTexts,
         isLoading: isLoadingTranscripts,
         transcriptionState: transcriptionState,
         error: transcriptError,
         onAction: { action in
           switch action {
           case .tap(let time):
-            if let controller = playerController {
-              seek(controller: controller, to: time)
-            }
+            model.seek(to: time)
           case .setRepeatA(let time):
             model.repeatStartTime = time
           case .setRepeatB(let time):
@@ -291,9 +277,12 @@ struct PlayerView: View {
             selectedCueForExplanation = cue
           case .translate(let cue):
             selectedCueForTranslation = cue
+          case .wordTap(let word):
+            selectedWord = word
+            showWordDetail = true
           }
         }
-      )     
+      )
     }
   }
 
@@ -321,30 +310,6 @@ struct PlayerView: View {
   }
 
   // MARK: - Private Methods
-
-  private func loadVideo() {
-    // Prevent multiple loads
-    guard playerController == nil else { return }
-
-    // Check if video is downloaded
-    if videoItem.isDownloaded,
-       let fileURL = videoItem.downloadedFileURL {
-      // Store local file URL for later switching
-      localFileURL = fileURL
-      // Use local file playback by default when available
-      playerController = .local(LocalVideoPlayerController(url: fileURL))
-      playbackSource = .local
-    } else {
-      // Use YouTube playback
-      playerController = .youtube(YouTubeVideoPlayerController(videoID: videoID.rawValue))
-      playbackSource = .youtube
-    }
-
-    if let controller = playerController {
-      startTrackingTime(controller: controller)
-    }
-    fetchTranscripts(videoID: videoID)
-  }
 
   private func fetchTranscripts(videoID: YouTubeContentID) {
     isLoadingTranscripts = true
@@ -394,160 +359,15 @@ struct PlayerView: View {
     }
   }
 
-  private func startTrackingTime(controller: PlayerController) {
-    // Cancel any existing tracking task
-    trackingTask?.cancel()
-
-    trackingTask = Task {
-      // Initial delay to get duration
-      try? await Task.sleep(for: .seconds(1))
-
-      guard !Task.isCancelled else { return }
-
-      let videoDuration = await controller.duration
-      await MainActor.run {
-        model.duration = videoDuration
-      }
-
-      // Main tracking loop
-      while !Task.isCancelled {
-        let timeValue = await controller.currentTime
-        await MainActor.run {
-          model.currentTime = timeValue
-          model.isPlaying = controller.isPlaying
-        }
-
-        // Check A-B repeat loop
-        if let loopStartTime = model.checkRepeatLoop() {
-          await controller.seek(to: loopStartTime)
-        }
-        // Check end-of-video loop
-        else if let loopStartTime = model.checkEndOfVideoLoop() {
-          await controller.seek(to: loopStartTime)
-        }
-
-        try? await Task.sleep(for: .milliseconds(500))
-      }
-    }
-  }
-
-  private func seek(controller: PlayerController, to time: Double) {
-    Task {
-      await controller.seek(to: time)
-    }
-  }
-
-  private func seekBackward(controller: PlayerController) {
-    Task {
-      let currentSeconds = await controller.currentTime
-      let newSeconds = max(0, currentSeconds - backwardSeekInterval)
-      await controller.seek(to: newSeconds)
-    }
-  }
-
-  private func seekForward(controller: PlayerController) {
-    Task {
-      let currentSeconds = await controller.currentTime
-      let newSeconds = currentSeconds + forwardSeekInterval
-      await controller.seek(to: newSeconds)
-    }
-  }
-
-  private func seekToPreviousSubtitle(controller: PlayerController) {
-    Task {
-      if let previousTime = model.previousSubtitleTime() {
-        await controller.seek(to: previousTime)
-      }
-    }
-  }
-
-  private func seekToNextSubtitle(controller: PlayerController) {
-    Task {
-      if let nextTime = model.nextSubtitleTime() {
-        await controller.seek(to: nextTime)
-      }
-    }
-  }
-
-  private func togglePlayPause(controller: PlayerController) {
-    Task {
-      if controller.isPlaying {
-        await controller.pause()
-        await MainActor.run { model.isPlaying = false }
-      } else {
-        await controller.play()
-        await MainActor.run { model.isPlaying = true }
-      }
-    }
-  }
-
-  private func setPlaybackRate(controller: PlayerController, rate: Double) {
-    Task {
-      await controller.setPlaybackRate(rate)
-      await MainActor.run {
-        model.playbackRate = rate
-      }
-    }
-  }
-
-  private func switchPlaybackSource(to source: PlaybackSource) {
-    guard source != playbackSource else { return }
-
-    // Cancel existing tracking task
-    trackingTask?.cancel()
-
-    // Stop current player before switching
-    if let currentController = playerController {
-      Task {
-        await currentController.pause()
-      }
-    }
-
-    // Create new controller based on source
-    switch source {
-    case .youtube:
-      playerController = .youtube(YouTubeVideoPlayerController(videoID: videoID.rawValue))
-    case .local:
-      guard let fileURL = localFileURL else { return }
-      playerController = .local(LocalVideoPlayerController(url: fileURL))
-    }
-
-    playbackSource = source
-
-    // Start new time tracking
-    if let controller = playerController {
-      startTrackingTime(controller: controller)
-    }
-  }
-
-  private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
-    guard let controller = playerController else { return }
-
-    // When entering background
-    if newPhase == .background {
-      // Only pause YouTube playback in background
-      // Local video playback continues in background (thanks to AVAudioSession .playback category)
-      if case .youtube = controller {
-        Task {
-          await controller.pause()
-          await MainActor.run {
-            model.isPlaying = false
-          }
-        }
-      }
-      // Local video (.local case) continues playing in background - no action needed
-    }
-  }
-
   private func transcribeVideo() {
-    guard let fileURL = localFileURL else { return }
+    guard let fileURL = model.localFileURL else { return }
 
     isTranscribing = true
     transcriptionState = .idle
 
     Task {
       do {
-        let subtitles = try await TranscriptionService.shared.transcribe(
+        let result = try await TranscriptionService.shared.transcribe(
           fileURL: fileURL,
           locale: Locale(identifier: "en_US")
         ) { state in
@@ -556,12 +376,13 @@ struct PlayerView: View {
 
         // Update UI with transcribed subtitles and persist to SwiftData
         await MainActor.run {
-          currentSubtitles = subtitles
+          currentSubtitles = result.subtitles
+          attributedSubtitleTexts = result.attributedTexts
           isTranscribing = false
           transcriptionState = .completed
 
           // Save to SwiftData for persistence across app launches
-          try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: subtitles)
+          try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: result.subtitles)
         }
 
       } catch {
@@ -769,6 +590,54 @@ extension PlayerView {
         Label("Retry", systemImage: "exclamationmark.circle")
       }
     }
+  }
+}
+
+// MARK: - Word Detail Sheet
+
+private struct WordDetailSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let word: String
+
+  var body: some View {
+    NavigationStack {
+      VStack(spacing: 24) {
+        Text(word)
+          .font(.largeTitle)
+          .fontWeight(.bold)
+          .padding(.top, 40)
+
+        Text("Tapped word")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+
+        Spacer()
+
+        VStack(spacing: 12) {
+          Button {
+            UIPasteboard.general.string = word
+          } label: {
+            Label("Copy to Clipboard", systemImage: "doc.on.doc")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.bordered)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 40)
+      }
+      .navigationTitle("Word Detail")
+      #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+      #endif
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Done") {
+            dismiss()
+          }
+        }
+      }
+    }
+    .presentationDetents([.medium])
   }
 }
 

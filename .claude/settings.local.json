@@ -46,7 +46,9 @@
       "mcp__XcodeBuildMCP__build_macos",
       "Bash(xcrun swift:*)",
       "Bash(xcrun:*)",
-      "Bash(plutil:*)"
+      "Bash(plutil:*)",
+      "Bash(git -C /Users/hiroshi.kimura/.ghq/github.com/muukii/YouTubeSubtitle log --oneline -20)",
+      "Bash(git -C /Users/hiroshi.kimura/.ghq/github.com/muukii/YouTubeSubtitle diff HEAD~2..HEAD --stat)"
     ],
     "deny": [],
     "ask": []

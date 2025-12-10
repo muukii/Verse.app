@@ -6,12 +6,15 @@
 //
 
 @preconcurrency import AVFoundation
+import CoreMedia
 import Speech
 import SwiftUI
 
 /// Sample view demonstrating real-time microphone transcription using SpeechAnalyzer (iOS 26+)
 struct RealtimeTranscriptionView: View {
   @State private var viewModel = RealtimeTranscriptionViewModel()
+  @State private var selectedWord: String?
+  @State private var showWordDetail = false
 
   var body: some View {
     VStack(spacing: 0) {
@@ -37,6 +40,17 @@ struct RealtimeTranscriptionView: View {
         Task {
           await viewModel.stopRecording()
         }
+      }
+      // Re-enable idle timer when leaving the view
+      UIApplication.shared.isIdleTimerDisabled = false
+    }
+    .onChange(of: viewModel.isRecording) { _, isRecording in
+      // Prevent screen sleep during recording
+      UIApplication.shared.isIdleTimerDisabled = isRecording
+    }
+    .sheet(isPresented: $showWordDetail) {
+      if let word = selectedWord {
+        WordDetailSheet(word: word)
       }
     }
   }
@@ -90,8 +104,11 @@ struct RealtimeTranscriptionView: View {
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 12) {
           ForEach(viewModel.transcriptions) { item in
-            TranscriptionBubble(item: item)
-              .id(item.id)
+            TranscriptionBubble(item: item) { word in
+              selectedWord = word
+              showWordDetail = true
+            }
+            .id(item.id)
           }
 
           // Current partial transcription
@@ -135,6 +152,14 @@ struct RealtimeTranscriptionView: View {
           viewModel.clearTranscriptions()
         } label: {
           Label("Clear", systemImage: "trash")
+            .font(.subheadline)
+        }
+        .buttonStyle(.bordered)
+        .disabled(viewModel.transcriptions.isEmpty)
+
+        // Share button
+        ShareLink(item: viewModel.exportText) {
+          Label("Share", systemImage: "square.and.arrow.up")
             .font(.subheadline)
         }
         .buttonStyle(.bordered)
@@ -189,12 +214,19 @@ struct TranscriptionItem: Identifiable, Equatable {
 
 private struct TranscriptionBubble: View {
   let item: TranscriptionItem
+  var highlightTimeRange: CMTimeRange?
+  var onWordTap: ((String) -> Void)?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      Text(item.text)
-        .font(.body)
-        .foregroundStyle(.primary)
+      SelectableTextView(
+        attributedText: item.text,
+        highlightTimeRange: highlightTimeRange,
+        onWordTap: { word, _ in
+          onWordTap?(word)
+        }
+      )
+      .fixedSize(horizontal: false, vertical: true)
 
       Text(item.formattedTime)
         .font(.caption2)
@@ -204,6 +236,118 @@ private struct TranscriptionBubble: View {
     .background(Color(.secondarySystemBackground))
     .clipShape(RoundedRectangle(cornerRadius: 12))
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+// MARK: - Selectable Text View (UIViewRepresentable)
+
+private struct SelectableTextView: UIViewRepresentable {
+  let attributedText: AttributedString
+  var highlightTimeRange: CMTimeRange?
+  var highlightColor: UIColor = UIColor.systemYellow.withAlphaComponent(0.4)
+  var onWordTap: ((String, CGRect) -> Void)?
+
+  func makeUIView(context: Context) -> UITextView {
+    let textView = UITextView()
+    textView.isEditable = false
+    textView.isScrollEnabled = false
+    textView.backgroundColor = .clear
+    textView.textContainerInset = .zero
+    textView.textContainer.lineFragmentPadding = 0
+    textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+    // Single tap gesture for word detection
+    let tapGesture = UITapGestureRecognizer(
+      target: context.coordinator,
+      action: #selector(Coordinator.handleTap(_:))
+    )
+    tapGesture.delegate = context.coordinator
+
+    // Make tap gesture require long press gestures to fail first
+    // This prevents tap from firing when user is trying to select text
+    for gesture in textView.gestureRecognizers ?? [] {
+      if let longPress = gesture as? UILongPressGestureRecognizer {
+        tapGesture.require(toFail: longPress)
+      }
+    }
+
+    textView.addGestureRecognizer(tapGesture)
+
+    return textView
+  }
+
+  func updateUIView(_ textView: UITextView, context: Context) {
+    // Create a mutable copy of the attributed string
+    var styledText = attributedText
+
+    // Apply default font and color to the entire string
+    if styledText.startIndex < styledText.endIndex {
+      let fullRange = styledText.startIndex..<styledText.endIndex
+      styledText[fullRange].font = UIFont.preferredFont(forTextStyle: .body)
+      styledText[fullRange].foregroundColor = UIColor.label
+
+      // Apply highlight if timeRange is specified
+      if let timeRange = highlightTimeRange,
+         let highlightRange = styledText.rangeOfAudioTimeRangeAttributes(intersecting: timeRange) {
+        styledText[highlightRange].backgroundColor = highlightColor
+      }
+    }
+
+    textView.attributedText = NSAttributedString(styledText)
+
+    // Invalidate intrinsic content size to trigger re-layout
+    textView.invalidateIntrinsicContentSize()
+  }
+
+  @MainActor
+  func sizeThatFits(
+    _ proposal: ProposedViewSize,
+    uiView textView: UITextView,
+    context: Context
+  ) -> CGSize? {
+    let width = proposal.width ?? UIView.layoutFittingExpandedSize.width
+
+    // Calculate the size that fits the content
+    let size = textView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+
+    return CGSize(width: width, height: size.height)
+  }
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator(onWordTap: onWordTap)
+  }
+
+  class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
+    var onWordTap: ((String, CGRect) -> Void)?
+
+    init(onWordTap: ((String, CGRect) -> Void)?) {
+      self.onWordTap = onWordTap
+    }
+
+    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+      guard let textView = gesture.view as? UITextView else { return }
+      let point = gesture.location(in: textView)
+
+      // Get tapped word using tokenizer
+      if let position = textView.closestPosition(to: point),
+         let range = textView.tokenizer.rangeEnclosingPosition(
+           position, with: .word, inDirection: UITextDirection.storage(.forward)
+         ) {
+        let word = textView.text(in: range) ?? ""
+        if !word.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+          let rect = textView.firstRect(for: range)
+          onWordTap?(word, rect)
+        }
+      }
+    }
+
+    // Allow tap gesture to work alongside text selection
+    func gestureRecognizer(
+      _ gestureRecognizer: UIGestureRecognizer,
+      shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+      true
+    }
   }
 }
 
@@ -289,6 +433,12 @@ final class RealtimeTranscriptionViewModel {
     if case .ready = status { return true }
     if case .recording = status { return true }
     return false
+  }
+
+  var exportText: String {
+    transcriptions.map { item in
+      "[\(item.formattedTime)] \(String(item.text.characters))"
+    }.joined(separator: "\n\n")
   }
 
   // MARK: - Private Properties
@@ -515,6 +665,55 @@ final class RealtimeTranscriptionViewModel {
     let db = 20 * log10(max(rms, 0.000001))
 
     audioLevel = db
+  }
+}
+
+// MARK: - Word Detail Sheet
+
+private struct WordDetailSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let word: String
+
+  var body: some View {
+    NavigationStack {
+      VStack(spacing: 24) {
+        Text(word)
+          .font(.largeTitle)
+          .fontWeight(.bold)
+          .padding(.top, 40)
+
+        Text("Tapped word")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+
+        Spacer()
+
+        // Placeholder for future actions (dictionary lookup, translation, etc.)
+        VStack(spacing: 12) {
+          Button {
+            UIPasteboard.general.string = word
+          } label: {
+            Label("Copy to Clipboard", systemImage: "doc.on.doc")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.bordered)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 40)
+      }
+      .navigationTitle("Word Detail")
+      #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+      #endif
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Done") {
+            dismiss()
+          }
+        }
+      }
+    }
+    .presentationDetents([.medium])
   }
 }
 
