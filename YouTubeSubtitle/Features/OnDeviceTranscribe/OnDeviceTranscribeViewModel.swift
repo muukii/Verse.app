@@ -6,7 +6,6 @@
 //
 
 import Foundation
-@preconcurrency import SwiftSubtitles
 @preconcurrency import YouTubeKit
 
 // MARK: - Error Types
@@ -89,7 +88,7 @@ final class OnDeviceTranscribeViewModel {
   private(set) var phase: Phase = .idle
   private(set) var configuration: OnDeviceTranscribeConfiguration
   private var downloadedFileURL: URL?
-  private var currentTask: Task<Subtitles, any Error>?
+  private var currentTask: Task<Subtitle, any Error>?
 
   // MARK: - Initialization
 
@@ -107,9 +106,9 @@ final class OnDeviceTranscribeViewModel {
   func startTranscription(
     videoID: YouTubeContentID,
     downloadManager: DownloadManager
-  ) async throws -> Subtitles {
+  ) async throws -> Subtitle {
     // Store task for cancellation support
-    let task = Task { @MainActor [weak self] () throws -> Subtitles in
+    let task = Task { @MainActor [weak self] () throws -> Subtitle in
       guard let self else { throw OnDeviceTranscribeError.cancelled }
 
       do {
@@ -148,9 +147,9 @@ final class OnDeviceTranscribeViewModel {
         }
 
         // 4. Transcribe using existing service
-        let subtitles: Subtitles
+        let subtitles: Subtitle
         do {
-          let result = try await TranscriptionService.shared.transcribe(
+          subtitles = try await TranscriptionService.shared.transcribe(
             fileURL: fileURL,
             locale: configuration.transcriptionLocale
           ) { [weak self] state in
@@ -163,7 +162,6 @@ final class OnDeviceTranscribeViewModel {
               break
             }
           }
-          subtitles = result.subtitles
         } catch {
           throw OnDeviceTranscribeError.transcriptionFailed(error)
         }

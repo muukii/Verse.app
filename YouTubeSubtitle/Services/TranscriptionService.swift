@@ -7,7 +7,6 @@
 
 import AVFoundation
 import Speech
-import SwiftSubtitles
 
 /// Service for transcribing audio from video files using Apple's SpeechAnalyzer API (iOS 26+).
 @MainActor
@@ -44,14 +43,6 @@ final class TranscriptionService {
     }
   }
 
-  /// Result containing both plain subtitles and rich attributed texts with word-level timing
-  struct TranscriptionResult {
-    let subtitles: Subtitles
-    /// Attributed texts with audioTimeRange attributes for word-level highlighting.
-    /// Array indices correspond to cue positions (0-indexed).
-    let attributedTexts: [AttributedString]
-  }
-
   enum TranscriptionState: Equatable {
     case idle
     case preparingAssets
@@ -78,12 +69,12 @@ final class TranscriptionService {
   ///   - fileURL: URL to the video file (MP4)
   ///   - locale: Language locale for transcription (defaults to device locale)
   ///   - onStateChange: Callback for state updates during transcription
-  /// - Returns: TranscriptionResult containing subtitles and attributed texts with word-level timing
+  /// - Returns: Subtitle with word-level timing information
   func transcribe(
     fileURL: URL,
     locale: Locale = .current,
     onStateChange: @escaping @MainActor (TranscriptionState) -> Void
-  ) async throws -> TranscriptionResult {
+  ) async throws -> Subtitle {
     // 0. Check device availability (not available on Simulator)
     guard SpeechTranscriber.isAvailable else {
       throw TranscriptionError.notAvailable
@@ -130,8 +121,7 @@ final class TranscriptionService {
     onStateChange(.transcribing(progress: 0))
 
     let analyzer = SpeechAnalyzer(modules: [transcriber])
-    var cues: [Subtitles.Cue] = []
-    var attributedTexts: [AttributedString] = []
+    var cues: [Subtitle.Cue] = []
     var position = 0
 
     // Task to collect results
@@ -141,12 +131,9 @@ final class TranscriptionService {
           position += 1
 
           let text = String(result.text.characters)
-          // Preserve the original AttributedString with audioTimeRange attributes
-          let attributedText = result.text
-          attributedTexts.append(attributedText)
 
-          // Extract time range from AttributedString runs
-          // We need to find the earliest start time and latest end time across all runs
+          // Extract word-level timing from AttributedString runs
+          var wordTimings: [Subtitle.WordTiming] = []
           var startSeconds: Double?
           var endSeconds: Double?
 
@@ -155,6 +142,19 @@ final class TranscriptionService {
               let runStart = timeRange.start.seconds
               let runEnd = timeRange.end.seconds
 
+              // Extract word text for this run
+              let wordText = String(result.text[run.range].characters)
+
+              // Add word timing
+              wordTimings.append(
+                Subtitle.WordTiming(
+                  text: wordText,
+                  startTime: runStart,
+                  endTime: runEnd
+                )
+              )
+
+              // Track overall cue timing
               if startSeconds == nil || runStart < startSeconds! {
                 startSeconds = runStart
               }
@@ -168,11 +168,12 @@ final class TranscriptionService {
           let finalStartSeconds = startSeconds ?? 0
           let finalEndSeconds = endSeconds ?? 0
 
-          let cue = Subtitles.Cue(
-            position: position,
-            startTime: Subtitles.Time(timeInSeconds: finalStartSeconds),
-            endTime: Subtitles.Time(timeInSeconds: finalEndSeconds),
-            text: text
+          let cue = Subtitle.Cue(
+            id: position,
+            startTime: finalStartSeconds,
+            endTime: finalEndSeconds,
+            text: text,
+            wordTimings: wordTimings.isEmpty ? nil : wordTimings
           )
           cues.append(cue)
 
@@ -207,9 +208,6 @@ final class TranscriptionService {
     }
 
     onStateChange(.completed)
-    return TranscriptionResult(
-      subtitles: Subtitles(cues),
-      attributedTexts: attributedTexts
-    )
+    return Subtitle(cues)
   }
 }

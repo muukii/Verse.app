@@ -8,7 +8,6 @@
 import AVKit
 import ObjectEdge
 import SwiftData
-import SwiftSubtitles
 import SwiftUI
 import YouTubeKit
 import YouTubePlayerKit
@@ -25,8 +24,7 @@ struct PlayerView: View {
   @ObjectEdge private var model = PlayerModel()
 
   // Subtitle state
-  @State private var currentSubtitles: Subtitles?
-  @State private var attributedSubtitleTexts: [AttributedString]?
+  @State private var currentSubtitles: Subtitle?
   @State private var isLoadingTranscripts: Bool = false
   @State private var transcriptError: String?
 
@@ -43,8 +41,8 @@ struct PlayerView: View {
   @State private var showTranscriptionSheet: Bool = false
 
   // Subtitle interaction state
-  @State private var selectedCueForExplanation: Subtitles.Cue?
-  @State private var selectedCueForTranslation: Subtitles.Cue?
+  @State private var selectedCueForExplanation: Subtitle.Cue?
+  @State private var selectedCueForTranslation: Subtitle.Cue?
   @State private var selectedWord: String?
   @State private var showWordDetail: Bool = false
 
@@ -261,7 +259,6 @@ struct PlayerView: View {
       SubtitleListViewContainer(
         model: model,
         cues: currentSubtitles?.cues ?? [],
-        attributedTexts: attributedSubtitleTexts,
         isLoading: isLoadingTranscripts,
         transcriptionState: transcriptionState,
         error: transcriptError,
@@ -341,7 +338,7 @@ struct PlayerView: View {
           config: config
         )
 
-        let subtitles = fetchedTranscripts.toSwiftSubtitles()
+        let subtitles = fetchedTranscripts.toSubtitle()
 
         // Save to cache
         try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: subtitles)
@@ -367,7 +364,7 @@ struct PlayerView: View {
 
     Task {
       do {
-        let result = try await TranscriptionService.shared.transcribe(
+        let subtitles = try await TranscriptionService.shared.transcribe(
           fileURL: fileURL,
           locale: Locale(identifier: "en_US")
         ) { state in
@@ -376,13 +373,12 @@ struct PlayerView: View {
 
         // Update UI with transcribed subtitles and persist to SwiftData
         await MainActor.run {
-          currentSubtitles = result.subtitles
-          attributedSubtitleTexts = result.attributedTexts
+          currentSubtitles = subtitles
           isTranscribing = false
           transcriptionState = .completed
 
           // Save to SwiftData for persistence across app launches
-          try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: result.subtitles)
+          try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: subtitles)
         }
 
       } catch {

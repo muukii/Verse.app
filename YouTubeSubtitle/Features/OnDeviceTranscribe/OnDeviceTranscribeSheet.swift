@@ -5,7 +5,6 @@
 //  Created by Claude on 2025/12/09.
 //
 
-import SwiftSubtitles
 import SwiftUI
 
 /// Sheet view for on-device transcription workflow.
@@ -13,7 +12,7 @@ import SwiftUI
 struct OnDeviceTranscribeSheet: View {
   @Bindable var viewModel: OnDeviceTranscribeViewModel
   let videoID: YouTubeContentID
-  let onComplete: (Subtitles) -> Void
+  let onComplete: (Subtitle) -> Void
 
   @Environment(DownloadManager.self) private var downloadManager
   @Environment(\.dismiss) private var dismiss
