@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SwiftSubtitles
 import SwiftUI
 
 /// Observable model for PlayerView that holds frequently updated playback state
@@ -72,7 +71,7 @@ final class PlayerModel {
   // MARK: - Subtitle State
 
   /// Current subtitle cues for subtitle-based seeking
-  var cues: [Subtitles.Cue] = []
+  var cues: [Subtitle.Cue] = []
 
   // MARK: - Controller State
 
@@ -179,10 +178,10 @@ final class PlayerModel {
     let adjustedTime = currentTime - threshold
 
     // Find all cues before adjusted time
-    let previousCues = cues.filter { $0.startTime.totalSeconds < adjustedTime }
+    let previousCues = cues.filter { $0.startTime < adjustedTime }
 
     // Return the last one (most recent)
-    return previousCues.last?.startTime.totalSeconds
+    return previousCues.last?.startTime
   }
 
   /// Returns the start time of the next subtitle cue relative to current time.
@@ -191,7 +190,7 @@ final class PlayerModel {
     guard !cues.isEmpty else { return nil }
 
     // Find the first cue that starts after current time
-    return cues.first(where: { $0.startTime.totalSeconds > currentTime })?.startTime.totalSeconds
+    return cues.first(where: { $0.startTime > currentTime })?.startTime
   }
 
   /// Returns the start time of the current subtitle cue.
@@ -201,8 +200,8 @@ final class PlayerModel {
 
     // Find the cue that contains current time
     return cues.first(where: {
-      $0.startTime.totalSeconds <= currentTime && currentTime < $0.endTime.totalSeconds
-    })?.startTime.totalSeconds
+      $0.startTime <= currentTime && currentTime < $0.endTime
+    })?.startTime
   }
 
   // MARK: - Controller Lifecycle
@@ -418,8 +417,8 @@ final class PlayerModel {
     trackingTask = Task { [weak self] in
       guard let self else { return }
 
-      // Initial delay to get duration
-      try? await Task.sleep(for: .seconds(1))
+//      // Initial delay to get duration
+//      try? await Task.sleep(for: .seconds(1))
 
       guard !Task.isCancelled else { return }
 
@@ -445,7 +444,7 @@ final class PlayerModel {
           await self.controller?.seek(to: loopStartTime)
         }
 
-        try? await Task.sleep(for: .milliseconds(500))
+        try? await Task.sleep(for: .milliseconds(100))
       }
     }
   }

@@ -6,17 +6,16 @@
 //
 
 import SwiftData
-import SwiftSubtitles
 import SwiftUI
 import UniformTypeIdentifiers
 
 /// View for managing subtitles and playback options
 struct SubtitleManagementView: View {
   let videoID: YouTubeContentID
-  let subtitles: Subtitles?
+  let subtitles: Subtitle?
   let localFileURL: URL?
   let playbackSource: PlaybackSource
-  let onSubtitlesImported: (Subtitles) -> Void
+  let onSubtitlesImported: (Subtitle) -> Void
   let onPlaybackSourceChange: (PlaybackSource) -> Void
   var onLocalVideoDeleted: (() -> Void)?
   var onTranscribe: (() -> Void)?
@@ -215,7 +214,7 @@ struct SubtitleManagementView: View {
 
 struct ExportSheetView: View {
   let videoID: YouTubeContentID
-  let subtitles: Subtitles?
+  let subtitles: Subtitle?
   @Binding var selectedFormat: SubtitleFormat
 
   @State private var showExporter = false

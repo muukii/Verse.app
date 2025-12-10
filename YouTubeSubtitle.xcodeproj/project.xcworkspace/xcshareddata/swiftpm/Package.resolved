@@ -1,5 +1,5 @@
 {
-  "originHash" : "707b0c3b648ecb636a89bc5cc063f9a4b3a0dd510298c089cfa6d414050cbdcd",
+  "originHash" : "46f2a1d626d632b629e16c60441f1bdcafaa83ce1281ee3fb272035e3af08607",
   "pins" : [
     {
       "identity" : "anylanguagemodel",
@@ -8,15 +8,6 @@
       "state" : {
         "branch" : "main",
         "revision" : "6b7600d2206019e0e6e8d939ba2e3a80135f4600"
-      }
-    },
-    {
-      "identity" : "dsfregex",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/dagronf/DSFRegex",
-      "state" : {
-        "revision" : "e0e64805519b23b08dcca9c83ca2d4a2b3de4c33",
-        "version" : "3.4.0"
       }
     },
     {
@@ -71,15 +62,6 @@
       "state" : {
         "revision" : "e4d389e6bcc6771bb988d1a8a17695d8bfa97172",
         "version" : "1.0.0"
-      }
-    },
-    {
-      "identity" : "richtext",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/LiYanan2004/RichText",
-      "state" : {
-        "branch" : "main",
-        "revision" : "32a8348d7862e19b6d624625a35541b49d2a0f31"
       }
     },
     {
@@ -155,15 +137,6 @@
       }
     },
     {
-      "identity" : "swiftsubtitles",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/dagronf/SwiftSubtitles",
-      "state" : {
-        "revision" : "2c3d282cda97ce49adb196700404d8e46df9778c",
-        "version" : "1.9.0"
-      }
-    },
-    {
       "identity" : "swiftui-async-multiplex-image",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/FluidGroup/swiftui-async-multiplex-image.git",
@@ -206,15 +179,6 @@
       "state" : {
         "revision" : "fbc3f1770889f74818a56eea3d7099a0d3a9c5e1",
         "version" : "0.13.0"
-      }
-    },
-    {
-      "identity" : "tinycsv",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/dagronf/TinyCSV",
-      "state" : {
-        "revision" : "05d691ee7bab64f5ff075b97f47ef41d36a81f6f",
-        "version" : "1.0.1"
       }
     },
     {

@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SwiftSubtitles
 import YoutubeTranscript
 
 /// Manager for persisting and loading subtitles
@@ -34,7 +33,7 @@ final class SubtitleStorage {
 
   /// Save subtitles for a video with specified format
   func save(
-    _ subtitles: Subtitles,
+    _ subtitles: Subtitle,
     videoID: YouTubeContentID,
     format: SubtitleFormat
   ) throws {
@@ -51,14 +50,14 @@ final class SubtitleStorage {
     videoID: YouTubeContentID,
     format: SubtitleFormat
   ) throws {
-    let subtitles = SubtitleAdapter.toSwiftSubtitles(transcripts)
+    let subtitles = SubtitleAdapter.toSubtitle(transcripts)
     try save(subtitles, videoID: videoID, format: format)
   }
 
   // MARK: - Load Subtitles
 
   /// Load subtitles for a video with specified format
-  func load(videoID: YouTubeContentID, format: SubtitleFormat) throws -> Subtitles {
+  func load(videoID: YouTubeContentID, format: SubtitleFormat) throws -> Subtitle {
     let filename = "\(videoID).\(format.fileExtension)"
     let fileURL = subtitlesDirectory.appendingPathComponent(filename)
 

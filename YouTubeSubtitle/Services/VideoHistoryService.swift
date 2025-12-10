@@ -7,7 +7,6 @@
 
 import Foundation
 import SwiftData
-import SwiftSubtitles
 
 /// Service for managing video items and their associated resources.
 /// Centralizes operations on VideoItem to ensure proper cleanup of files and data.
@@ -129,7 +128,7 @@ final class VideoHistoryService {
   // MARK: - Update Subtitles
 
   /// Update cached subtitles for a video.
-  func updateCachedSubtitles(videoID: YouTubeContentID, subtitles: Subtitles) throws {
+  func updateCachedSubtitles(videoID: YouTubeContentID, subtitles: Subtitle) throws {
     let videoIDRaw = videoID.rawValue
     let descriptor = FetchDescriptor<VideoItem>(
       predicate: #Predicate { $0._videoID == videoIDRaw }

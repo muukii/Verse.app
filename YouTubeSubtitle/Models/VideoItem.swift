@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import SwiftSubtitles
 import TypedIdentifier
 
 // MARK: - Video Item
@@ -62,15 +61,15 @@ final class VideoItem: TypedIdentifiable {
     return URL.documentsDirectory.appendingPathComponent(fileName)
   }
 
-  @Transient private var _cachedSubtitles: Subtitles?
+  @Transient private var _cachedSubtitles: Subtitle?
 
-  var cachedSubtitles: Subtitles? {
+  var cachedSubtitles: Subtitle? {
     get {
       if let cached = _cachedSubtitles {
         return cached
       }
       guard let data = transcriptData else { return nil }
-      _cachedSubtitles = try? JSONDecoder().decode(Subtitles.self, from: data)
+      _cachedSubtitles = try? JSONDecoder().decode(Subtitle.self, from: data)
       return _cachedSubtitles
     }
     set {
