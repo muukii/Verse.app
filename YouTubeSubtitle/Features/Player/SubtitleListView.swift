@@ -80,7 +80,7 @@ struct TranscribingView: View {
       Image(systemName: "waveform")
         .foregroundStyle(.gray)
     case .preparingAssets:
-      Image(systemName: "arrow.down.circle.fill")
+      Image(systemName: "gearshape.circle.fill")
         .foregroundStyle(
           LinearGradient(
             colors: [.blue, .cyan],
@@ -111,7 +111,7 @@ struct TranscribingView: View {
     case .idle:
       return "Preparing..."
     case .preparingAssets:
-      return "Downloading Speech Model"
+      return "Preparing"
     case .transcribing:
       return "Transcribing Audio"
     case .completed:
@@ -126,7 +126,7 @@ struct TranscribingView: View {
     case .idle:
       return "Getting ready to transcribe"
     case .preparingAssets:
-      return "Downloading the speech recognition model for offline use"
+      return "Preparing speech recognition model..."
     case .transcribing(let progress):
       let percentage = Int(progress * 100)
       return "Converting speech to text... \(percentage)% complete"
@@ -413,7 +413,7 @@ struct SubtitleRowView: View {
 
         // Text content with selection and word tap support
         SelectableSubtitleTextView(
-          text: cue.text.htmlDecoded,
+          text: cue.decodedText,
           wordTimings: cue.wordTimings,
           highlightTime: highlightTime,
           font: .preferredFont(forTextStyle: .subheadline),
@@ -445,10 +445,10 @@ struct SubtitleRowView: View {
     Menu {
       Button {
         #if os(iOS)
-          UIPasteboard.general.string = cue.text.htmlDecoded
+          UIPasteboard.general.string = cue.decodedText
         #else
           NSPasteboard.general.clearContents()
-          NSPasteboard.general.setString(cue.text.htmlDecoded, forType: .string)
+          NSPasteboard.general.setString(cue.decodedText, forType: .string)
         #endif
       } label: {
         Label("Copy", systemImage: "doc.on.doc")

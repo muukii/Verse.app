@@ -99,7 +99,7 @@ struct OnDeviceTranscribeSheet: View {
   private func downloadingView(progress: Double) -> some View {
     VStack(spacing: 16) {
       ProgressView(value: progress) {
-        Text("Downloading video...")
+        Text("Preparing...")
       } currentValueLabel: {
         Text("\(Int(progress * 100))%")
           .font(.caption)

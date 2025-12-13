@@ -323,7 +323,7 @@ final class RealtimeTranscriptionViewModel {
       case .idle:
         return "Initializing..."
       case .preparing:
-        return "Downloading speech model..."
+        return "Preparing speech model..."
       case .ready:
         return "Ready to record"
       case .recording:

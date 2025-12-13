@@ -25,7 +25,7 @@ struct Subtitle: @preconcurrency Codable, Equatable, Sendable {
 extension Subtitle {
 
   /// A single subtitle cue with timing and optional word-level timing information.
-  struct Cue: @preconcurrency Codable, Equatable, Sendable, Identifiable {
+  struct Cue: Equatable, Sendable, Identifiable {
     /// Unique identifier for the cue (1-based position)
     let id: Int
 
@@ -35,8 +35,11 @@ extension Subtitle {
     /// End time in seconds
     let endTime: Double
 
-    /// The subtitle text content
+    /// The subtitle text content (raw, may contain HTML entities)
     let text: String
+
+    /// Pre-decoded text (HTML entities decoded). Cached for performance.
+    let decodedText: String
 
     /// Word-level timing information (from on-device transcription)
     /// Each WordTiming contains the word text and its precise time range.
@@ -53,23 +56,56 @@ extension Subtitle {
       self.startTime = startTime
       self.endTime = endTime
       self.text = text
+      self.decodedText = text.htmlDecoded
       self.wordTimings = wordTimings
     }
 
-    /// Start time as CMTime
-    var startCMTime: CMTime {
-      CMTime(seconds: startTime, preferredTimescale: 600)
-    }
+    // MARK: - Codable
 
-    /// End time as CMTime
-    var endCMTime: CMTime {
-      CMTime(seconds: endTime, preferredTimescale: 600)
+    private enum CodingKeys: String, CodingKey {
+      case id, startTime, endTime, text, wordTimings
     }
+  }
+}
 
-    /// Whether this cue has word-level timing information
-    var hasWordTimings: Bool {
-      wordTimings != nil && !(wordTimings?.isEmpty ?? true)
-    }
+extension Subtitle.Cue: @preconcurrency Codable {
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(Int.self, forKey: .id)
+    startTime = try container.decode(Double.self, forKey: .startTime)
+    endTime = try container.decode(Double.self, forKey: .endTime)
+    text = try container.decode(String.self, forKey: .text)
+    decodedText = text.htmlDecoded
+    wordTimings = try container.decodeIfPresent([Subtitle.WordTiming].self, forKey: .wordTimings)
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(id, forKey: .id)
+    try container.encode(startTime, forKey: .startTime)
+    try container.encode(endTime, forKey: .endTime)
+    try container.encode(text, forKey: .text)
+    try container.encodeIfPresent(wordTimings, forKey: .wordTimings)
+  }
+}
+
+// MARK: - Cue Computed Properties
+
+extension Subtitle.Cue {
+
+  /// Start time as CMTime
+  var startCMTime: CMTime {
+    CMTime(seconds: startTime, preferredTimescale: 600)
+  }
+
+  /// End time as CMTime
+  var endCMTime: CMTime {
+    CMTime(seconds: endTime, preferredTimescale: 600)
+  }
+
+  /// Whether this cue has word-level timing information
+  var hasWordTimings: Bool {
+    wordTimings != nil && !(wordTimings?.isEmpty ?? true)
   }
 }
 
@@ -161,15 +197,12 @@ extension Subtitle.Cue {
   /// Creates an AttributedString with audioTimeRange attributes for each word.
   /// This enables word-level highlighting with SelectableSubtitleTextView.
   ///
-  /// - Parameter htmlDecoded: Whether to HTML-decode the text (for YouTube subtitles)
   /// - Returns: AttributedString with audioTimeRange attributes if wordTimings exist,
-  ///            otherwise plain AttributedString from text
-  func attributedText(htmlDecoded: Bool = false) -> AttributedString {
-    let displayText = htmlDecoded ? text.htmlDecoded : text
-
+  ///            otherwise plain AttributedString from decodedText
+  func attributedText() -> AttributedString {
     guard let wordTimings, !wordTimings.isEmpty else {
       // No word timings - return plain text
-      return AttributedString(displayText)
+      return AttributedString(decodedText)
     }
 
     // Build attributed string with audioTimeRange for each word

@@ -152,8 +152,8 @@ struct PlayerView: View {
       }
       .sheet(item: $selectedCueForExplanation) { cue in
         WordExplanationSheet(
-          text: cue.text.htmlDecoded,
-          context: cue.text.htmlDecoded
+          text: cue.decodedText,
+          context: cue.decodedText
         )
       }
       .translationPresentation(
@@ -161,7 +161,7 @@ struct PlayerView: View {
           get: { selectedCueForTranslation != nil },
           set: { if !$0 { selectedCueForTranslation = nil } }
         ),
-        text: selectedCueForTranslation?.text.htmlDecoded ?? ""
+        text: selectedCueForTranslation?.decodedText ?? ""
       )
       .sheet(isPresented: $showOnDeviceTranscribeSheet) {
         OnDeviceTranscribeSheet(

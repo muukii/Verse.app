@@ -1,5 +1,4 @@
 app_identifier("app.muukii.verse")
 apple_id(ENV["FASTLANE_APPLE_ID"])
 team_id("KU2QEJ9K3Z")
-
-itc_team_id(ENV["FASTLANE_ITC_TEAM_ID"])
+itc_team_id("1371749")
