@@ -153,7 +153,7 @@ struct PlayerView: View {
       .sheet(item: $selectedCueForExplanation) { cue in
         WordExplanationSheet(
           text: cue.decodedText,
-          context: cue.decodedText
+          context: buildContextForCue(cue)
         )
       }
       .translationPresentation(
@@ -398,7 +398,7 @@ struct PlayerView: View {
 
   /// Save current playback position to SwiftData for resume functionality
   private func savePlaybackPosition() {
-    let position = model.currentTime
+    let position = model.currentTime.value
     // Only save if position is meaningful (more than 5 seconds)
     guard position > 5 else { return }
     try? historyService.updatePlaybackPosition(videoID: videoID, position: position)
@@ -414,6 +414,36 @@ struct PlayerView: View {
         model.seek(to: savedPosition)
       }
     }
+  }
+
+  // MARK: - Context Building
+
+  /// Build context string from surrounding subtitle cues for LLM explanation.
+  /// Includes 2 cues before and 2 cues after the selected cue for better context.
+  private func buildContextForCue(_ cue: Subtitle.Cue) -> String {
+    guard let cues = currentSubtitles?.cues,
+          let currentIndex = cues.firstIndex(where: { $0.id == cue.id }) else {
+      return cue.decodedText
+    }
+
+    // Get 2 cues before and 2 cues after
+    let contextRange = 2
+    let startIndex = max(0, currentIndex - contextRange)
+    let endIndex = min(cues.count - 1, currentIndex + contextRange)
+
+    // Build context with the selected cue marked
+    var contextLines: [String] = []
+    for i in startIndex...endIndex {
+      let contextCue = cues[i]
+      if i == currentIndex {
+        // Mark the selected cue clearly
+        contextLines.append(">>> \(contextCue.decodedText) <<<")
+      } else {
+        contextLines.append(contextCue.decodedText)
+      }
+    }
+
+    return contextLines.joined(separator: "\n")
   }
 }
 

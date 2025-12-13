@@ -8,6 +8,19 @@
 import Foundation
 import SwiftUI
 
+// MARK: - CurrentTime
+
+/// Observable wrapper for current playback time.
+/// By wrapping the time value in an @Observable class, only views that actually
+/// read `.value` will re-render when the time updates (every ~100ms).
+/// Intermediate views that just pass the reference won't re-render.
+@Observable
+final class CurrentTime: @unchecked Sendable {
+  var value: Double = 0
+}
+
+// MARK: - PlayerModel
+
 /// Observable model for PlayerView that holds frequently updated playback state
 /// and manages the PlayerController.
 /// This separates mutable playback state and control logic from the view to improve
@@ -18,8 +31,9 @@ final class PlayerModel {
 
   // MARK: - Playback State (updated every 500ms)
 
-  /// Current playback position in seconds
-  var currentTime: Double = 0
+  /// Current playback position in seconds.
+  /// Wrapped in @Observable class to prevent intermediate view re-renders.
+  let currentTime = CurrentTime()
 
   /// Whether the video is currently playing
   var isPlaying: Bool = false
@@ -96,7 +110,7 @@ final class PlayerModel {
 
   /// The time to display (drag time when dragging, otherwise current time)
   var displayTime: Double {
-    isDraggingSlider ? dragTime : currentTime
+    isDraggingSlider ? dragTime : currentTime.value
   }
 
   /// Whether A-B repeat can be toggled (both points are set)
@@ -108,20 +122,20 @@ final class PlayerModel {
 
   /// Sets the A point for repeat to current time
   func setRepeatStartToCurrent() {
-    repeatStartTime = currentTime
+    repeatStartTime = currentTime.value
     if repeatEndTime == nil {
       isRepeating = false
-    } else if let end = repeatEndTime, currentTime < end {
+    } else if let end = repeatEndTime, currentTime.value < end {
       isRepeating = true
     }
   }
 
   /// Sets the B point for repeat to current time
   func setRepeatEndToCurrent() {
-    repeatEndTime = currentTime
+    repeatEndTime = currentTime.value
     if repeatStartTime == nil {
       isRepeating = false
-    } else if let start = repeatStartTime, currentTime > start {
+    } else if let start = repeatStartTime, currentTime.value > start {
       isRepeating = true
     }
   }
@@ -144,7 +158,7 @@ final class PlayerModel {
     guard isRepeating,
           let startTime = repeatStartTime,
           let endTime = repeatEndTime,
-          currentTime >= endTime else {
+          currentTime.value >= endTime else {
       return nil
     }
     return startTime
@@ -155,7 +169,7 @@ final class PlayerModel {
   func checkEndOfVideoLoop() -> Double? {
     guard isLoopingEnabled,
           duration > 0,
-          currentTime >= duration - 0.5 else {
+          currentTime.value >= duration - 0.5 else {
       return nil
     }
     return 0
@@ -175,7 +189,7 @@ final class PlayerModel {
 
     // Find the last cue that starts before current time (with small threshold)
     let threshold = 0.5 // If we're less than 0.5s into current cue, go to previous one
-    let adjustedTime = currentTime - threshold
+    let adjustedTime = currentTime.value - threshold
 
     // Find all cues before adjusted time
     let previousCues = cues.filter { $0.startTime < adjustedTime }
@@ -190,7 +204,7 @@ final class PlayerModel {
     guard !cues.isEmpty else { return nil }
 
     // Find the first cue that starts after current time
-    return cues.first(where: { $0.startTime > currentTime })?.startTime
+    return cues.first(where: { $0.startTime > currentTime.value })?.startTime
   }
 
   /// Returns the start time of the current subtitle cue.
@@ -200,7 +214,7 @@ final class PlayerModel {
 
     // Find the cue that contains current time
     return cues.first(where: {
-      $0.startTime <= currentTime && currentTime < $0.endTime
+      $0.startTime <= currentTime.value && currentTime.value < $0.endTime
     })?.startTime
   }
 
@@ -429,7 +443,7 @@ final class PlayerModel {
       while !Task.isCancelled {
         if let controller = self.controller {
           let timeValue = await controller.currentTime
-          self.currentTime = timeValue
+          self.currentTime.value = timeValue
           self.isPlaying = controller.isPlaying
         }
 
