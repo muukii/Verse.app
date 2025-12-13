@@ -68,7 +68,7 @@ extension PlayerControls {
   // MARK: - ProgressSection
 
   struct ProgressSection: View {
-    let currentTime: Double
+    let currentTime: CurrentTime
     let displayTime: Double
     let duration: Double
     let onSeek: (Double) -> Void
@@ -84,7 +84,7 @@ extension PlayerControls {
       let normalizedValue = Binding<Double>(
         get: {
           guard duration > 0 else { return 0 }
-          return currentTime / duration
+          return currentTime.value / duration
         },
         set: { newValue in
           let clampedValue = max(0, min(1, newValue))

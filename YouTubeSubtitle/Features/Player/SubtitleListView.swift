@@ -166,18 +166,18 @@ struct SubtitleListViewContainer: View {
   /// Compute the current cue ID based on currentTime.
   /// This only changes when the active subtitle changes, not every 500ms.
   private var currentCueID: Subtitle.Cue.ID? {
-    let currentTime = model.currentTime
+    let currentTimeValue = model.currentTime.value
     guard !cues.isEmpty else { return nil }
 
     if let currentIndex = cues.firstIndex(where: {
-      $0.startTime > currentTime
+      $0.startTime > currentTimeValue
     }) {
       if currentIndex > 0 {
         return cues[currentIndex - 1].id
       }
       return nil
     } else {
-      if let lastCue = cues.last, currentTime >= lastCue.startTime {
+      if let lastCue = cues.last, currentTimeValue >= lastCue.startTime {
         return lastCue.id
       }
       return nil
@@ -189,7 +189,7 @@ struct SubtitleListViewContainer: View {
 
 struct SubtitleListView: View {
   let cues: [Subtitle.Cue]
-  let currentTime: Double
+  let currentTime: CurrentTime
   let currentCueID: Subtitle.Cue.ID?
   let isLoading: Bool
   let transcriptionState: TranscriptionService.TranscriptionState
@@ -304,21 +304,16 @@ enum SubtitleAction {
 /// this prevents re-renders every 500ms when currentTime updates.
 private struct SubtitleScrollContent: View {
   let cues: [Subtitle.Cue]
-  let currentTime: Double
+  let currentTime: CurrentTime
   let currentCueID: Subtitle.Cue.ID?
   let onAction: (SubtitleAction) -> Void
-
-  /// Current time as CMTime for highlighting
-  private var currentCMTime: CMTime {
-    CMTime(seconds: currentTime, preferredTimescale: 600)
-  }
 
   var body: some View {
     List {
       ForEach(cues) { cue in
         SubtitleRowView(
           cue: cue,
-          highlightTime: cue.id == currentCueID ? currentCMTime : nil,
+          currentTime: currentTime,
           isCurrent: cue.id == currentCueID,
           onAction: { action in
             switch action {
@@ -377,10 +372,16 @@ struct SubtitleRowView: View {
   }
 
   let cue: Subtitle.Cue
-  /// Current playback time for highlighting (only set when this is the current cue)
-  let highlightTime: CMTime?
+  /// Current playback time (reads .value only when isCurrent, so only this row re-renders)
+  let currentTime: CurrentTime
   let isCurrent: Bool
   let onAction: (Action) -> Void
+
+  /// Computed highlight time - only reads currentTime.value when this row is current
+  private var highlightTime: CMTime? {
+    guard isCurrent else { return nil }
+    return CMTime(seconds: currentTime.value, preferredTimescale: 600)
+  }
 
   var body: some View {
     VStack(spacing: 4) {
@@ -545,37 +546,48 @@ extension String {
 }
 
 #Preview("Subtitle List") {
-  SubtitleListView(
-    cues: [
-      Subtitle.Cue(
-        id: 1,
-        startTime: 0,
-        endTime: 3,
-        text: "Hello, world!",
-        wordTimings: nil
-      ),
-      Subtitle.Cue(
-        id: 2,
-        startTime: 3,
-        endTime: 6,
-        text: "This is a test subtitle.",
-        wordTimings: nil
-      ),
-      Subtitle.Cue(
-        id: 3,
-        startTime: 6,
-        endTime: 9,
-        text: "Testing the subtitle list view.",
-        wordTimings: nil
-      ),
-    ],
-    currentTime: 4,
-    currentCueID: nil,
-    isLoading: false,
-    transcriptionState: .idle,
-    error: nil,
-    onAction: { _ in }
-  )
+  struct PreviewWrapper: View {
+    let currentTime: CurrentTime = {
+      let time = CurrentTime()
+      time.value = 4
+      return time
+    }()
+
+    var body: some View {
+      SubtitleListView(
+        cues: [
+          Subtitle.Cue(
+            id: 1,
+            startTime: 0,
+            endTime: 3,
+            text: "Hello, world!",
+            wordTimings: nil
+          ),
+          Subtitle.Cue(
+            id: 2,
+            startTime: 3,
+            endTime: 6,
+            text: "This is a test subtitle.",
+            wordTimings: nil
+          ),
+          Subtitle.Cue(
+            id: 3,
+            startTime: 6,
+            endTime: 9,
+            text: "Testing the subtitle list view.",
+            wordTimings: nil
+          ),
+        ],
+        currentTime: currentTime,
+        currentCueID: nil,
+        isLoading: false,
+        transcriptionState: .idle,
+        error: nil,
+        onAction: { _ in }
+      )
+    }
+  }
+  return PreviewWrapper()
 }
 
 #Preview("Transcribing - Preparing Assets") {
@@ -599,31 +611,44 @@ extension String {
 }
 
 #Preview("SubtitleRowView") {
-  SubtitleRowView(
-    cue: Subtitle.Cue(
-      id: 1,
-      startTime: 65.5,
-      endTime: 68.2,
-      text: "This is the currently playing subtitle with some longer text to see how it wraps.",
-      wordTimings: nil
-    ),
-    highlightTime: nil,
-    isCurrent: true,
-    onAction: { _ in }
-  )
-  .padding()
+  struct PreviewWrapper: View {
+    let currentTime: CurrentTime = {
+      let time = CurrentTime()
+      time.value = 66
+      return time
+    }()
 
-  SubtitleRowView(
-    cue: Subtitle.Cue(
-      id: 2,
-      startTime: 125.75,
-      endTime: 129.0,
-      text: "A subtitle that is not currently active.",
-      wordTimings: nil
-    ),
-    highlightTime: nil,
-    isCurrent: false,
-    onAction: { _ in }
-  )
-  .padding()
+    var body: some View {
+      VStack {
+        SubtitleRowView(
+          cue: Subtitle.Cue(
+            id: 1,
+            startTime: 65.5,
+            endTime: 68.2,
+            text: "This is the currently playing subtitle with some longer text to see how it wraps.",
+            wordTimings: nil
+          ),
+          currentTime: currentTime,
+          isCurrent: true,
+          onAction: { _ in }
+        )
+        .padding()
+
+        SubtitleRowView(
+          cue: Subtitle.Cue(
+            id: 2,
+            startTime: 125.75,
+            endTime: 129.0,
+            text: "A subtitle that is not currently active.",
+            wordTimings: nil
+          ),
+          currentTime: currentTime,
+          isCurrent: false,
+          onAction: { _ in }
+        )
+        .padding()
+      }
+    }
+  }
+  return PreviewWrapper()
 }
