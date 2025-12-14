@@ -146,13 +146,27 @@ struct WordExplanationSheet: View {
   }
 
   private func explanationText(_ text: String) -> some View {
-    Text(text)
+    Text(markdownAttributedString(from: text))
       .font(.body)
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding()
       .background(Color(.secondarySystemBackground))
       .clipShape(RoundedRectangle(cornerRadius: 8))
       .textSelection(.enabled)
+  }
+
+  /// Convert Markdown string to AttributedString for rendering.
+  /// Falls back to plain text if Markdown parsing fails.
+  private func markdownAttributedString(from text: String) -> AttributedString {
+    do {
+      var attributed = try AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))
+      // Apply default font to maintain consistency
+      attributed.font = .body
+      return attributed
+    } catch {
+      // Fallback to plain text if markdown parsing fails
+      return AttributedString(text)
+    }
   }
 
   private func errorView(message: String) -> some View {

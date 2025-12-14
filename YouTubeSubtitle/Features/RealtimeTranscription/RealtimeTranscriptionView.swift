@@ -15,6 +15,8 @@ struct RealtimeTranscriptionView: View {
   @State private var viewModel = RealtimeTranscriptionViewModel()
   @State private var selectedWord: String?
   @State private var showWordDetail = false
+  @State private var explainText: String?
+  @State private var showExplainSheet = false
 
   var body: some View {
     VStack(spacing: 0) {
@@ -51,6 +53,11 @@ struct RealtimeTranscriptionView: View {
     .sheet(isPresented: $showWordDetail) {
       if let word = selectedWord {
         WordDetailSheet(word: word)
+      }
+    }
+    .sheet(isPresented: $showExplainSheet) {
+      if let text = explainText {
+        ExplainSheet(text: text)
       }
     }
   }
@@ -104,10 +111,17 @@ struct RealtimeTranscriptionView: View {
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 12) {
           ForEach(viewModel.transcriptions) { item in
-            TranscriptionBubble(item: item) { word in
-              selectedWord = word
-              showWordDetail = true
-            }
+            TranscriptionBubble(
+              item: item,
+              onWordTap: { word in
+                selectedWord = word
+                showWordDetail = true
+              },
+              onExplain: { text in
+                explainText = text
+                showExplainSheet = true
+              }
+            )
             .id(item.id)
           }
 
@@ -240,6 +254,7 @@ private struct TranscriptionBubble: View {
   let item: TranscriptionItem
   var highlightTime: CMTime?
   var onWordTap: ((String) -> Void)?
+  var onExplain: ((String) -> Void)?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
@@ -249,7 +264,8 @@ private struct TranscriptionBubble: View {
         highlightTime: highlightTime,
         onWordTap: { word, _ in
           onWordTap?(word)
-        }
+        },
+        onExplain: onExplain
       )
       .fixedSize(horizontal: false, vertical: true)
 
@@ -627,6 +643,64 @@ private struct WordDetailSheet: View {
       }
     }
     .presentationDetents([.medium])
+  }
+}
+
+// MARK: - Explain Sheet
+
+private struct ExplainSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let text: String
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          Text("Selected Text")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+          Text(text)
+            .font(.body)
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+          Divider()
+
+          Text("Explanation")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+          // TODO: Add AI explanation here
+          Text("Explanation feature coming soon...")
+            .font(.body)
+            .foregroundStyle(.secondary)
+            .italic()
+        }
+        .padding()
+      }
+      .navigationTitle("Explain")
+      #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+      #endif
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Done") {
+            dismiss()
+          }
+        }
+        ToolbarItem(placement: .primaryAction) {
+          Button {
+            UIPasteboard.general.string = text
+          } label: {
+            Image(systemName: "doc.on.doc")
+          }
+        }
+      }
+    }
+    .presentationDetents([.medium, .large])
   }
 }
 

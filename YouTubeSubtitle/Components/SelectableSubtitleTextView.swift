@@ -43,6 +43,12 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
   /// Callback when a word is tapped.
   var onWordTap: ((String, CGRect) -> Void)?
 
+  /// Callback when "Explain" is selected from the context menu.
+  var onExplain: ((String) -> Void)?
+
+  /// Callback when text selection changes. Returns true if text is selected.
+  var onSelectionChanged: ((Bool) -> Void)?
+
   // MARK: - Initializer
 
   init(
@@ -52,7 +58,9 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     highlightColor: UIColor = UIColor.systemYellow.withAlphaComponent(0.4),
     font: UIFont = .preferredFont(forTextStyle: .body),
     textColor: UIColor = .label,
-    onWordTap: ((String, CGRect) -> Void)? = nil
+    onWordTap: ((String, CGRect) -> Void)? = nil,
+    onExplain: ((String) -> Void)? = nil,
+    onSelectionChanged: ((Bool) -> Void)? = nil
   ) {
     self.text = text
     self.wordTimings = wordTimings
@@ -61,6 +69,8 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     self.font = font
     self.textColor = textColor
     self.onWordTap = onWordTap
+    self.onExplain = onExplain
+    self.onSelectionChanged = onSelectionChanged
   }
 
   // MARK: - UIViewRepresentable
@@ -73,6 +83,7 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     textView.textContainerInset = .zero
     textView.textContainer.lineFragmentPadding = 0
     textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    textView.delegate = context.coordinator
 
     // Single tap gesture for word detection
     let tapGesture = UITapGestureRecognizer(
@@ -95,6 +106,9 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
 
   func updateUIView(_ textView: UITextView, context: Context) {
     let coordinator = context.coordinator
+
+    coordinator.onExplain = self.onExplain
+    coordinator.onSelectionChanged = self.onSelectionChanged
 
     // Check if we need to rebuild the base attributed string
     let needsRebuild = coordinator.cachedText != text
@@ -231,7 +245,7 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
   }
 
   public func makeCoordinator() -> Coordinator {
-    Coordinator(onWordTap: onWordTap)
+    Coordinator(onWordTap: onWordTap, onExplain: onExplain)
   }
 
   // MARK: - WordRange
@@ -246,6 +260,8 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
 
   public class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
     var onWordTap: ((String, CGRect) -> Void)?
+    var onExplain: ((String) -> Void)?
+    var onSelectionChanged: ((Bool) -> Void)?
 
     // Cache for avoiding unnecessary rebuilds
     var cachedText: String?
@@ -255,8 +271,12 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     var wordRanges: [WordRange] = []
     var highlightedRange: NSRange?
 
-    init(onWordTap: ((String, CGRect) -> Void)?) {
+    // Track previous selection state to avoid redundant callbacks
+    private var hadSelection = false
+
+    init(onWordTap: ((String, CGRect) -> Void)?, onExplain: ((String) -> Void)?) {
       self.onWordTap = onWordTap
+      self.onExplain = onExplain
     }
 
     @objc func handleTap(_ gesture: UITapGestureRecognizer) {
@@ -281,6 +301,44 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
       shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
     ) -> Bool {
       true
+    }
+
+    // MARK: - UITextViewDelegate
+
+    public func textViewDidChangeSelection(_ textView: UITextView) {
+      let hasSelection = textView.selectedRange.length > 0
+      // Only notify when selection state actually changes
+      if hasSelection != hadSelection {
+        hadSelection = hasSelection
+        onSelectionChanged?(hasSelection)
+      }
+    }
+
+    @available(iOS 16.0, *)
+    public func textView(
+      _ textView: UITextView,
+      editMenuForTextIn range: NSRange,
+      suggestedActions: [UIMenuElement]
+    ) -> UIMenu? {
+      guard let onExplain,
+            let text = textView.text,
+            let swiftRange = Range(range, in: text) else {
+        return UIMenu(children: suggestedActions)
+      }
+
+      let selectedText = String(text[swiftRange])
+      guard !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        return UIMenu(children: suggestedActions)
+      }
+
+      let explainAction = UIAction(
+        title: "Explain",
+        image: UIImage(systemName: "lightbulb")
+      ) { _ in
+        onExplain(selectedText)
+      }
+
+      return UIMenu(children: [explainAction] + suggestedActions)
     }
   }
 }
