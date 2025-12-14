@@ -263,7 +263,12 @@ struct SubtitleListView: View {
         cues: cues,
         currentTime: currentTime,
         currentCueID: currentCueID,
-        onAction: onAction
+        onAction: onAction,
+        onSelectionChanged: { hasSelection in
+          if hasSelection {
+            isTrackingEnabled = false
+          }
+        }
       )
       .onScrollPhaseChange { _, newPhase in
         if newPhase == .interacting {
@@ -295,6 +300,7 @@ enum SubtitleAction {
   case explain(cue: Subtitle.Cue)
   case translate(cue: Subtitle.Cue)
   case wordTap(word: String)
+  case explainSelection(text: String, context: String)
 }
 
 // MARK: - Subtitle Scroll Content
@@ -307,6 +313,7 @@ private struct SubtitleScrollContent: View {
   let currentTime: CurrentTime
   let currentCueID: Subtitle.Cue.ID?
   let onAction: (SubtitleAction) -> Void
+  var onSelectionChanged: ((Bool) -> Void)?
 
   var body: some View {
     List {
@@ -329,6 +336,10 @@ private struct SubtitleScrollContent: View {
               onAction(.translate(cue: cue))
             case .wordTap(let word):
               onAction(.wordTap(word: word))
+            case .explainSelection(let selectedText):
+              onAction(.explainSelection(text: selectedText, context: cue.decodedText))
+            case .selectionChanged(let hasSelection):
+              onSelectionChanged?(hasSelection)
             }
           }
         )
@@ -369,6 +380,8 @@ struct SubtitleRowView: View {
     case explain
     case translate
     case wordTap(String)
+    case explainSelection(String)
+    case selectionChanged(Bool)
   }
 
   let cue: Subtitle.Cue
@@ -421,6 +434,12 @@ struct SubtitleRowView: View {
           textColor: .tintColor,
           onWordTap: { word, _ in
             onAction(.wordTap(word))
+          },
+          onExplain: { selectedText in
+            onAction(.explainSelection(selectedText))
+          },
+          onSelectionChanged: { hasSelection in
+            onAction(.selectionChanged(hasSelection))
           }
         )
         .fixedSize(horizontal: false, vertical: true)

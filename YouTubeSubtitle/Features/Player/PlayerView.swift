@@ -43,8 +43,8 @@ struct PlayerView: View {
   // Subtitle interaction state
   @State private var selectedCueForExplanation: Subtitle.Cue?
   @State private var selectedCueForTranslation: Subtitle.Cue?
-  @State private var selectedWord: String?
-  @State private var showWordDetail: Bool = false
+  @State private var selectedWord: IdentifiableWord?
+  @State private var selectedTextForExplanation: (text: String, context: String)?
 
   // On-device transcribe state
   @State private var showOnDeviceTranscribeSheet: Bool = false
@@ -173,9 +173,20 @@ struct PlayerView: View {
           }
         )
       }
-      .sheet(isPresented: $showWordDetail) {
-        if let word = selectedWord {
-          WordDetailSheet(word: word)
+      .sheet(item: $selectedWord) { word in
+        WordDetailSheet(word: word.value)
+      }
+      .sheet(
+        isPresented: Binding(
+          get: { selectedTextForExplanation != nil },
+          set: { if !$0 { selectedTextForExplanation = nil } }
+        )
+      ) {
+        if let selection = selectedTextForExplanation {
+          WordExplanationSheet(
+            text: selection.text,
+            context: selection.context
+          )
         }
       }
       .onDisappear {
@@ -279,8 +290,9 @@ struct PlayerView: View {
           case .translate(let cue):
             selectedCueForTranslation = cue
           case .wordTap(let word):
-            selectedWord = word
-            showWordDetail = true
+            selectedWord = IdentifiableWord(value: word)
+          case .explainSelection(let text, let context):
+            selectedTextForExplanation = (text, context)
           }
         }
       )
@@ -643,6 +655,13 @@ extension PlayerView {
       }
     }
   }
+}
+
+// MARK: - Identifiable Word Wrapper
+
+private struct IdentifiableWord: Identifiable {
+  let id = UUID()
+  let value: String
 }
 
 // MARK: - Word Detail Sheet
