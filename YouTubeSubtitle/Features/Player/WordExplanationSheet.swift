@@ -19,6 +19,7 @@ struct WordExplanationSheet: View {
   @State private var streamedContent: String = ""
   @State private var isStreaming: Bool = false
   @State private var streamTask: Task<Void, Never>?
+  @State private var showsInstructionViewer: Bool = false
 
   var body: some View {
     NavigationStack {
@@ -44,10 +45,21 @@ struct WordExplanationSheet: View {
         }
 
         ToolbarItem(placement: .primaryAction) {
-          if service.state == .loading || isStreaming {
-            ProgressView()
+          HStack(spacing: 12) {
+            Button {
+              showsInstructionViewer = true
+            } label: {
+              Image(systemName: "info.circle")
+            }
+
+            if service.state == .loading || isStreaming {
+              ProgressView()
+            }
           }
         }
+      }
+      .sheet(isPresented: $showsInstructionViewer) {
+        InstructionViewerSheet(service: service)
       }
     }
     .presentationDetents([.medium, .large])
@@ -242,6 +254,86 @@ struct WordExplanationSheet: View {
     }
 
     isStreaming = false
+  }
+}
+
+// MARK: - Instruction Viewer Sheet
+
+/// Sheet view for displaying the current instruction settings used in explanation.
+private struct InstructionViewerSheet: View {
+  let service: LLMService
+
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    NavigationStack {
+      List {
+        // MARK: - System Instruction
+        Section {
+          Text(service.effectiveSystemInstruction)
+            .font(.system(.caption, design: .monospaced))
+            .textSelection(.enabled)
+        } header: {
+          HStack {
+            Text("System Instruction")
+            Spacer()
+            if service.customSystemInstruction.isEmpty {
+              Text("Default")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            } else {
+              Text("Custom")
+                .font(.caption2)
+                .foregroundStyle(.blue)
+            }
+          }
+        }
+
+        // MARK: - User Prompt Template
+        Section {
+          Text(service.effectiveUserPromptTemplate)
+            .font(.system(.caption, design: .monospaced))
+            .textSelection(.enabled)
+        } header: {
+          HStack {
+            Text("User Prompt Template")
+            Spacer()
+            if service.customUserPromptTemplate.isEmpty {
+              Text("Default")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            } else {
+              Text("Custom")
+                .font(.caption2)
+                .foregroundStyle(.blue)
+            }
+          }
+        }
+
+        // MARK: - Backend Info
+        Section {
+          LabeledContent("Backend", value: service.preferredBackend.displayName)
+          if service.preferredBackend == .mlx {
+            if let model = LLMService.availableMLXModels.first(where: { $0.id == service.selectedMLXModelId }) {
+              LabeledContent("Model", value: model.name)
+            }
+          }
+        } header: {
+          Text("Configuration")
+        }
+      }
+      .navigationTitle("Instruction Details")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done") {
+            dismiss()
+          }
+        }
+      }
+    }
+    .presentationDetents([.medium, .large])
+    .presentationDragIndicator(.visible)
   }
 }
 
