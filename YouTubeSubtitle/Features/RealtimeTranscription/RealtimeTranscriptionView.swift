@@ -9,6 +9,7 @@
 import CoreMedia
 import Speech
 import SwiftUI
+import Translation
 
 /// Sample view demonstrating real-time microphone transcription using SpeechAnalyzer (iOS 26+)
 struct RealtimeTranscriptionView: View {
@@ -603,6 +604,9 @@ private struct WordDetailSheet: View {
   @Environment(\.dismiss) private var dismiss
   let word: String
 
+  @State private var showTranslation = false
+  @State private var showExplanation = false
+
   var body: some View {
     NavigationStack {
       VStack(spacing: 24) {
@@ -617,8 +621,26 @@ private struct WordDetailSheet: View {
 
         Spacer()
 
-        // Placeholder for future actions (dictionary lookup, translation, etc.)
         VStack(spacing: 12) {
+          // Translate button
+          Button {
+            showTranslation = true
+          } label: {
+            Label("Translate", systemImage: "translate")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.borderedProminent)
+
+          // Explain button
+          Button {
+            showExplanation = true
+          } label: {
+            Label("Explain", systemImage: "sparkles")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.borderedProminent)
+
+          // Copy button
           Button {
             UIPasteboard.general.string = word
           } label: {
@@ -643,6 +665,16 @@ private struct WordDetailSheet: View {
       }
     }
     .presentationDetents([.medium])
+    .translationPresentation(
+      isPresented: $showTranslation,
+      text: word
+    )
+    .sheet(isPresented: $showExplanation) {
+      WordExplanationSheet(
+        text: word,
+        context: word
+      )
+    }
   }
 }
 
