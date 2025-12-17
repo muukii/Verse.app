@@ -74,6 +74,8 @@ struct WordExplanationSheet: View {
       // Cancel streaming when sheet is dismissed
       streamTask?.cancel()
       streamTask = nil
+      // Also cancel any ongoing generation in the service
+      service.cancelCurrentGeneration()
     }
   }
 
