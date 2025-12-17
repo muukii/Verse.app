@@ -187,6 +187,11 @@ final class LLMService {
   /// AnyLanguageModel session (shared for both Apple Intelligence and MLX)
   private var anyLMSession: AnyLanguageModel.LanguageModelSession?
 
+  /// Current generation task (for cancellation support)
+  /// Using nonisolated(unsafe) because Task.cancel() is thread-safe and we need to
+  /// access this from AsyncThrowingStream's builder closure.
+  nonisolated(unsafe) private var currentGenerationTask: Task<Void, Never>?
+
   // MARK: - Custom Instructions (UserDefaults backed)
 
   /// Custom system instruction (empty = use default)
@@ -310,8 +315,16 @@ final class LLMService {
 
   /// Reset the service state.
   func reset() {
+    cancelCurrentGeneration()
     state = .idle
     anyLMSession = nil
+  }
+
+  /// Cancel any ongoing generation.
+  /// Call this when the sheet is dismissed to stop LLM generation.
+  func cancelCurrentGeneration() {
+    currentGenerationTask?.cancel()
+    currentGenerationTask = nil
   }
 
   // MARK: - Unified Generation Implementation
@@ -373,9 +386,15 @@ final class LLMService {
     context: String,
     targetLanguage: String
   ) -> AsyncThrowingStream<String, any Error> {
-    AsyncThrowingStream { continuation in
-      Task { @MainActor in
+    // Cancel any previous generation before starting a new one
+    currentGenerationTask?.cancel()
+
+    return AsyncThrowingStream { continuation in
+      let task = Task { @MainActor in
         do {
+          // Check for cancellation before starting
+          try Task.checkCancellation()
+
           print("[LLMService] Starting with backend: \(backend)")
           self.state = .loading
           self.currentBackend = backend
@@ -393,7 +412,15 @@ final class LLMService {
           // MLX doesn't support streamResponse() - use respond() instead
           if backend == .mlx {
             print("[LLMService] Using respond() for MLX backend...")
+
+            // Check for cancellation before long-running operation
+            try Task.checkCancellation()
+
             let response = try await session.respond(to: prompt)
+
+            // Check for cancellation after receiving response
+            try Task.checkCancellation()
+
             let content = response.content
             print("[LLMService] MLX response: \(content.prefix(100))...")
             continuation.yield(content)
@@ -405,6 +432,9 @@ final class LLMService {
             var fullContent = ""
 
             for try await snapshot in session.streamResponse(to: prompt) {
+              // Check for cancellation on each chunk
+              try Task.checkCancellation()
+
               if let stringContent = snapshot.content as? String {
                 fullContent = stringContent
               } else {
@@ -418,6 +448,11 @@ final class LLMService {
             continuation.finish()
           }
 
+        } catch is CancellationError {
+          print("[LLMService] Generation cancelled")
+          // Don't set error state when cancelled - this is intentional
+          continuation.finish()
+
         } catch let error as AnyLanguageModel.LanguageModelSession.GenerationError {
           print("[LLMService] GenerationError: \(error)")
           let errorMessage = self.handleGenerationError(error)
@@ -430,6 +465,14 @@ final class LLMService {
           self.state = .error(errorMessage)
           continuation.finish(throwing: LLMError.unknown(error))
         }
+      }
+
+      // Store the task for cancellation support
+      self.currentGenerationTask = task
+
+      // Handle stream termination (e.g., when consumer stops iterating)
+      continuation.onTermination = { @Sendable _ in
+        task.cancel()
       }
     }
   }
