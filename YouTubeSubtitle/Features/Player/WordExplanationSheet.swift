@@ -266,15 +266,27 @@ private struct InstructionViewerSheet: View {
   let service: LLMService
 
   @Environment(\.dismiss) private var dismiss
+  @State private var showsRawText: Bool = false
 
   var body: some View {
     NavigationStack {
       List {
+        // MARK: - Display Mode Toggle
+        Section {
+          Toggle("Show Raw Text", isOn: $showsRawText)
+        }
+
         // MARK: - System Instruction
         Section {
-          Text(service.effectiveSystemInstruction)
-            .font(.system(.caption, design: .monospaced))
-            .textSelection(.enabled)
+          if showsRawText {
+            Text(service.effectiveSystemInstruction)
+              .font(.system(.caption, design: .monospaced))
+              .textSelection(.enabled)
+          } else {
+            Text(markdownAttributedString(from: service.effectiveSystemInstruction))
+              .font(.callout)
+              .textSelection(.enabled)
+          }
         } header: {
           HStack {
             Text("System Instruction")
@@ -293,9 +305,15 @@ private struct InstructionViewerSheet: View {
 
         // MARK: - User Prompt Template
         Section {
-          Text(service.effectiveUserPromptTemplate)
-            .font(.system(.caption, design: .monospaced))
-            .textSelection(.enabled)
+          if showsRawText {
+            Text(service.effectiveUserPromptTemplate)
+              .font(.system(.caption, design: .monospaced))
+              .textSelection(.enabled)
+          } else {
+            Text(markdownAttributedString(from: service.effectiveUserPromptTemplate))
+              .font(.callout)
+              .textSelection(.enabled)
+          }
         } header: {
           HStack {
             Text("User Prompt Template")
@@ -336,6 +354,20 @@ private struct InstructionViewerSheet: View {
     }
     .presentationDetents([.medium, .large])
     .presentationDragIndicator(.visible)
+  }
+
+  /// Convert Markdown string to AttributedString for rendering.
+  private func markdownAttributedString(from text: String) -> AttributedString {
+    do {
+      var attributed = try AttributedString(
+        markdown: text,
+        options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+      )
+      attributed.font = .callout
+      return attributed
+    } catch {
+      return AttributedString(text)
+    }
   }
 }
 
