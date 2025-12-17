@@ -23,6 +23,8 @@ struct YouTubeSubtitleApp: App {
       VideoItem.self,
       DownloadStateEntity.self,
       VocabularyItem.self,
+      TranscriptionSession.self,
+      TranscriptionEntry.self,
     ])
 
     do {

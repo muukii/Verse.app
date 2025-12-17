@@ -8,38 +8,51 @@
 @preconcurrency import AVFoundation
 import CoreMedia
 import Speech
+import SwiftData
 import SwiftUI
 import Translation
 
 /// Sample view demonstrating real-time microphone transcription using SpeechAnalyzer (iOS 26+)
 struct RealtimeTranscriptionView: View {
-  @State private var viewModel = RealtimeTranscriptionViewModel()
+  @Environment(\.modelContext) private var modelContext
+  @State private var viewModel: RealtimeTranscriptionViewModel?
   @State private var selectedWord: String?
   @State private var showWordDetail = false
   @State private var explainText: String?
   @State private var showExplainSheet = false
+  @State private var showSessionHistory = false
 
   var body: some View {
-    VStack(spacing: 0) {
-      // Header
-      headerSection
-
-      // Transcription output
-      transcriptionSection
-
-      // Controls
-      controlsSection
+    Group {
+      if let viewModel {
+        mainContent(viewModel: viewModel)
+      } else {
+        ProgressView("Initializing...")
+      }
     }
     .navigationTitle("Live Transcription")
     #if os(iOS)
       .navigationBarTitleDisplayMode(.inline)
     #endif
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button {
+          showSessionHistory = true
+        } label: {
+          Image(systemName: "clock.arrow.circlepath")
+        }
+      }
+    }
     .task {
-      await viewModel.prepareIfNeeded()
+      if viewModel == nil {
+        let service = TranscriptionSessionService(modelContext: modelContext)
+        viewModel = RealtimeTranscriptionViewModel(sessionService: service)
+      }
+      await viewModel?.prepareIfNeeded()
     }
     .onDisappear {
       // Stop recording when view disappears
-      if viewModel.isRecording {
+      if let viewModel, viewModel.isRecording {
         Task {
           await viewModel.stopRecording()
         }
@@ -47,9 +60,9 @@ struct RealtimeTranscriptionView: View {
       // Re-enable idle timer when leaving the view
       UIApplication.shared.isIdleTimerDisabled = false
     }
-    .onChange(of: viewModel.isRecording) { _, isRecording in
+    .onChange(of: viewModel?.isRecording) { _, isRecording in
       // Prevent screen sleep during recording
-      UIApplication.shared.isIdleTimerDisabled = isRecording
+      UIApplication.shared.isIdleTimerDisabled = isRecording ?? false
     }
     .sheet(isPresented: $showWordDetail) {
       if let word = selectedWord {
@@ -61,16 +74,33 @@ struct RealtimeTranscriptionView: View {
         ExplainSheet(text: text)
       }
     }
+    .sheet(isPresented: $showSessionHistory) {
+      TranscriptionSessionHistoryView()
+    }
+  }
+
+  @ViewBuilder
+  private func mainContent(viewModel: RealtimeTranscriptionViewModel) -> some View {
+    VStack(spacing: 0) {
+      // Header
+      headerSection(viewModel: viewModel)
+
+      // Transcription output
+      transcriptionSection(viewModel: viewModel)
+
+      // Controls
+      controlsSection(viewModel: viewModel)
+    }
   }
 
   // MARK: - Header Section
 
-  private var headerSection: some View {
+  private func headerSection(viewModel: RealtimeTranscriptionViewModel) -> some View {
     VStack(spacing: 8) {
       // Status indicator
       HStack(spacing: 8) {
         Circle()
-          .fill(statusColor)
+          .fill(statusColor(for: viewModel.status))
           .frame(width: 12, height: 12)
 
         Text(viewModel.status.displayText)
@@ -90,8 +120,8 @@ struct RealtimeTranscriptionView: View {
     .background(Color(.secondarySystemBackground))
   }
 
-  private var statusColor: Color {
-    switch viewModel.status {
+  private func statusColor(for status: RealtimeTranscriptionViewModel.Status) -> Color {
+    switch status {
     case .idle:
       return .gray
     case .preparing:
@@ -107,7 +137,7 @@ struct RealtimeTranscriptionView: View {
 
   // MARK: - Transcription Section
 
-  private var transcriptionSection: some View {
+  private func transcriptionSection(viewModel: RealtimeTranscriptionViewModel) -> some View {
     ScrollViewReader { proxy in
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 12) {
@@ -157,7 +187,7 @@ struct RealtimeTranscriptionView: View {
 
   // MARK: - Controls Section
 
-  private var controlsSection: some View {
+  private func controlsSection(viewModel: RealtimeTranscriptionViewModel) -> some View {
     VStack(spacing: 16) {
       Divider()
 
@@ -371,6 +401,16 @@ final class RealtimeTranscriptionViewModel {
     }.joined(separator: "\n\n")
   }
 
+  // MARK: - Session Persistence
+
+  private let sessionService: TranscriptionSessionService
+  private var currentSession: TranscriptionSession?
+  private var recordingStartTime: Date?
+
+  init(sessionService: TranscriptionSessionService) {
+    self.sessionService = sessionService
+  }
+
   // MARK: - Private Properties
 
   private var audioEngine: AVAudioEngine?
@@ -475,6 +515,14 @@ final class RealtimeTranscriptionViewModel {
     let (inputSequence, inputBuilder) = AsyncStream.makeStream(of: AnalyzerInput.self)
     self.inputContinuation = inputBuilder
 
+    // Create a new session for this recording
+    do {
+      currentSession = try sessionService.createSession()
+      recordingStartTime = Date()
+    } catch {
+      print("Failed to create session: \(error)")
+    }
+
     // Start collecting results
     resultsTask = Task { @MainActor in
       do {
@@ -484,6 +532,20 @@ final class RealtimeTranscriptionViewModel {
             let item = TranscriptionItem(text: attributedText, timestamp: Date())
             transcriptions.append(item)
             partialTranscription = nil
+
+            // Save entry to current session
+            if let session = currentSession {
+              do {
+                try sessionService.addEntry(
+                  to: session,
+                  text: item.plainText,
+                  timestamp: item.timestamp,
+                  wordTimings: item.wordTimings
+                )
+              } catch {
+                print("Failed to save entry: \(error)")
+              }
+            }
           }
         }
       } catch {
@@ -560,6 +622,28 @@ final class RealtimeTranscriptionViewModel {
     // Cancel results task
     resultsTask?.cancel()
     resultsTask = nil
+
+    // Finalize session
+    if let session = currentSession {
+      if session.entries.isEmpty {
+        // Delete empty session
+        do {
+          try sessionService.deleteSession(session)
+        } catch {
+          print("Failed to delete empty session: \(error)")
+        }
+      } else {
+        // Save duration
+        let duration = Date().timeIntervalSince(recordingStartTime ?? Date())
+        do {
+          try sessionService.finalizeSession(session, duration: duration)
+        } catch {
+          print("Failed to finalize session: \(error)")
+        }
+      }
+      currentSession = nil
+      recordingStartTime = nil
+    }
 
     // Deactivate audio session to restore normal audio behavior
     do {
