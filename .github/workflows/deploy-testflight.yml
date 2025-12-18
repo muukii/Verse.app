@@ -28,6 +28,7 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
         run: |
           fastlane match appstore --readonly
+          fastlane match development --readonly
 
       - name: Archive app
         env:
