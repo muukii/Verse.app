@@ -41,7 +41,7 @@ jobs:
             -configuration "Release" \
             -destination "generic/platform=iOS" \
             -archivePath "./build/YouTubeSubtitle.xcarchive" \
-            DEVELOPMENT_TEAM="$TEAM_ID" | xcbeautify
+            | xcbeautify
 
       - name: Create ExportOptions.plist
         env:
