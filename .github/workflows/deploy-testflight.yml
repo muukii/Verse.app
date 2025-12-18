@@ -101,9 +101,9 @@ jobs:
 
       - name: Export IPA
         env:
-          # Use Team Key for export
-          ASC_KEY_ID: ${{ secrets.ASC_TEAM_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_TEAM_ISSUER_ID }}
+          # Use Individual Key for cloud signing (export)
+          ASC_KEY_ID: ${{ secrets.ASC_INDIVIDUAL_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_INDIVIDUAL_ISSUER_ID }}
         run: |
           set -e
           set -o pipefail
