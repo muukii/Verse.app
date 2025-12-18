@@ -19,22 +19,9 @@ jobs:
         with:
           xcode-version: 26.2
 
-      - uses: webfactory/ssh-agent@v0.5.4
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Setup signing with Fastlane Match
-        env:
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_URL: git@github.com:muukii/fastlane-match.git
-        run: |
-          fastlane match appstore --readonly
-          fastlane match development --readonly
-
       - name: Setup App Store Connect API Key
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
           mkdir -p ~/private_keys
@@ -99,13 +86,6 @@ jobs:
             -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_API_ISSUER_ID" \
             | xcbeautify
-
-      - name: Debug - List build directory contents
-        run: |
-          echo "=== Contents of ./build directory ==="
-          ls -laR ./build/
-          echo "=== Searching for IPA files ==="
-          find ./build -name "*.ipa" -type f
 
       - name: Upload to TestFlight
         env:
