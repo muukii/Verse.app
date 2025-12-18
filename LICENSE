@@ -1,0 +1,32 @@
+Personal Use License
+
+Copyright (c) 2024 Hiroshi Kimura
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to use,
+copy, modify, and build the Software for personal, non-commercial purposes only,
+subject to the following conditions:
+
+PERMITTED USES:
+- Build and run the Software for personal use
+- Modify the source code for personal use
+- Study and learn from the code
+- Fork the repository for personal experimentation
+
+PROHIBITED USES:
+- Publishing the Software or any derivative work to any app store
+  (including but not limited to Apple App Store, Google Play Store, etc.)
+- Selling, sublicensing, or commercially distributing the Software
+- Using the Software for any commercial purposes
+- Removing or modifying this license notice
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+For commercial use or app store distribution, please contact:
+muukii.app@gmail.com
