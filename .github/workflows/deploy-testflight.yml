@@ -66,8 +66,11 @@ jobs:
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
-          # API Keyファイルを作成
-          echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > ./AuthKey.p8
+          # API Keyディレクトリを作成
+          mkdir -p ~/.appstoreconnect/private_keys
+
+          # API Keyファイルを正しい場所に正しい名前で作成
+          echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
 
           # TestFlightにアップロード
           xcrun altool --upload-app \
@@ -77,7 +80,7 @@ jobs:
             --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
 
           # API Keyファイルを削除
-          rm ./AuthKey.p8
+          rm ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
 
       - name: Upload build artifacts
         if: always()
