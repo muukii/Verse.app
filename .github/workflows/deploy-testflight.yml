@@ -51,9 +51,6 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "./build/YouTubeSubtitle.xcarchive" \
             -skipMacroValidation \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
             | xcbeautify
 
       - name: Create ExportOptions.plist
