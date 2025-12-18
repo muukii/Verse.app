@@ -46,10 +46,6 @@ jobs:
           echo "API Key configured"
 
       - name: Archive app
-        env:
-          # Use Team Key for archive
-          ASC_KEY_ID: ${{ secrets.ASC_TEAM_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_TEAM_ISSUER_ID }}
         run: |
           set -e
           set -o pipefail
@@ -60,11 +56,30 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "./build/YouTubeSubtitle.xcarchive" \
             -skipMacroValidation \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
             | xcbeautify
+
+      - name: Embed entitlements
+        run: |
+          set -e
+          
+          # Find the app in the archive
+          APP_PATH="./build/YouTubeSubtitle.xcarchive/Products/Applications/YouTubeSubtitle.app"
+          
+          # Find entitlements file
+          ENTITLEMENTS_FILE=$(find YouTubeSubtitle -name "*.entitlements" -type f | head -n 1)
+          
+          if [ -n "$ENTITLEMENTS_FILE" ]; then
+            echo "Found entitlements file: $ENTITLEMENTS_FILE"
+            # Apply ad-hoc signature with entitlements
+            codesign --entitlements "$ENTITLEMENTS_FILE" --force --sign "-" "$APP_PATH"
+            echo "Entitlements embedded successfully"
+          else
+            echo "No entitlements file found, skipping embedding"
+          fi
 
       - name: Create ExportOptions.plist
         env:
@@ -78,6 +93,8 @@ jobs:
           <dict>
               <key>method</key>
               <string>app-store-connect</string>
+              <key>destination</key>
+              <string>upload</string>
               <key>signingStyle</key>
               <string>automatic</string>
               <key>teamID</key>
@@ -86,6 +103,8 @@ jobs:
               <true/>
               <key>uploadBitcode</key>
               <false/>
+              <key>manageAppVersionAndBuildNumber</key>
+              <true/>
           </dict>
           </plist>
           EOF
