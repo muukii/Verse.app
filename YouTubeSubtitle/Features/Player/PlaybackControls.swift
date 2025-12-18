@@ -30,12 +30,6 @@ struct PlayerControls: View {
       PlaybackButtonsControl(model: model)
         .padding(.top, 8)
 
-      SubtitleSeekControls(
-        onBackward: { model.seekToPreviousSubtitle() },
-        onForward: { model.seekToNextSubtitle() }
-      )
-      .padding(.top, 4)
-
       bottomControlsSection
         .padding(.top, 8)
         .padding(.bottom, 16)
@@ -137,7 +131,8 @@ extension PlayerControls {
   struct PlaybackButtonsControl: View {
     @Bindable var model: PlayerModel
 
-    private let availableIntervals: [Double] = [3, 5, 10, 15, 30]
+    @AppStorage("backwardSeekMode") private var backwardSeekMode: SeekMode = .seconds3
+    @AppStorage("forwardSeekMode") private var forwardSeekMode: SeekMode = .seconds3
 
     var body: some View {
       ZStack {
@@ -151,13 +146,13 @@ extension PlayerControls {
           .frame(maxWidth: .infinity, alignment: .trailing)
 
         HStack(spacing: 32) {
-          Button { model.seekBackward() } label: {
-            seekIcon(direction: .backward, interval: model.backwardSeekInterval)
+          Button { model.backward(how: backwardSeekMode) } label: {
+            seekIcon(direction: .backward, mode: backwardSeekMode)
           }
           .contextMenu {
-            seekIntervalMenu(
-              currentInterval: model.backwardSeekInterval,
-              onChange: { model.backwardSeekInterval = $0 }
+            seekModeMenu(
+              currentMode: backwardSeekMode,
+              onChange: { backwardSeekMode = $0 }
             )
           }
 
@@ -166,13 +161,13 @@ extension PlayerControls {
               .font(.system(size: 32))
           }
 
-          Button { model.seekForward() } label: {
-            seekIcon(direction: .forward, interval: model.forwardSeekInterval)
+          Button { model.forward(how: forwardSeekMode) } label: {
+            seekIcon(direction: .forward, mode: forwardSeekMode)
           }
           .contextMenu {
-            seekIntervalMenu(
-              currentInterval: model.forwardSeekInterval,
-              onChange: { model.forwardSeekInterval = $0 }
+            seekModeMenu(
+              currentMode: forwardSeekMode,
+              onChange: { forwardSeekMode = $0 }
             )
           }
         }
@@ -180,58 +175,65 @@ extension PlayerControls {
       }
       .padding(.horizontal, 20)
     }
-    
+
     private enum SeekDirection {
       case backward, forward
     }
-    
+
     @ViewBuilder
-    private func seekIcon(direction: SeekDirection, interval: Double)
-    -> some View
-    {
-      let prefix = direction == .backward ? "gobackward" : "goforward"
-      let symbolName: String = {
-        switch interval {
-        case 5: return "\(prefix).5"
-        case 10: return "\(prefix).10"
-        case 15: return "\(prefix).15"
-        case 30: return "\(prefix).30"
-        case 45: return "\(prefix).45"
-        case 60: return "\(prefix).60"
-        default:
-          return prefix
-        }
-      }()
-      
-      if interval == 3 || ![5, 10, 15, 30, 45, 60].contains(Int(interval)) {
-        // Custom view for 3 seconds or other non-standard intervals
-        ZStack {
-          Image(systemName: prefix)
-            .font(.system(size: 24))
-          Text("\(Int(interval))")
-            .font(.system(size: 8, weight: .bold))
-            .offset(y: 1)
-        }
-        .foregroundStyle(.primary)
-      } else {
+    private func seekIcon(direction: SeekDirection, mode: SeekMode) -> some View {
+      if mode.isSubtitleBased {
+        // Subtitle-based icon
+        let symbolName = direction == .backward ? "backward.frame.fill" : "forward.frame.fill"
         Image(systemName: symbolName)
           .font(.system(size: 24))
           .foregroundStyle(.primary)
+      } else {
+        // Time-based icon
+        let prefix = direction == .backward ? "gobackward" : "goforward"
+        let interval = mode.interval ?? 3
+        let symbolName: String = {
+          switch Int(interval) {
+          case 5: return "\(prefix).5"
+          case 10: return "\(prefix).10"
+          case 15: return "\(prefix).15"
+          case 30: return "\(prefix).30"
+          case 45: return "\(prefix).45"
+          case 60: return "\(prefix).60"
+          default: return prefix
+          }
+        }()
+
+        if interval == 3 || ![5, 10, 15, 30, 45, 60].contains(Int(interval)) {
+          // Custom view for 3 seconds or other non-standard intervals
+          ZStack {
+            Image(systemName: prefix)
+              .font(.system(size: 24))
+            Text("\(Int(interval))")
+              .font(.system(size: 8, weight: .bold))
+              .offset(y: 1)
+          }
+          .foregroundStyle(.primary)
+        } else {
+          Image(systemName: symbolName)
+            .font(.system(size: 24))
+            .foregroundStyle(.primary)
+        }
       }
     }
-    
+
     @ViewBuilder
-    private func seekIntervalMenu(
-      currentInterval: Double,
-      onChange: @escaping (Double) -> Void
+    private func seekModeMenu(
+      currentMode: SeekMode,
+      onChange: @escaping (SeekMode) -> Void
     ) -> some View {
-      ForEach(availableIntervals, id: \.self) { interval in
+      ForEach(SeekMode.allCases, id: \.self) { mode in
         Button {
-          onChange(interval)
+          onChange(mode)
         } label: {
           HStack {
-            Text("\(Int(interval)) seconds")
-            if interval == currentInterval {
+            Text(mode.displayName)
+            if mode == currentMode {
               Image(systemName: "checkmark")
             }
           }
@@ -515,33 +517,6 @@ extension PlayerControls {
     }
   }
   
-  // MARK: - SubtitleSeekControls
-  
-  struct SubtitleSeekControls: View {
-    let onBackward: () -> Void
-    let onForward: () -> Void
-    
-    var body: some View {
-      HStack(spacing: 12) {
-               
-        HStack(spacing: 16) {
-          Button(action: onBackward) {
-            Image(systemName: "backward.frame.fill")
-              .font(.system(size: 20))
-              .foregroundStyle(.primary)
-          }
-          
-          Button(action: onForward) {
-            Image(systemName: "forward.frame.fill")
-              .font(.system(size: 20))
-              .foregroundStyle(.primary)
-          }
-
-        }
-      }
-      .tint(Color.primary)
-    }
-  }
 }
 
 #if DEBUG

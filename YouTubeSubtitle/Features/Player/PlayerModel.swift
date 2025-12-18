@@ -8,6 +8,43 @@
 import Foundation
 import SwiftUI
 
+// MARK: - SeekMode
+
+enum SeekMode: String, CaseIterable, Codable {
+  case seconds3 = "3"
+  case seconds5 = "5"
+  case seconds10 = "10"
+  case seconds15 = "15"
+  case seconds30 = "30"
+  case subtitle = "subtitle"
+
+  var displayName: String {
+    switch self {
+    case .seconds3: return "3 seconds"
+    case .seconds5: return "5 seconds"
+    case .seconds10: return "10 seconds"
+    case .seconds15: return "15 seconds"
+    case .seconds30: return "30 seconds"
+    case .subtitle: return "Subtitle"
+    }
+  }
+
+  var interval: Double? {
+    switch self {
+    case .seconds3: return 3
+    case .seconds5: return 5
+    case .seconds10: return 10
+    case .seconds15: return 15
+    case .seconds30: return 30
+    case .subtitle: return nil
+    }
+  }
+
+  var isSubtitleBased: Bool {
+    self == .subtitle
+  }
+}
+
 // MARK: - CurrentTime
 
 /// Observable wrapper for current playback time.
@@ -47,16 +84,6 @@ final class PlayerModel {
 
   /// Current playback speed (1.0 = normal)
   var playbackRate: Double = 1.0
-
-  // MARK: - Seek Intervals
-
-  /// Backward seek interval in seconds
-  @ObservationIgnored
-  @AppStorage("backwardSeekInterval") var backwardSeekInterval: Double = 3
-
-  /// Forward seek interval in seconds
-  @ObservationIgnored
-  @AppStorage("forwardSeekInterval") var forwardSeekInterval: Double = 3
 
   // MARK: - Slider/Seeking State
 
@@ -264,10 +291,6 @@ final class PlayerModel {
     }
   }
 
-  /// Seeks backward by the default backward interval
-  func seekBackward() {
-    seekBackward(interval: backwardSeekInterval)
-  }
 
   /// Seeks backward by the specified interval
   func seekBackward(interval: Double) {
@@ -279,10 +302,6 @@ final class PlayerModel {
     }
   }
 
-  /// Seeks forward by the default forward interval
-  func seekForward() {
-    seekForward(interval: forwardSeekInterval)
-  }
 
   /// Seeks forward by the specified interval
   func seekForward(interval: Double) {
@@ -311,6 +330,24 @@ final class PlayerModel {
       if let nextTime = nextSubtitleTime() {
         await controller.seek(to: nextTime)
       }
+    }
+  }
+
+  /// Seeks backward based on the specified mode
+  func backward(how mode: SeekMode) {
+    if mode.isSubtitleBased {
+      seekToPreviousSubtitle()
+    } else {
+      seekBackward(interval: mode.interval ?? 3)
+    }
+  }
+
+  /// Seeks forward based on the specified mode
+  func forward(how mode: SeekMode) {
+    if mode.isSubtitleBased {
+      seekToNextSubtitle()
+    } else {
+      seekForward(interval: mode.interval ?? 3)
     }
   }
 
