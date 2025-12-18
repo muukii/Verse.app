@@ -29,9 +29,6 @@ jobs:
         run: |
           fastlane match appstore --readonly
 
-      - name: Clean build directory
-        run: rm -rf ./build && mkdir -p ./build
-
       - name: Archive app
         env:
           TEAM_ID: ${{ secrets.TEAM_ID }}
