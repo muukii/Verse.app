@@ -1,0 +1,8 @@
+git_url("https://github.com/muukii/fastlane-match.git")
+
+storage_mode("git")
+
+type("appstore") # The default type, can be: appstore, adhoc, enterprise or development
+
+app_identifier(["app.muukii.verse"])
+username("muukii.app@gmail.com")

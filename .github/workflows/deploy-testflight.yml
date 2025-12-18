@@ -9,37 +9,43 @@ on:
 jobs:
   build-and-deploy:
     runs-on: macos-26
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Select Xcode version
-        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-      
-      - name: Show Xcode version
-        run: xcodebuild -version
-      
-      - name: Install xcbeautify
-        run: brew install xcbeautify
-      
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 26.2
+
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Setup signing with Fastlane Match
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: |
+          fastlane match appstore --readonly
+
       - name: Clean build directory
         run: rm -rf ./build && mkdir -p ./build
-      
+
       - name: Archive app
         env:
           TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
           set -e
           set -o pipefail
-          
+
           xcodebuild archive \
             -scheme "YouTubeSubtitle" \
             -configuration "Release" \
             -destination "generic/platform=iOS" \
             -archivePath "./build/YouTubeSubtitle.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM_ID" | xcbeautify
-      
+
       - name: Create ExportOptions.plist
         env:
           TEAM_ID: ${{ secrets.TEAM_ID }}
@@ -61,17 +67,17 @@ jobs:
           </dict>
           </plist>
           EOF
-      
+
       - name: Export IPA
         run: |
           set -e
           set -o pipefail
-          
+
           xcodebuild -exportArchive \
             -archivePath "./build/YouTubeSubtitle.xcarchive" \
             -exportPath "./build" \
             -exportOptionsPlist ./build/ExportOptions.plist | xcbeautify
-      
+
       - name: Debug - List build directory contents
         run: |
           echo "=== Contents of ./build directory ==="
@@ -86,13 +92,13 @@ jobs:
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
           set -e
-          
+
           mkdir -p ~/.appstoreconnect/private_keys
           echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
 
           IPA_FILE=$(find ./build -name "*.ipa" -type f | head -n 1)
           echo "Found IPA file: $IPA_FILE"
-          
+
           xcrun altool --upload-app \
             --type ios \
             --file "$IPA_FILE" \
@@ -100,7 +106,7 @@ jobs:
             --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
 
           rm ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
-      
+
       - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@v4
