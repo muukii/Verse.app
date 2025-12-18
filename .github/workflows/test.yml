@@ -1,0 +1,43 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 26.2
+
+      - name: Run tests
+        run: |
+          set -e
+          set -o pipefail
+
+          xcodebuild test \
+            -scheme "YouTubeSubtitle" \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
+            -skipMacroValidation \
+            -resultBundlePath ./build/TestResults.xcresult \
+            | xcbeautify
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./build/TestResults.xcresult
+          retention-days: 7
