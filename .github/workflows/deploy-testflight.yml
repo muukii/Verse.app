@@ -6,6 +6,20 @@ on:
       - main
   workflow_dispatch:
 
+# Required Secrets:
+# Team API Key (from App Store Connect > Users and Access > Integrations > App Store Connect API):
+#   - ASC_TEAM_KEY_ID: Team API Key ID
+#   - ASC_TEAM_KEY_CONTENT: Team API Key .p8 file content
+#   - ASC_TEAM_ISSUER_ID: Issuer ID
+#
+# Individual API Key (from App Store Connect > Users and Access > your user > Individual Keys):
+#   - ASC_INDIVIDUAL_KEY_ID: Individual API Key ID  
+#   - ASC_INDIVIDUAL_KEY_CONTENT: Individual API Key .p8 file content
+#   - ASC_INDIVIDUAL_ISSUER_ID: Issuer ID (usually same as Team)
+#
+# Other:
+#   - TEAM_ID: Apple Developer Team ID
+
 jobs:
   build-and-deploy:
     runs-on: macos-26
@@ -19,18 +33,32 @@ jobs:
         with:
           xcode-version: 26.2
 
-      - name: Setup App Store Connect API Key
+      - name: Setup App Store Connect API Keys
         env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          ASC_TEAM_KEY_ID: ${{ secrets.ASC_TEAM_KEY_ID }}
+          ASC_TEAM_KEY_CONTENT: ${{ secrets.ASC_TEAM_KEY_CONTENT }}
+          ASC_INDIVIDUAL_KEY_ID: ${{ secrets.ASC_INDIVIDUAL_KEY_ID }}
+          ASC_INDIVIDUAL_KEY_CONTENT: ${{ secrets.ASC_INDIVIDUAL_KEY_CONTENT }}
         run: |
           mkdir -p ~/private_keys
-          echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          
+          # Setup Team Key
+          if [ -n "$ASC_TEAM_KEY_ID" ] && [ -n "$ASC_TEAM_KEY_CONTENT" ]; then
+            echo "$ASC_TEAM_KEY_CONTENT" > ~/private_keys/AuthKey_${ASC_TEAM_KEY_ID}.p8
+            echo "Team API Key configured"
+          fi
+          
+          # Setup Individual Key
+          if [ -n "$ASC_INDIVIDUAL_KEY_ID" ] && [ -n "$ASC_INDIVIDUAL_KEY_CONTENT" ]; then
+            echo "$ASC_INDIVIDUAL_KEY_CONTENT" > ~/private_keys/AuthKey_${ASC_INDIVIDUAL_KEY_ID}.p8
+            echo "Individual API Key configured"
+          fi
 
       - name: Archive app
         env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          # Use Individual Key for cloud signing (archive/export)
+          ASC_KEY_ID: ${{ secrets.ASC_INDIVIDUAL_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_INDIVIDUAL_ISSUER_ID }}
         run: |
           set -e
           set -o pipefail
@@ -42,9 +70,9 @@ jobs:
             -archivePath "./build/YouTubeSubtitle.xcarchive" \
             -skipMacroValidation \
             -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 \
-            -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID" \
-            -authenticationKeyIssuerID "$APP_STORE_CONNECT_API_ISSUER_ID" \
+            -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             | xcbeautify
 
       - name: Create ExportOptions.plist
@@ -73,8 +101,9 @@ jobs:
 
       - name: Export IPA
         env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          # Use Individual Key for cloud signing
+          ASC_KEY_ID: ${{ secrets.ASC_INDIVIDUAL_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_INDIVIDUAL_ISSUER_ID }}
         run: |
           set -e
           set -o pipefail
@@ -84,21 +113,22 @@ jobs:
             -exportPath "./build" \
             -exportOptionsPlist ./build/ExportOptions.plist \
             -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 \
-            -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID" \
-            -authenticationKeyIssuerID "$APP_STORE_CONNECT_API_ISSUER_ID" \
+            -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             | xcbeautify
 
       - name: Upload to TestFlight
         env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
-          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          # Use Team Key for upload (or Individual - both should work)
+          ASC_KEY_ID: ${{ secrets.ASC_TEAM_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_TEAM_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_TEAM_KEY_CONTENT }}
         run: |
           set -e
 
           mkdir -p ~/.appstoreconnect/private_keys
-          echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          echo "$ASC_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
 
           IPA_FILE=$(find ./build -name "*.ipa" -type f | head -n 1)
           echo "Found IPA file: $IPA_FILE"
@@ -106,10 +136,10 @@ jobs:
           xcrun altool --upload-app \
             --type ios \
             --file "$IPA_FILE" \
-            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
-            --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
 
-          rm ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          rm ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
 
       - name: Upload build artifacts
         if: always()
