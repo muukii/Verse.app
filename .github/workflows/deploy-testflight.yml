@@ -72,10 +72,14 @@ jobs:
           # API Keyファイルを正しい場所に正しい名前で作成
           echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
 
+          # エクスポートされたIPAファイルを探す
+          IPA_FILE=$(find ./build -name "*.ipa" -type f | head -n 1)
+          echo "Found IPA file: $IPA_FILE"
+          
           # TestFlightにアップロード
           xcrun altool --upload-app \
             --type ios \
-            --file "./build/YouTubeSubtitle.ipa" \
+            --file "$IPA_FILE" \
             --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
 
