@@ -59,6 +59,13 @@ jobs:
             -archivePath "./build/YouTubeSubtitle.xcarchive" \
             -exportPath "./build" \
             -exportOptionsPlist ./build/ExportOptions.plist | xcbeautify
+      
+      - name: Debug - List build directory contents
+        run: |
+          echo "=== Contents of ./build directory ==="
+          ls -laR ./build/
+          echo "=== Searching for IPA files ==="
+          find ./build -name "*.ipa" -type f
 
       - name: Upload to TestFlight
         env:
@@ -66,6 +73,8 @@ jobs:
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
+          set -e  # エラーで即座に終了
+          
           # API Keyディレクトリを作成
           mkdir -p ~/.appstoreconnect/private_keys
 
@@ -91,7 +100,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
-          path: |
-            ./build/*.ipa
-            ./build/*.xcarchive
+          path: ./build/
           retention-days: 7
