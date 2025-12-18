@@ -40,7 +40,9 @@ jobs:
             -scheme "YouTubeSubtitle" \
             -configuration "Release" \
             -destination "generic/platform=iOS" \
-            -archivePath "./build/YouTubeSubtitle.xcarchive"
+            -archivePath "./build/YouTubeSubtitle.xcarchive" \
+            -skipMacroValidation \
+            | xcbeautify
 
       - name: Create ExportOptions.plist
         env:
