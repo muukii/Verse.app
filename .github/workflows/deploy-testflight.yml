@@ -7,17 +7,10 @@ on:
   workflow_dispatch:
 
 # Required Secrets:
-# Team API Key (from App Store Connect > Users and Access > Integrations > App Store Connect API):
-#   - ASC_TEAM_KEY_ID: Team API Key ID
-#   - ASC_TEAM_KEY_CONTENT: Team API Key .p8 file content
+# App Store Connect API Key (from App Store Connect > Users and Access > Integrations > App Store Connect API):
+#   - ASC_TEAM_KEY_ID: API Key ID
+#   - ASC_TEAM_KEY_CONTENT: API Key .p8 file content
 #   - ASC_TEAM_ISSUER_ID: Issuer ID
-#
-# Individual API Key (from App Store Connect > Users and Access > your user > Individual Keys):
-#   - ASC_INDIVIDUAL_KEY_ID: Individual API Key ID  
-#   - ASC_INDIVIDUAL_KEY_CONTENT: Individual API Key .p8 file content
-#   - ASC_INDIVIDUAL_ISSUER_ID: Issuer ID (usually same as Team)
-#
-# Other:
 #   - TEAM_ID: Apple Developer Team ID
 
 jobs:
@@ -33,26 +26,14 @@ jobs:
         with:
           xcode-version: 26.2
 
-      - name: Setup App Store Connect API Keys
+      - name: Setup App Store Connect API Key
         env:
-          ASC_TEAM_KEY_ID: ${{ secrets.ASC_TEAM_KEY_ID }}
-          ASC_TEAM_KEY_CONTENT: ${{ secrets.ASC_TEAM_KEY_CONTENT }}
-          ASC_INDIVIDUAL_KEY_ID: ${{ secrets.ASC_INDIVIDUAL_KEY_ID }}
-          ASC_INDIVIDUAL_KEY_CONTENT: ${{ secrets.ASC_INDIVIDUAL_KEY_CONTENT }}
+          ASC_KEY_ID: ${{ secrets.ASC_TEAM_KEY_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_TEAM_KEY_CONTENT }}
         run: |
           mkdir -p ~/private_keys
-          
-          # Setup Team Key
-          if [ -n "$ASC_TEAM_KEY_ID" ] && [ -n "$ASC_TEAM_KEY_CONTENT" ]; then
-            echo "$ASC_TEAM_KEY_CONTENT" > ~/private_keys/AuthKey_${ASC_TEAM_KEY_ID}.p8
-            echo "Team API Key configured"
-          fi
-          
-          # Setup Individual Key
-          if [ -n "$ASC_INDIVIDUAL_KEY_ID" ] && [ -n "$ASC_INDIVIDUAL_KEY_CONTENT" ]; then
-            echo "$ASC_INDIVIDUAL_KEY_CONTENT" > ~/private_keys/AuthKey_${ASC_INDIVIDUAL_KEY_ID}.p8
-            echo "Individual API Key configured"
-          fi
+          echo "$ASC_KEY_CONTENT" > ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          echo "API Key configured"
 
       - name: Archive app
         env:
@@ -101,9 +82,9 @@ jobs:
 
       - name: Export IPA
         env:
-          # Use Individual Key for cloud signing (export)
-          ASC_KEY_ID: ${{ secrets.ASC_INDIVIDUAL_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_INDIVIDUAL_ISSUER_ID }}
+          # Use Team Key for cloud signing (same as archive)
+          ASC_KEY_ID: ${{ secrets.ASC_TEAM_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_TEAM_ISSUER_ID }}
         run: |
           set -e
           set -o pipefail
