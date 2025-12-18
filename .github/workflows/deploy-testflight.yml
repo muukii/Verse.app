@@ -26,6 +26,7 @@ jobs:
       - name: Setup signing with Fastlane Match
         env:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: git@github.com:muukii/fastlane-match.git
         run: |
           fastlane match appstore --readonly
           fastlane match development --readonly
