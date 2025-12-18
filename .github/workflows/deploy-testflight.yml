@@ -42,6 +42,9 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "./build/YouTubeSubtitle.xcarchive" \
             -skipMacroValidation \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="match AppStore app.muukii.verse" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             | xcbeautify
 
       - name: Create ExportOptions.plist
