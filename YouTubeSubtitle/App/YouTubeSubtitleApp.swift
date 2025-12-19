@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import TipKit
 
 @main
 struct YouTubeSubtitleApp: App {
@@ -64,6 +65,10 @@ struct YouTubeSubtitleApp: App {
     WindowGroup {
       ContentView()
         .task {
+          // Configure TipKit
+          try? Tips.configure([
+            .displayFrequency(.immediate)
+          ])
           await downloadManager.restorePendingDownloads()
         }
     }
