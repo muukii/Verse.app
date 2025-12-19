@@ -70,6 +70,7 @@ struct SubtitleRowView: View {
           text: cue.decodedText,
           wordTimings: cue.wordTimings,
           highlightTime: highlightTime,
+          highlightColor: .tintColor.withAlphaComponent(0.2),
           font: .preferredFont(forTextStyle: .subheadline),
           textColor: .tintColor,
           onWordTap: { word, _ in
@@ -203,6 +204,52 @@ struct SubtitleRowView: View {
           onAction: { _ in }
         )
         .padding()
+      }
+    }
+  }
+  return PreviewWrapper()
+}
+
+#Preview("Word Highlight") {
+  struct PreviewWrapper: View {
+    // Set currentTime to highlight "beautiful" (starts at 10.8)
+    let currentTime: CurrentTime = {
+      let time = CurrentTime()
+      time.value = 10.9  // During "beautiful"
+      return time
+    }()
+
+    var body: some View {
+      VStack(spacing: 20) {
+        Text("Word \"beautiful\" should be highlighted")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        SubtitleRowView(
+          cue: Subtitle.Cue(
+            id: 1,
+            startTime: 10.0,
+            endTime: 13.5,
+            text: "This is a beautiful example of word highlighting.",
+            wordTimings: [
+              Subtitle.WordTiming(text: "This", startTime: 10.0, endTime: 10.2),
+              Subtitle.WordTiming(text: "is", startTime: 10.2, endTime: 10.4),
+              Subtitle.WordTiming(text: "a", startTime: 10.4, endTime: 10.5),
+              Subtitle.WordTiming(text: "beautiful", startTime: 10.8, endTime: 11.2),
+              Subtitle.WordTiming(text: "example", startTime: 11.3, endTime: 11.7),
+              Subtitle.WordTiming(text: "of", startTime: 11.8, endTime: 11.9),
+              Subtitle.WordTiming(text: "word", startTime: 12.0, endTime: 12.3),
+              Subtitle.WordTiming(text: "highlighting.", startTime: 12.4, endTime: 13.0),
+            ]
+          ),
+          currentTime: currentTime,
+          isCurrent: true,
+          onAction: { action in
+            print("Action: \(action)")
+          }
+        )
+        .padding()
+        .tint(.blue)
       }
     }
   }
