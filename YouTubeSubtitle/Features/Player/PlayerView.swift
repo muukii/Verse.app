@@ -9,6 +9,7 @@ import AVKit
 import ObjectEdge
 import SwiftData
 import SwiftUI
+import TipKit
 import YouTubeKit
 import YouTubePlayerKit
 import YoutubeTranscript
@@ -231,6 +232,7 @@ struct PlayerView: View {
             Image(systemName: "waveform.badge.mic")
               .font(.system(size: 20))
           }
+          .popoverTip(TranscribeTip())
         }
 
         SubtitleManagementView(
