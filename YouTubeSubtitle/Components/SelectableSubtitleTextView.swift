@@ -9,6 +9,67 @@ import CoreMedia
 import SwiftUI
 import UIKit
 
+// MARK: - RoundedBackgroundLayoutManager
+
+/// Custom NSLayoutManager that draws rounded background rectangles
+/// instead of the default rectangular backgrounds.
+nonisolated final class RoundedBackgroundLayoutManager: NSLayoutManager {
+
+  /// Corner radius for background highlights
+  var cornerRadius: CGFloat = 4
+
+  /// Horizontal padding for the background
+  var horizontalPadding: CGFloat = 2
+
+  /// Top padding for the background
+  var topPadding: CGFloat = 1
+
+  /// Bottom padding for the background
+  var bottomPadding: CGFloat = 0
+  
+  override func fillBackgroundRectArray(
+    _ rectArray: UnsafePointer<CGRect>,
+    count rectCount: Int,
+    forCharacterRange charRange: NSRange,
+    color: UIColor
+  ) {
+    guard let context = UIGraphicsGetCurrentContext() else {
+      super.fillBackgroundRectArray(
+        rectArray,
+        count: rectCount,
+        forCharacterRange: charRange,
+        color: color
+      )
+      return
+    }
+
+    // Enable anti-aliasing for smooth rounded corners
+    context.setShouldAntialias(true)
+    context.setAllowsAntialiasing(true)
+
+    context.setFillColor(color.cgColor)
+
+    for i in 0..<rectCount {
+      var rect = rectArray[i]
+
+      // Add padding around the text (asymmetric top/bottom)
+      rect = CGRect(
+        x: rect.origin.x - horizontalPadding,
+        y: rect.origin.y - topPadding,
+        width: rect.width + horizontalPadding * 2,
+        height: rect.height + topPadding + bottomPadding
+      )
+
+      // Draw rounded rectangle
+      let path = UIBezierPath(roundedRect: rect, cornerRadius: cornerRadius)
+      context.addPath(path.cgPath)
+      context.fillPath()
+    }
+  }
+}
+
+// MARK: - SelectableSubtitleTextView
+
 /// A UITextView-backed SwiftUI view that supports:
 /// - Text selection (long-press)
 /// - Word tap detection
@@ -34,6 +95,9 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
   /// Background color for highlighted text.
   var highlightColor: UIColor
 
+  /// Corner radius for the highlight background. Set to 0 for sharp corners.
+  var highlightCornerRadius: CGFloat
+
   /// Font to apply to the text.
   var font: UIFont
 
@@ -56,6 +120,7 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     wordTimings: [Subtitle.WordTiming]? = nil,
     highlightTime: CMTime? = nil,
     highlightColor: UIColor = UIColor.systemYellow.withAlphaComponent(0.4),
+    highlightCornerRadius: CGFloat = 4,
     font: UIFont = .preferredFont(forTextStyle: .body),
     textColor: UIColor = .label,
     onWordTap: ((String, CGRect) -> Void)? = nil,
@@ -66,6 +131,7 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     self.wordTimings = wordTimings
     self.highlightTime = highlightTime
     self.highlightColor = highlightColor
+    self.highlightCornerRadius = highlightCornerRadius
     self.font = font
     self.textColor = textColor
     self.onWordTap = onWordTap
@@ -76,12 +142,32 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
   // MARK: - UIViewRepresentable
 
   func makeUIView(context: Context) -> UITextView {
-    let textView = UITextView()
+    // Create custom text system with rounded background support
+    let textStorage = NSTextStorage()
+    let layoutManager = RoundedBackgroundLayoutManager()
+    layoutManager.cornerRadius = highlightCornerRadius
+
+    let textContainer = NSTextContainer(size: .zero)
+    textContainer.widthTracksTextView = true
+    textContainer.lineFragmentPadding = 0
+
+    layoutManager.addTextContainer(textContainer)
+    textStorage.addLayoutManager(layoutManager)
+
+    // Store layout manager reference in coordinator
+    context.coordinator.layoutManager = layoutManager
+
+    let textView = UITextView(frame: .zero, textContainer: textContainer)
     textView.isEditable = false
     textView.isScrollEnabled = false
     textView.backgroundColor = .clear
-    textView.textContainerInset = .zero
-    textView.textContainer.lineFragmentPadding = 0
+    // Add inset to prevent highlight background from being clipped
+    textView.textContainerInset = UIEdgeInsets(
+      top: layoutManager.topPadding,
+      left: layoutManager.horizontalPadding,
+      bottom: layoutManager.bottomPadding,
+      right: layoutManager.horizontalPadding
+    )
     textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     textView.delegate = context.coordinator
 
@@ -109,6 +195,9 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
 
     coordinator.onExplain = self.onExplain
     coordinator.onSelectionChanged = self.onSelectionChanged
+
+    // Update corner radius if changed
+    coordinator.layoutManager?.cornerRadius = highlightCornerRadius
 
     // Check if we need to rebuild the base attributed string
     let needsRebuild = coordinator.cachedText != text
@@ -262,6 +351,9 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     var onWordTap: ((String, CGRect) -> Void)?
     var onExplain: ((String) -> Void)?
     var onSelectionChanged: ((Bool) -> Void)?
+
+    // Reference to custom layout manager for updating corner radius
+    weak var layoutManager: RoundedBackgroundLayoutManager?
 
     // Cache for avoiding unnecessary rebuilds
     var cachedText: String?
