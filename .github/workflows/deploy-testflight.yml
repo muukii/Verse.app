@@ -22,7 +22,7 @@ on:
 
 jobs:
   deploy:
-    uses: ./.github/workflows/ios-testflight.yml
+    uses: ./.github/workflows/reusable-ios-appstoreconnect.yml
     with:
       scheme: YouTubeSubtitle
       xcode-version: '26.2'
