@@ -18,14 +18,9 @@ struct PlayerControls: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      ProgressSection(
-        currentTime: model.currentTime,
-        displayTime: model.displayTime,
-        duration: model.duration,
-        onSeek: { model.seek(to: $0) }
-      )
-      .padding(.horizontal, 20)
-      .padding(.top, 12)
+      ProgressSectionWrapper(model: model)
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
 
       PlaybackButtonsControl(model: model)
         .padding(.top, 8)
@@ -34,6 +29,19 @@ struct PlayerControls: View {
         .padding(.top, 8)
         .padding(.bottom, 16)
         .animation(.smooth(duration: 0.3), value: controlsMode)
+    }
+  }
+  
+  private struct ProgressSectionWrapper: View {
+    let model: PlayerModel
+
+    var body: some View {     
+      ProgressSection(
+        currentTime: model.currentTime,
+        displayTime: model.displayTime,
+        duration: model.duration,
+        onSeek: { model.seek(to: $0) }
+      )
     }
   }
 
@@ -129,10 +137,103 @@ extension PlayerControls {
   // MARK: - PlaybackButtonsControl
 
   struct PlaybackButtonsControl: View {
-    @Bindable var model: PlayerModel
+    let model: PlayerModel
 
     @AppStorage("backwardSeekMode") private var backwardSeekMode: SeekMode = .seconds3
     @AppStorage("forwardSeekMode") private var forwardSeekMode: SeekMode = .seconds3
+    
+    private struct JumpButton: View {
+      
+      let model: PlayerModel      
+      let direction: SeekDirection
+      @Binding var mode: SeekMode
+      
+      var body: some View {
+        Button {          
+          switch direction {
+          case .backward:            
+            model.backward(how: mode)
+          case .forward:
+            model.forward(how: mode)
+          }
+        } label: {
+          seekIcon(
+            direction: direction,
+            mode: mode
+          )
+        }
+        .contextMenu {
+          seekModeMenu(
+            currentMode: mode,
+            onChange: { 
+              mode = $0
+            }
+          )
+        }
+      }
+      
+      @ViewBuilder
+      private func seekModeMenu(
+        currentMode: SeekMode,
+        onChange: @escaping (SeekMode) -> Void
+      ) -> some View {
+        ForEach(SeekMode.allCases, id: \.self) { mode in
+          Button {
+            onChange(mode)
+          } label: {
+            HStack {
+              Text(mode.displayName)
+              if mode == currentMode {
+                Image(systemName: "checkmark")
+              }
+            }
+          }
+        }
+      }
+            
+      @ViewBuilder
+      private func seekIcon(direction: SeekDirection, mode: SeekMode) -> some View {
+        if mode.isSubtitleBased {
+          // Subtitle-based icon
+          let symbolName = direction == .backward ? "backward.frame.fill" : "forward.frame.fill"
+          Image(systemName: symbolName)
+            .font(.system(size: 24))
+            .foregroundStyle(.primary)
+        } else {
+          // Time-based icon
+          let prefix = direction == .backward ? "gobackward" : "goforward"
+          let interval = mode.interval ?? 3
+          let symbolName: String = {
+            switch Int(interval) {
+            case 5: return "\(prefix).5"
+            case 10: return "\(prefix).10"
+            case 15: return "\(prefix).15"
+            case 30: return "\(prefix).30"
+            case 45: return "\(prefix).45"
+            case 60: return "\(prefix).60"
+            default: return prefix
+            }
+          }()
+
+          if interval == 3 || ![5, 10, 15, 30, 45, 60].contains(Int(interval)) {
+            // Custom view for 3 seconds or other non-standard intervals
+            ZStack {
+              Image(systemName: prefix)
+                .font(.system(size: 24))
+              Text("\(Int(interval))")
+                .font(.system(size: 8, weight: .bold))
+                .offset(y: 1)
+            }
+            .foregroundStyle(.primary)
+          } else {
+            Image(systemName: symbolName)
+              .font(.system(size: 24))
+              .foregroundStyle(.primary)
+          }
+        }
+      }
+     
+    }
 
     var body: some View {
       ZStack {
@@ -146,30 +247,24 @@ extension PlayerControls {
           .frame(maxWidth: .infinity, alignment: .trailing)
 
         HStack(spacing: 32) {
-          Button { model.backward(how: backwardSeekMode) } label: {
-            seekIcon(direction: .backward, mode: backwardSeekMode)
-          }
-          .contextMenu {
-            seekModeMenu(
-              currentMode: backwardSeekMode,
-              onChange: { backwardSeekMode = $0 }
-            )
-          }
-
+          
+          JumpButton(
+            model: model,
+            direction: .backward,
+            mode: $backwardSeekMode
+          )
+         
           Button { model.togglePlayPause() } label: {
             Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
               .font(.system(size: 32))
           }
-
-          Button { model.forward(how: forwardSeekMode) } label: {
-            seekIcon(direction: .forward, mode: forwardSeekMode)
-          }
-          .contextMenu {
-            seekModeMenu(
-              currentMode: forwardSeekMode,
-              onChange: { forwardSeekMode = $0 }
-            )
-          }
+          
+          JumpButton(
+            model: model,
+            direction: .forward,
+            mode: $forwardSeekMode
+          )
+          
         }
         .tint(Color.primary)
       }
@@ -180,66 +275,6 @@ extension PlayerControls {
       case backward, forward
     }
 
-    @ViewBuilder
-    private func seekIcon(direction: SeekDirection, mode: SeekMode) -> some View {
-      if mode.isSubtitleBased {
-        // Subtitle-based icon
-        let symbolName = direction == .backward ? "backward.frame.fill" : "forward.frame.fill"
-        Image(systemName: symbolName)
-          .font(.system(size: 24))
-          .foregroundStyle(.primary)
-      } else {
-        // Time-based icon
-        let prefix = direction == .backward ? "gobackward" : "goforward"
-        let interval = mode.interval ?? 3
-        let symbolName: String = {
-          switch Int(interval) {
-          case 5: return "\(prefix).5"
-          case 10: return "\(prefix).10"
-          case 15: return "\(prefix).15"
-          case 30: return "\(prefix).30"
-          case 45: return "\(prefix).45"
-          case 60: return "\(prefix).60"
-          default: return prefix
-          }
-        }()
-
-        if interval == 3 || ![5, 10, 15, 30, 45, 60].contains(Int(interval)) {
-          // Custom view for 3 seconds or other non-standard intervals
-          ZStack {
-            Image(systemName: prefix)
-              .font(.system(size: 24))
-            Text("\(Int(interval))")
-              .font(.system(size: 8, weight: .bold))
-              .offset(y: 1)
-          }
-          .foregroundStyle(.primary)
-        } else {
-          Image(systemName: symbolName)
-            .font(.system(size: 24))
-            .foregroundStyle(.primary)
-        }
-      }
-    }
-
-    @ViewBuilder
-    private func seekModeMenu(
-      currentMode: SeekMode,
-      onChange: @escaping (SeekMode) -> Void
-    ) -> some View {
-      ForEach(SeekMode.allCases, id: \.self) { mode in
-        Button {
-          onChange(mode)
-        } label: {
-          HStack {
-            Text(mode.displayName)
-            if mode == currentMode {
-              Image(systemName: "checkmark")
-            }
-          }
-        }
-      }
-    }
   }
   
   // MARK: - SpeedControls
