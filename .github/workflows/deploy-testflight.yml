@@ -25,8 +25,8 @@ jobs:
     uses: ./.github/workflows/ios-testflight.yml
     with:
       scheme: YouTubeSubtitle
-      xcode-version: '16.2'
-      macos-runner: macos-15
+      xcode-version: '26.2'
+      macos-runner: macos-26
     secrets:
       ASC_KEY_ID: ${{ secrets.ASC_TEAM_KEY_ID }}
       ASC_KEY_CONTENT: ${{ secrets.ASC_TEAM_KEY_CONTENT }}
