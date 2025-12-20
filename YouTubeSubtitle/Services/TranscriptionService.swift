@@ -130,7 +130,7 @@ final class TranscriptionService {
         for try await result in transcriber.results {
           position += 1
 
-          let text = String(result.text.characters)
+          let text = String(result.text.characters).trimmingCharacters(in: .whitespaces)
 
           // Extract word-level timing from AttributedString runs
           var wordTimings: [Subtitle.WordTiming] = []
@@ -143,7 +143,7 @@ final class TranscriptionService {
               let runEnd = timeRange.end.seconds
 
               // Extract word text for this run
-              let wordText = String(result.text[run.range].characters)
+              let wordText = String(result.text[run.range].characters).trimmingCharacters(in: .whitespaces)
 
               // Add word timing
               wordTimings.append(

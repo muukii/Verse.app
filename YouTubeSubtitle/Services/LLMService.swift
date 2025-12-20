@@ -172,6 +172,16 @@ final class LLMService {
       name: "Llama 3.2 3B",
       size: "~1.8GB"
     ),
+    MLXModel(
+      id: "mlx-community/gemma-3-1b-it-4bit",
+      name: "Gemma 3 1B",
+      size: "~600MB"
+    ),
+    MLXModel(
+      id: "mlx-community/gemma-3-4b-it-4bit",
+      name: "Gemma 3 4B",
+      size: "~2.5GB"
+    ),
   ]
 
   /// Selected MLX model ID (persisted in UserDefaults)
