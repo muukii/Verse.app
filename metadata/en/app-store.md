@@ -1,3 +1,28 @@
+# App Store Metadata - English
+
+## App Name
+**Character Limit: 30**
+
+Verse
+
+## Subtitle
+**Character Limit: 30**
+
+YouTube Subtitle Player
+
+## Keywords
+**Character Limit: 100 (including commas)**
+
+YouTube,subtitle,language learning,education,video player,captions,English,Japanese,study
+
+## Promotional Text
+**Character Limit: 170**
+
+Master languages with YouTube videos. Synced subtitles, tap-to-jump, playback control, and loop repeat make learning natural and effective.
+
+## Description
+**Character Limit: 4,000**
+
 Verse is a powerful YouTube subtitle player designed for language learners and anyone who wants to follow along with video content more effectively.
 
 KEY FEATURES
