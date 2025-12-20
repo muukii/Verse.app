@@ -162,6 +162,16 @@ final class PlayerModel {
     repeatEndTime = nil
   }
 
+  /// Clears the repeat start point
+  func clearRepeatStart() {
+    repeatStartTime = nil
+  }
+
+  /// Clears the repeat end point
+  func clearRepeatEnd() {
+    repeatEndTime = nil
+  }
+
   /// Checks if current time has passed the repeat end point and returns the start time if so.
   /// Only triggers when looping is enabled and both repeat points are set.
   func checkRepeatLoop() -> Double? {

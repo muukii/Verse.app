@@ -5,9 +5,9 @@
 //  Created by Hiroshi Kimura on 2025/12/07.
 //
 
+import Components
 import SwiftUI
 import SwiftUIRingSlider
-import Components
 
 // MARK: - PlayerControls
 
@@ -25,17 +25,34 @@ struct PlayerControls: View {
       PlaybackButtonsControl(model: model)
         .padding(.top, 8)
 
-      bottomControlsSection
-        .padding(.top, 8)
-        .padding(.bottom, 16)
-        .animation(.smooth(duration: 0.3), value: controlsMode)
+      ZStack {
+        switch controlsMode {
+        case .normal:
+          NormalModeControls(
+            model: model,
+            onEnterRepeatMode: { controlsMode = .repeatSetup }
+          )
+          .transition(.opacity.combined(with: .scale(scale: 0.95)))
+
+        case .repeatSetup:
+          RepeatSetupControls(
+            model: model,
+            onDone: { controlsMode = .normal }
+          )
+          .transition(.opacity.combined(with: .move(edge: .bottom)))
+        }
+      }
+      .padding(.top, 8)
+      .padding(.bottom, 16)
     }
+    .animation(.smooth(duration: 0.3), value: controlsMode)
+
   }
-  
+
   private struct ProgressSectionWrapper: View {
     let model: PlayerModel
 
-    var body: some View {     
+    var body: some View {
       ProgressSection(
         currentTime: model.currentTime,
         displayTime: model.displayTime,
@@ -45,28 +62,10 @@ struct PlayerControls: View {
     }
   }
 
-  @ViewBuilder
-  private var bottomControlsSection: some View {
-    switch controlsMode {
-    case .normal:
-      NormalModeControls(
-        model: model,
-        onEnterRepeatMode: { controlsMode = .repeatSetup }
-      )
-      .transition(.opacity.combined(with: .scale(scale: 0.95)))
-
-    case .repeatSetup:
-      RepeatSetupControls(
-        model: model,
-        onDone: { controlsMode = .normal }
-      )
-      .transition(.opacity.combined(with: .move(edge: .bottom)))
-    }
-  }
 }
 
 extension PlayerControls {
-  
+
   // MARK: - ProgressSection
 
   struct ProgressSection: View {
@@ -133,25 +132,27 @@ extension PlayerControls {
       }
     }
   }
-  
+
   // MARK: - PlaybackButtonsControl
 
   struct PlaybackButtonsControl: View {
     let model: PlayerModel
 
-    @AppStorage("backwardSeekMode") private var backwardSeekMode: SeekMode = .seconds3
-    @AppStorage("forwardSeekMode") private var forwardSeekMode: SeekMode = .seconds3
-    
+    @AppStorage("backwardSeekMode") private var backwardSeekMode: SeekMode =
+      .seconds3
+    @AppStorage("forwardSeekMode") private var forwardSeekMode: SeekMode =
+      .seconds3
+
     private struct JumpButton: View {
-      
-      let model: PlayerModel      
+
+      let model: PlayerModel
       let direction: SeekDirection
       @Binding var mode: SeekMode
-      
+
       var body: some View {
-        Button {          
+        Button {
           switch direction {
-          case .backward:            
+          case .backward:
             model.backward(how: mode)
           case .forward:
             model.forward(how: mode)
@@ -165,13 +166,13 @@ extension PlayerControls {
         .contextMenu {
           seekModeMenu(
             currentMode: mode,
-            onChange: { 
+            onChange: {
               mode = $0
             }
           )
         }
       }
-      
+
       @ViewBuilder
       private func seekModeMenu(
         currentMode: SeekMode,
@@ -190,12 +191,16 @@ extension PlayerControls {
           }
         }
       }
-            
+
       @ViewBuilder
-      private func seekIcon(direction: SeekDirection, mode: SeekMode) -> some View {
+      private func seekIcon(direction: SeekDirection, mode: SeekMode)
+        -> some View
+      {
         if mode.isSubtitleBased {
           // Subtitle-based icon
-          let symbolName = direction == .backward ? "backward.frame.fill" : "forward.frame.fill"
+          let symbolName =
+            direction == .backward
+            ? "backward.frame.fill" : "forward.frame.fill"
           Image(systemName: symbolName)
             .font(.system(size: 24))
             .foregroundStyle(.primary)
@@ -232,7 +237,7 @@ extension PlayerControls {
           }
         }
       }
-     
+
     }
 
     var body: some View {
@@ -247,24 +252,26 @@ extension PlayerControls {
           .frame(maxWidth: .infinity, alignment: .trailing)
 
         HStack(spacing: 32) {
-          
+
           JumpButton(
             model: model,
             direction: .backward,
             mode: $backwardSeekMode
           )
-         
-          Button { model.togglePlayPause() } label: {
+
+          Button {
+            model.togglePlayPause()
+          } label: {
             Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
               .font(.system(size: 32))
           }
-          
+
           JumpButton(
             model: model,
             direction: .forward,
             mode: $forwardSeekMode
           )
-          
+
         }
         .tint(Color.primary)
       }
@@ -276,20 +283,20 @@ extension PlayerControls {
     }
 
   }
-  
+
   // MARK: - SpeedControls
-  
+
   struct SpeedControls: View {
     let playbackRate: Double
     let onRateChange: (Double) -> Void
-    
+
     private let availableRates: [Double] = [
       0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0,
     ]
-    
+
     var body: some View {
       HStack(spacing: 8) {
-        
+
         Menu {
           ForEach(availableRates, id: \.self) { rate in
             Button {
@@ -309,7 +316,7 @@ extension PlayerControls {
               .font(.system(size: 17, weight: .bold, design: .rounded))
               .padding(.horizontal, 8)
               .padding(.vertical, 4)
-            
+
             Text(Image.init(systemName: "multiply"))
               .font(.system(size: 11, weight: .bold, design: .rounded))
           }
@@ -318,7 +325,7 @@ extension PlayerControls {
         .buttonStyle(.plain)
       }
     }
-    
+
     private func formatRate(_ rate: Double) -> String {
       if rate == 1.0 {
         return "1"
@@ -329,12 +336,12 @@ extension PlayerControls {
       }
     }
   }
-  
+
   // MARK: - LoopControl
-  
+
   struct LoopControl: View {
     let model: PlayerModel
-    
+
     var body: some View {
       Button {
         model.toggleLoop()
@@ -346,123 +353,131 @@ extension PlayerControls {
 
     }
   }
-  
+
   // MARK: - ControlsMode
-  
+
   enum ControlsMode {
     case normal
     case repeatSetup
   }
-  
+
   // MARK: - RepeatEntryButton
-  
+
   struct RepeatEntryButton: View {
     let isActive: Bool
     let hasRepeatPoints: Bool
     let onTap: () -> Void
-    
+
     var body: some View {
       Button(action: onTap) {
         Image(systemName: "point.forward.to.point.capsulepath.fill")
       }
     }
   }
-  
+
   // MARK: - RepeatSetupControls
-  
+
   struct RepeatSetupControls: View {
     let model: PlayerModel
     let onDone: () -> Void
-    
-    @State private var startValue: Double = 0
-    @State private var endValue: Double = 0
-    
-    var body: some View {
-      VStack(spacing: 12) {
-        // Header row
-        HStack {
-          Spacer()
-          Button("Done", action: onDone)
-        }
-        
-        // A-B RingSlider row
-        HStack(spacing: 24) {
-          RingSliderPointControl(
-            labelImage: Image(systemName: "chevron.left.to.line"),
-            value: $startValue,
-            duration: model.duration,
-            onSetToCurrent: { model.setRepeatStartToCurrent() },
-            currentButtonImage: Image.init(systemName: "diamond.lefthalf.filled")
-          )
-          
-          RingSliderPointControl(
-            labelImage: Image(systemName: "chevron.right.to.line"),
-            value: $endValue,
-            duration: model.duration,
-            onSetToCurrent: { model.setRepeatEndToCurrent() },
-            currentButtonImage: Image.init(systemName: "diamond.righthalf.filled")
-          )
-        }
-        
-        // Actions row
-        HStack(spacing: 16) {
-          if model.repeatStartTime != nil || model.repeatEndTime != nil {
-            Button {
-              model.clearRepeat()
-            } label: {
-              Label("Clear", systemImage: "xmark.circle")
-                .font(.subheadline)
-            }
-            .buttonStyle(.bordered)
-          }
 
-          Spacer()
+    @State private var startValue: Double?
+    @State private var endValue: Double?
+
+    var body: some View {
+      // A-B RingSlider row
+      HStack(spacing: 24) {
+        RingSliderPointControl(
+          labelImage: Image(systemName: "chevron.left.to.line"),
+          value: $startValue,
+          duration: model.duration,
+          onSetToCurrent: { model.setRepeatStartToCurrent() },        
+          onClear: { model.clearRepeatStart() }
+        )
+
+        // Done button in center
+        Button(action: onDone) {
+          Image(systemName: "chevron.down")
         }
+        .frame(maxHeight: .infinity, alignment: .bottom)
+
+        RingSliderPointControl(
+          labelImage: Image(systemName: "chevron.right.to.line"),
+          value: $endValue,
+          duration: model.duration,
+          onSetToCurrent: { model.setRepeatEndToCurrent() },
+          onClear: { model.clearRepeatEnd() }
+        )
       }
       .padding(.horizontal, 16)
       .onAppear {
-        // Initialize with model values or defaults
-        startValue = model.repeatStartTime ?? 0
-        endValue = model.repeatEndTime ?? model.duration
+        startValue = model.repeatStartTime
+        endValue = model.repeatEndTime
       }
       .onChange(of: startValue) { _, newValue in
-        model.repeatStartTime = newValue
+        // Ensure A < B: clamp start to not exceed end
+        if let newValue, let end = endValue, newValue > end {
+          startValue = end
+        } else {
+          model.repeatStartTime = newValue
+        }
       }
       .onChange(of: endValue) { _, newValue in
-        model.repeatEndTime = newValue
+        // Ensure A < B: clamp end to not go below start
+        if let newValue, let start = startValue, newValue < start {
+          endValue = start
+        } else {
+          model.repeatEndTime = newValue
+        }
       }
       .onChange(of: model.repeatStartTime) { _, newValue in
-        if let value = newValue, value != startValue {
-          startValue = value
+        if newValue != startValue {
+          startValue = newValue
         }
       }
       .onChange(of: model.repeatEndTime) { _, newValue in
-        if let value = newValue, value != endValue {
-          endValue = value
+        if newValue != endValue {
+          endValue = newValue
         }
       }
     }
-    
-    
+
     // MARK: - RingSliderPointControl
-    
+
     struct RingSliderPointControl: View {
       let labelImage: Image
-      @Binding var value: Double
+      @Binding var value: Double?
       let duration: Double
       let onSetToCurrent: () -> Void
-      let currentButtonImage: Image
-      
+      let onClear: () -> Void
+
+      private var isSet: Bool { value != nil }
+
+      private var timeText: String {
+        if let value {
+          return formatTime(value)
+        } else {
+          return "--:--.---"
+        }
+      }
+
+      private var ringBinding: Binding<Double> {
+        Binding(
+          get: { value ?? 0 },
+          set: { value = $0 }
+        )
+      }
+
       var body: some View {
         VStack(spacing: 8) {
-          
-//          labelImage
-          
-          Text(formatTime(value))
+
+          //          labelImage
+
+          Text(timeText)
             .font(.system(.caption, design: .rounded, weight: .medium))
-          
+
           RingSlider(
-            value: $value,
+            value: ringBinding,
             stride: 0.25,
             valueRange: 0...max(1, duration),
             primaryTickMark: {
@@ -480,84 +495,100 @@ extension PlayerControls {
           )
           .frame(height: 60)
           .foregroundStyle(.primary)
-          
-          Button {
-            onSetToCurrent()
-          } label: {
-            currentButtonImage
+
+          HStack(spacing: 8) {
+           
+            if isSet {
+              Button {
+                onClear()
+              } label: {
+                Image(systemName: "xmark")
+              }
+              .tint(.red)
+              .buttonStyle(.bordered)
+            } else {
+              Button {
+                onSetToCurrent()
+              } label: {
+                Image(systemName: "pin")
+              }
+              .tint(.secondary)
+            }
           }
-          .tint(.secondary)
-          .buttonStyle(.bordered)
         }
         .padding(.vertical, 8)
       }
-      
+
       private func formatTime(_ seconds: Double) -> String {
         let totalSeconds = Int(seconds)
         let hours = totalSeconds / 3600
         let minutes = (totalSeconds % 3600) / 60
         let secs = totalSeconds % 60
         let millis = Int((seconds - Double(totalSeconds)) * 1000)
-        
+
         if hours > 0 {
-          return String(format: "%d:%02d:%02d.%03d", hours, minutes, secs, millis)
+          return String(
+            format: "%d:%02d:%02d.%03d",
+            hours,
+            minutes,
+            secs,
+            millis
+          )
         } else {
           return String(format: "%d:%02d.%03d", minutes, secs, millis)
         }
       }
     }
-    
+
   }
-  
+
   // MARK: - NormalModeControls
-  
+
   struct NormalModeControls: View {
     let model: PlayerModel
     let onEnterRepeatMode: () -> Void
 
     var body: some View {
       HStack(spacing: 24) {
-      
-
-        Divider().frame(height: 24)
 
         RepeatEntryButton(
           isActive: model.isLoopingEnabled && model.canRepeat,
-          hasRepeatPoints: model.repeatStartTime != nil || model.repeatEndTime != nil,
+          hasRepeatPoints: model.repeatStartTime != nil
+            || model.repeatEndTime != nil,
           onTap: onEnterRepeatMode
         )
       }
     }
   }
-  
+
 }
 
 #if DEBUG
 
-import SwiftData
-#Preview {
-  let container = try! ModelContainer(
-    for: VideoItem.self,
-    configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-  )
-  let downloadManager = DownloadManager(modelContainer: container)
-  let historyService = VideoHistoryService(
-    modelContext: container.mainContext,
-    downloadManager: downloadManager
-  )
+  import SwiftData
+  #Preview {
+    let container = try! ModelContainer(
+      for: VideoItem.self,
+      configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+    )
+    let downloadManager = DownloadManager(modelContainer: container)
+    let historyService = VideoHistoryService(
+      modelContext: container.mainContext,
+      downloadManager: downloadManager
+    )
 
-  let item = VideoItem(
-    videoID: "oRc4sndVaWo",
-    url: "https://www.youtube.com/watch?v=oRc4sndVaWo",
-    title: "Preview Video"
-  )
+    let item = VideoItem(
+      videoID: "oRc4sndVaWo",
+      url: "https://www.youtube.com/watch?v=oRc4sndVaWo",
+      title: "Preview Video"
+    )
 
-  return NavigationStack {
-    PlayerView(videoItem: item)
+    return NavigationStack {
+      PlayerView(videoItem: item)
+    }
+    .modelContainer(container)
+    .environment(downloadManager)
+    .environment(historyService)
   }
-  .modelContainer(container)
-  .environment(downloadManager)
-  .environment(historyService)
-}
 
 #endif
