@@ -381,8 +381,6 @@ extension PlayerControls {
       VStack(spacing: 12) {
         // Header row
         HStack {
-          Text("Set A-B Repeat")
-            .font(.headline)
           Spacer()
           Button("Done", action: onDone)
         }
@@ -417,28 +415,8 @@ extension PlayerControls {
             }
             .buttonStyle(.bordered)
           }
-          
+
           Spacer()
-          
-          if model.isRepeating {
-            Button {
-              model.toggleRepeat()
-            } label: {
-              Label("Repeating", systemImage: "repeat.circle.fill")
-                .font(.subheadline)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.orange)
-          } else {
-            Button {
-              model.toggleRepeat()
-            } label: {
-              Label("Start Repeat", systemImage: "repeat.circle")
-                .font(.subheadline)
-            }
-            .buttonStyle(.bordered)
-            .disabled(!model.canToggleRepeat)
-          }
         }
       }
       .padding(.horizontal, 16)
@@ -478,7 +456,7 @@ extension PlayerControls {
       var body: some View {
         VStack(spacing: 8) {
           
-          labelImage
+//          labelImage
           
           Text(formatTime(value))
             .font(.system(.caption, design: .rounded, weight: .medium))
@@ -544,7 +522,7 @@ extension PlayerControls {
         Divider().frame(height: 24)
 
         RepeatEntryButton(
-          isActive: model.isRepeating,
+          isActive: model.isLoopingEnabled && model.canRepeat,
           hasRepeatPoints: model.repeatStartTime != nil || model.repeatEndTime != nil,
           onTap: onEnterRepeatMode
         )

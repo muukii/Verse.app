@@ -101,12 +101,11 @@ final class PlayerModel {
   /// End time for A-B repeat
   var repeatEndTime: Double?
 
-  /// Whether A-B repeat is active
-  var isRepeating: Bool = false
+  // MARK: - Loop State
 
-  // MARK: - Full Video Loop State
-
-  /// Whether the video should loop when it reaches the end
+  /// Whether looping is enabled.
+  /// When repeat points are set, loops within the A-B range.
+  /// When no repeat points, loops the entire video.
   var isLoopingEnabled: Bool = true
 
   // MARK: - Subtitle State
@@ -140,8 +139,8 @@ final class PlayerModel {
     isDraggingSlider ? dragTime : currentTime.value
   }
 
-  /// Whether A-B repeat can be toggled (both points are set)
-  var canToggleRepeat: Bool {
+  /// Whether A-B repeat is possible (both points are set)
+  var canRepeat: Bool {
     repeatStartTime != nil && repeatEndTime != nil
   }
 
@@ -150,39 +149,35 @@ final class PlayerModel {
   /// Sets the A point for repeat to current time
   func setRepeatStartToCurrent() {
     repeatStartTime = currentTime.value
-    if repeatEndTime == nil {
-      isRepeating = false
-    } else if let end = repeatEndTime, currentTime.value < end {
-      isRepeating = true
-    }
   }
 
   /// Sets the B point for repeat to current time
   func setRepeatEndToCurrent() {
     repeatEndTime = currentTime.value
-    if repeatStartTime == nil {
-      isRepeating = false
-    } else if let start = repeatStartTime, currentTime.value > start {
-      isRepeating = true
-    }
   }
 
-  /// Clears all repeat state
+  /// Clears all repeat points
   func clearRepeat() {
     repeatStartTime = nil
     repeatEndTime = nil
-    isRepeating = false
   }
 
-  /// Toggles repeat if both A and B points are set
-  func toggleRepeat() {
-    guard canToggleRepeat else { return }
-    isRepeating.toggle()
-  }
-
-  /// Checks if current time has passed the repeat end point and returns the start time if so
+  /// Checks if current time has passed the repeat end point and returns the start time if so.
+  /// Only triggers when looping is enabled and both repeat points are set.
   func checkRepeatLoop() -> Double? {
-    guard isRepeating,
+    guard isLoopingEnabled,
+          let startTime = repeatStartTime,
+          let endTime = repeatEndTime,
+          currentTime.value >= endTime else {
+      return nil
+    }
+    return startTime
+  }
+
+  /// Checks if playback should stop at repeat end point (when looping is disabled).
+  /// Returns the start time to seek to before pausing, or nil if should not stop.
+  func checkRepeatEndAndStop() -> Double? {
+    guard !isLoopingEnabled,
           let startTime = repeatStartTime,
           let endTime = repeatEndTime,
           currentTime.value >= endTime else {
@@ -487,6 +482,12 @@ final class PlayerModel {
         // Check A-B repeat loop
         if let loopStartTime = self.checkRepeatLoop() {
           await self.controller?.seek(to: loopStartTime)
+        }
+        // Check if should stop at repeat end (when looping disabled)
+        else if let startTime = self.checkRepeatEndAndStop() {
+          await self.controller?.seek(to: startTime)
+          await self.controller?.pause()
+          self.isPlaying = false
         }
         // Check end-of-video loop
         else if let loopStartTime = self.checkEndOfVideoLoop() {
