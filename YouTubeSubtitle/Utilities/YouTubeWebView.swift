@@ -9,13 +9,17 @@ import SwiftUI
 import WebKit
 import AuthenticationServices
 
+#if os(macOS)
+import AppKit
+#endif
+
 struct YouTubeWebView: View {
   let onOpenPlayer: (YouTubeContentID) -> Void
 
   @State private var webView: WKWebView?
   @State private var currentURL: URL?
-  #if os(iOS)
   @State private var isAuthenticating = false
+  #if os(iOS)
   @State private var authSession: ASWebAuthenticationSession?
   @State private var presentationContext: WebAuthPresentationContext?
   #endif
@@ -117,6 +121,13 @@ struct YouTubeWebView: View {
         .disabled(webView?.canGoForward != true)
 
         Button {
+          startGoogleSignIn()
+        } label: {
+          Image(systemName: "person.circle")
+        }
+        .disabled(isAuthenticating)
+
+        Button {
           webView?.reload()
         } label: {
           Image(systemName: "arrow.clockwise")
@@ -126,9 +137,9 @@ struct YouTubeWebView: View {
     #endif
   }
 
-  #if os(iOS)
   private func startGoogleSignIn() {
-    // YouTube's sign in URL
+    #if os(iOS)
+    // YouTube's sign in URL for mobile
     guard let authURL = URL(string: "https://accounts.google.com/ServiceLogin?continue=https://m.youtube.com") else {
       return
     }
@@ -160,8 +171,31 @@ struct YouTubeWebView: View {
 
     authSession = session
     session.start()
+    #else
+    // YouTube's sign in URL for desktop
+    guard let authURL = URL(string: "https://accounts.google.com/ServiceLogin?continue=https://www.youtube.com") else {
+      return
+    }
+
+    isAuthenticating = true
+
+    let session = ASWebAuthenticationSession(
+      url: authURL,
+      callbackURLScheme: nil  // nil means it will complete when user navigates back
+    ) { [self] callbackURL, error in
+      isAuthenticating = false
+
+      // Reload the webview to pick up the new session
+      webView?.reload()
+    }
+
+    // Use shared Safari cookies (not ephemeral)
+    session.prefersEphemeralWebBrowserSession = false
+
+    // Start the session
+    session.start()
+    #endif
   }
-  #endif
 }
 
 #if os(iOS)
@@ -192,10 +226,18 @@ private struct YouTubeWebViewRepresentable: UIViewRepresentable {
     configuration.allowsInlineMediaPlayback = true
     configuration.mediaTypesRequiringUserActionForPlayback = []
 
+    // Share cookies with Safari to support authentication
+    configuration.websiteDataStore = .default()
+
     let webView = WKWebView(frame: .zero, configuration: configuration)
     webView.navigationDelegate = context.coordinator
     webView.uiDelegate = context.coordinator
     webView.allowsBackForwardNavigationGestures = true
+
+    // Set a realistic User-Agent to reduce bot detection
+    // This mimics Safari on iOS
+    webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
     context.coordinator.observeURL(of: webView)
 
     // Load YouTube mobile
@@ -225,10 +267,18 @@ private struct YouTubeWebViewRepresentable: NSViewRepresentable {
     let configuration = WKWebViewConfiguration()
     configuration.mediaTypesRequiringUserActionForPlayback = []
 
+    // Share cookies with Safari to support authentication
+    configuration.websiteDataStore = .default()
+
     let webView = WKWebView(frame: .zero, configuration: configuration)
     webView.navigationDelegate = context.coordinator
     webView.uiDelegate = context.coordinator
     webView.allowsBackForwardNavigationGestures = true
+
+    // Set a realistic User-Agent to reduce bot detection
+    // This mimics Safari on macOS
+    webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+
     context.coordinator.observeURL(of: webView)
 
     // Load YouTube
@@ -279,7 +329,6 @@ private class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     return nil
   }
 
-  #if os(iOS)
   // Handle JavaScript alerts
   func webView(
     _ webView: WKWebView,
@@ -287,6 +336,7 @@ private class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     initiatedByFrame frame: WKFrameInfo,
     completionHandler: @escaping () -> Void
   ) {
+    #if os(iOS)
     let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
       completionHandler()
@@ -295,6 +345,14 @@ private class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
       .compactMap { $0 as? UIWindowScene }
       .first?.windows.first?.rootViewController?
       .present(alert, animated: true)
+    #else
+    let alert = NSAlert()
+    alert.messageText = message
+    alert.alertStyle = .informational
+    alert.addButton(withTitle: "OK")
+    alert.runModal()
+    completionHandler()
+    #endif
   }
 
   // Handle JavaScript confirms
@@ -304,6 +362,7 @@ private class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     initiatedByFrame frame: WKFrameInfo,
     completionHandler: @escaping (Bool) -> Void
   ) {
+    #if os(iOS)
     let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
       completionHandler(false)
@@ -315,6 +374,15 @@ private class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
       .compactMap { $0 as? UIWindowScene }
       .first?.windows.first?.rootViewController?
       .present(alert, animated: true)
+    #else
+    let alert = NSAlert()
+    alert.messageText = message
+    alert.alertStyle = .informational
+    alert.addButton(withTitle: "OK")
+    alert.addButton(withTitle: "Cancel")
+    let response = alert.runModal()
+    completionHandler(response == .alertFirstButtonReturn)
+    #endif
   }
 
   // Handle JavaScript text input
@@ -325,6 +393,7 @@ private class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
     initiatedByFrame frame: WKFrameInfo,
     completionHandler: @escaping (String?) -> Void
   ) {
+    #if os(iOS)
     let alert = UIAlertController(title: nil, message: prompt, preferredStyle: .alert)
     alert.addTextField { textField in
       textField.text = defaultText
@@ -339,8 +408,25 @@ private class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
       .compactMap { $0 as? UIWindowScene }
       .first?.windows.first?.rootViewController?
       .present(alert, animated: true)
+    #else
+    let alert = NSAlert()
+    alert.messageText = prompt
+    alert.alertStyle = .informational
+    alert.addButton(withTitle: "OK")
+    alert.addButton(withTitle: "Cancel")
+
+    let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+    textField.stringValue = defaultText ?? ""
+    alert.accessoryView = textField
+
+    let response = alert.runModal()
+    if response == .alertFirstButtonReturn {
+      completionHandler(textField.stringValue)
+    } else {
+      completionHandler(nil)
+    }
+    #endif
   }
-  #endif
 }
 
 #Preview {
