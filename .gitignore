@@ -89,3 +89,8 @@ iOSInjectionProject/
 
 .DS_Store
 vendor
+
+# Tuist
+Derived/
+*.xcodeproj
+*.xcworkspace
