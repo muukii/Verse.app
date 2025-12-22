@@ -1,0 +1,92 @@
+import ProjectDescription
+import ProjectDescriptionHelpers
+
+// MARK: - Info.plist
+
+let appInfoPlist: InfoPlist = .extendingDefault(with: [
+  "ITSAppUsesNonExemptEncryption": false,
+  "BGTaskSchedulerPermittedIdentifiers": .array([
+    "app.muukii.verse.download",
+    "app.muukii.verse.download.*",
+  ]),
+  "NSMicrophoneUsageDescription":
+    "This app uses the microphone for real-time speech transcription.",
+  "NSSpeechRecognitionUsageDescription":
+    "This app uses speech recognition to convert your voice to text.",
+  "UIBackgroundModes": .array(["processing", "fetch"]),
+])
+
+// MARK: - Project
+
+let project = Project(
+  name: "YouTubeSubtitle",
+  organizationName: AppConstants.organizationName,
+  settings: .settings(
+    base: .base,
+    configurations: [
+      .debug(name: "Debug"),
+      .release(name: "Release"),
+    ]
+  ),
+  targets: [
+    // MARK: - Main App Target
+    .target(
+      name: "YouTubeSubtitle",
+      destinations: .app,
+      product: .app,
+      bundleId: AppConstants.appBundleId,
+      deploymentTargets: .app,
+      infoPlist: appInfoPlist,
+      sources: ["YouTubeSubtitle/**/*.swift"],
+      resources: [
+        "YouTubeSubtitle/Assets.xcassets",
+        "YouTubeSubtitle/Verse.icon/**",
+      ],
+      entitlements: .file(path: "YouTubeSubtitle/YouTubeSubtitle.entitlements"),
+      dependencies: [
+        // Internal target
+        .target(name: "Components"),
+
+        // External SPM dependencies
+        .external(name: "YouTubeKit"),
+        .external(name: "YouTubePlayerKit"),
+        .external(name: "YoutubeTranscript"),
+        .external(name: "ObjectEdge"),
+        .external(name: "SwiftUIRingSlider"),
+        .external(name: "TypedIdentifier"),
+        .external(name: "AsyncMultiplexImage"),
+        .external(name: "AsyncMultiplexImage-Nuke"),
+        .external(name: "StateGraph"),
+
+        // Local package
+        .external(name: "AnyLanguageModelMLX"),
+      ],
+      settings: .settings(
+        base: .appTarget,
+        configurations: [
+          .debug(name: "Debug"),
+          .release(name: "Release"),
+        ]
+      )
+    ),
+
+    // MARK: - Components Framework Target
+    .target(
+      name: "Components",
+      destinations: .framework,
+      product: .staticFramework,
+      bundleId: "app.muukii.Components",
+      deploymentTargets: .app,
+      infoPlist: .default,
+      sources: ["Components/**/*.swift"],
+      dependencies: [],
+      settings: .settings(
+        base: .frameworkTarget,
+        configurations: [
+          .debug(name: "Debug"),
+          .release(name: "Release"),
+        ]
+      )
+    ),
+  ]
+)
