@@ -107,6 +107,22 @@ struct SettingsView: View {
           }
 
           NavigationLink {
+            PlaylistListView()
+          } label: {
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Playlists")
+                Text("Organize videos into collections")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            } icon: {
+              Image(systemName: "list.bullet.rectangle")
+                .foregroundStyle(.orange)
+            }
+          }
+
+          NavigationLink {
             RealtimeTranscriptionView()
           } label: {
             Label {

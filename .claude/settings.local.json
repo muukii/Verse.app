@@ -52,7 +52,9 @@
       "Bash(git restore:*)",
       "Bash(git fetch:*)",
       "Bash(git merge-base:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(git mv:*)",
+      "Bash(git -C /Users/hiroshi.kimura/.ghq/github.com/muukii/YouTubeSubtitle status)"
     ],
     "deny": [],
     "ask": []

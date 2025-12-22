@@ -13,7 +13,7 @@ import AsyncMultiplexImage_Nuke
 
 struct HomeView: View {
   @Environment(\.modelContext) private var modelContext
-  @Environment(VideoHistoryService.self) private var historyService
+  @Environment(VideoItemService.self) private var historyService
   @Environment(VocabularyService.self) private var vocabularyService
   @Environment(DownloadManager.self) private var downloadManager
   @Query(sort: \VideoItem.timestamp, order: .reverse) private var history: [VideoItem]
@@ -22,6 +22,7 @@ struct HomeView: View {
   @State private var showWebView: Bool = false
   @State private var showSettings: Bool = false
   @State private var showURLInput: Bool = false
+  @State private var videoToAddToPlaylist: VideoItem?
   @ObservedObject private var deepLinkManager = DeepLinkManager.shared
 
   @Namespace private var heroNamespace
@@ -56,6 +57,13 @@ struct HomeView: View {
                 )
               }
               .buttonStyle(.plain)
+              .contextMenu {
+                Button {
+                  videoToAddToPlaylist = item
+                } label: {
+                  Label("Add to Playlist", systemImage: "text.badge.plus")
+                }
+              }
             }
             .onDelete { indexSet in
               Task {
@@ -165,6 +173,9 @@ struct HomeView: View {
         URLInputSheet { urlText in
           loadURL(urlText)
         }
+      }
+      .sheet(item: $videoToAddToPlaylist) { video in
+        AddToPlaylistSheet(video: video)
       }
       .onDisappear { 
         

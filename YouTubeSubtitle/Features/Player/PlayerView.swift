@@ -21,7 +21,7 @@ struct PlayerView: View {
   @Environment(\.modelContext) private var modelContext
   @Environment(\.scenePhase) private var scenePhase
   @Environment(DownloadManager.self) private var downloadManager
-  @Environment(VideoHistoryService.self) private var historyService
+  @Environment(VideoItemService.self) private var historyService
   @ObjectEdge private var model = PlayerModel()
 
   // Subtitle state
@@ -766,7 +766,7 @@ enum PlaybackSource {
     configurations: ModelConfiguration(isStoredInMemoryOnly: true)
   )
   let downloadManager = DownloadManager(modelContainer: container)
-  let historyService = VideoHistoryService(
+  let historyService = VideoItemService(
     modelContext: container.mainContext,
     downloadManager: downloadManager
   )

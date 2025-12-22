@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 /// Service for managing vocabulary items with CRUD operations.
-/// Follows the existing pattern from VideoHistoryService.
+/// Follows the existing pattern from VideoItemService.
 @Observable
 @MainActor
 final class VocabularyService {

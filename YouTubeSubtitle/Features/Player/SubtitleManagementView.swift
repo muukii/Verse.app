@@ -29,7 +29,7 @@ struct SubtitleManagementView: View {
   @State private var showError = false
 
   @Environment(\.modelContext) private var modelContext
-  @Environment(VideoHistoryService.self) private var historyService
+  @Environment(VideoItemService.self) private var historyService
 
   var body: some View {
     Menu {
@@ -184,7 +184,7 @@ struct SubtitleManagementView: View {
       do {
         // Find the history item
         guard let historyItem = try historyService.findItem(videoID: videoID) else {
-          throw VideoHistoryError.itemNotFound
+          throw VideoItemError.itemNotFound
         }
 
         // Delete local video using service

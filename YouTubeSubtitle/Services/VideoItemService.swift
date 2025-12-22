@@ -1,5 +1,5 @@
 //
-//  VideoHistoryService.swift
+//  VideoItemService.swift
 //  YouTubeSubtitle
 //
 //  Created by Claude on 2025/12/06.
@@ -12,7 +12,7 @@ import SwiftData
 /// Centralizes operations on VideoItem to ensure proper cleanup of files and data.
 @Observable
 @MainActor
-final class VideoHistoryService {
+final class VideoItemService {
 
   private let modelContext: ModelContext
   private let downloadManager: DownloadManager
@@ -135,7 +135,7 @@ final class VideoHistoryService {
     )
 
     guard let item = try modelContext.fetch(descriptor).first else {
-      throw VideoHistoryError.itemNotFound
+      throw VideoItemError.itemNotFound
     }
 
     item.cachedSubtitles = subtitles
@@ -156,7 +156,7 @@ final class VideoHistoryService {
     )
 
     guard let item = try modelContext.fetch(descriptor).first else {
-      throw VideoHistoryError.itemNotFound
+      throw VideoItemError.itemNotFound
     }
 
     item.lastPlaybackPosition = position
@@ -174,11 +174,100 @@ final class VideoHistoryService {
     )
     return try modelContext.fetch(descriptor).first
   }
+
+  // MARK: - Playlist Management
+
+  /// Create a new playlist with the given name.
+  @discardableResult
+  func createPlaylist(name: String) throws -> Playlist {
+    let playlist = Playlist(name: name)
+    modelContext.insert(playlist)
+    try modelContext.save()
+    return playlist
+  }
+
+  /// Update a playlist's name.
+  func updatePlaylist(_ playlist: Playlist, name: String) throws {
+    playlist.name = name
+    playlist.updatedAt = Date()
+    try modelContext.save()
+  }
+
+  /// Delete a playlist and all its entries.
+  func deletePlaylist(_ playlist: Playlist) throws {
+    modelContext.delete(playlist)
+    try modelContext.save()
+  }
+
+  // MARK: - Playlist Entry Management
+
+  /// Add a video to a playlist.
+  /// Returns true if added, false if already in playlist.
+  @discardableResult
+  func addVideo(_ video: VideoItem, to playlist: Playlist) throws -> Bool {
+    let isAlreadyInPlaylist = playlist.entries.contains { $0.video?.id == video.id }
+    guard !isAlreadyInPlaylist else { return false }
+
+    let order = playlist.entries.count
+    let entry = PlaylistEntry(playlist: playlist, video: video, order: order)
+
+    modelContext.insert(entry)
+    playlist.updatedAt = Date()
+    try modelContext.save()
+
+    return true
+  }
+
+  /// Remove a video from a playlist.
+  func removeVideo(_ video: VideoItem, from playlist: Playlist) throws {
+    guard let entry = playlist.entries.first(where: { $0.video?.id == video.id }) else {
+      return
+    }
+
+    let removedOrder = entry.order
+    modelContext.delete(entry)
+
+    for remainingEntry in playlist.entries where remainingEntry.order > removedOrder {
+      remainingEntry.order -= 1
+    }
+
+    playlist.updatedAt = Date()
+    try modelContext.save()
+  }
+
+  /// Reorder videos in a playlist (for drag and drop).
+  func reorderVideos(in playlist: Playlist, from source: IndexSet, to destination: Int) throws {
+    var entries = playlist.entries.sorted { $0.order < $1.order }
+
+    let itemsToMove = source.map { entries[$0] }
+
+    for index in source.sorted().reversed() {
+      entries.remove(at: index)
+    }
+
+    let adjustedDestination = destination - source.filter { $0 < destination }.count
+
+    for (offset, item) in itemsToMove.enumerated() {
+      entries.insert(item, at: adjustedDestination + offset)
+    }
+
+    for (index, entry) in entries.enumerated() {
+      entry.order = index
+    }
+
+    playlist.updatedAt = Date()
+    try modelContext.save()
+  }
+
+  /// Check if a video is in a specific playlist.
+  func isVideo(_ video: VideoItem, in playlist: Playlist) -> Bool {
+    playlist.entries.contains { $0.video?.id == video.id }
+  }
 }
 
 // MARK: - Error
 
-enum VideoHistoryError: LocalizedError {
+enum VideoItemError: LocalizedError {
   case itemNotFound
 
   var errorDescription: String? {
