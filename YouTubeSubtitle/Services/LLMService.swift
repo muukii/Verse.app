@@ -369,7 +369,7 @@ final class LLMService {
       self.anyLMSession = session
 
       let prompt = buildPrompt(text: text, context: context)
-      let response = try await session.respond(to: prompt)
+      let response = try await session.respond(to: AnyLanguageModel.Prompt(prompt))
       let explanation = response.content
 
       state = .success(explanation)
@@ -388,7 +388,7 @@ final class LLMService {
   }
 
   /// Stream explanation using any LanguageModel backend.
-  /// Note: MLX backend doesn't support streaming, so we use respond() instead.
+  /// Note: MLX backend's streamResponse() is a stub, so we use respond() instead.
   private func streamExplanation(
     model: any AnyLanguageModel.LanguageModel,
     backend: Backend,
@@ -419,14 +419,15 @@ final class LLMService {
 
           let prompt = self.buildPrompt(text: text, context: context)
 
-          // MLX doesn't support streamResponse() - use respond() instead
+          // MLX's streamResponse() is a stub that returns empty immediately
+          // Use respond() for MLX backend instead
           if backend == .mlx {
             print("[LLMService] Using respond() for MLX backend...")
 
             // Check for cancellation before long-running operation
             try Task.checkCancellation()
 
-            let response = try await session.respond(to: prompt)
+            let response = try await session.respond(to: AnyLanguageModel.Prompt(prompt))
 
             // Check for cancellation after receiving response
             try Task.checkCancellation()
@@ -441,7 +442,7 @@ final class LLMService {
             print("[LLMService] Using streamResponse() for Apple Intelligence...")
             var fullContent = ""
 
-            for try await snapshot in session.streamResponse(to: prompt) {
+            for try await snapshot in session.streamResponse(to: AnyLanguageModel.Prompt(prompt)) {
               // Check for cancellation on each chunk
               try Task.checkCancellation()
 

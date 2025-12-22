@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		B0091B4A2EE825DF0077B368 /* StateGraph in Frameworks */ = {isa = PBXBuildFile; productRef = B0091B492EE825DF0077B368 /* StateGraph */; };
-		B0092E942EE873AE0077B368 /* Components.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B0092E872EE873850077B368 /* Components.framework */; };
+		B0092E942EE873AE0077B368 /* Components.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B0092E872EE873850077B368 /* Components.framework */; platformFilter = ios; };
 		B00C03192EE47DEF00FA7361 /* AsyncMultiplexImage in Frameworks */ = {isa = PBXBuildFile; productRef = B00C03182EE47DEF00FA7361 /* AsyncMultiplexImage */; };
 		B00C031B2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = B00C031A2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke */; };
 		B00CF0B12EE43A3700FA7361 /* TypedIdentifier in Frameworks */ = {isa = PBXBuildFile; productRef = B00CF0B02EE43A3700FA7361 /* TypedIdentifier */; };
@@ -271,6 +271,7 @@
 /* Begin PBXTargetDependency section */
 		B0092E972EE873AF0077B368 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
+			platformFilter = ios;
 			target = B0092E862EE873850077B368 /* Components */;
 			targetProxy = B0092E962EE873AF0077B368 /* PBXContainerItemProxy */;
 		};
@@ -532,8 +533,9 @@
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -584,8 +586,9 @@
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;

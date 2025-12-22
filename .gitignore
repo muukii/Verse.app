@@ -91,3 +91,7 @@ iOSInjectionProject/
 vendor
 
 .claude/settings.local.json
+
+# Tuist
+Derived/
+
