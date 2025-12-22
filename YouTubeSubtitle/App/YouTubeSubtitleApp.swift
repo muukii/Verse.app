@@ -26,6 +26,8 @@ struct YouTubeSubtitleApp: App {
       VocabularyItem.self,
       TranscriptionSession.self,
       TranscriptionEntry.self,
+      Playlist.self,
+      PlaylistEntry.self,
     ])
 
     do {

@@ -11,7 +11,7 @@ import SwiftUI
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
   @Environment(DownloadManager.self) private var downloadManager
-  @State private var historyService: VideoHistoryService?
+  @State private var historyService: VideoItemService?
   @State private var vocabularyService: VocabularyService?
 
   var body: some View {
@@ -26,7 +26,7 @@ struct ContentView: View {
     }
     .onAppear {
       if historyService == nil {
-        historyService = VideoHistoryService(
+        historyService = VideoItemService(
           modelContext: modelContext,
           downloadManager: downloadManager
         )

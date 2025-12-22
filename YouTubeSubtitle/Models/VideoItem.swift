@@ -49,6 +49,17 @@ final class VideoItem: TypedIdentifiable {
   @Relationship(deleteRule: .cascade, inverse: \DownloadStateEntity.videoItem)
   var downloadState: DownloadStateEntity?
 
+  // MARK: - Playlist Relationship
+
+  /// Playlist entries that include this video
+  @Relationship(deleteRule: .cascade, inverse: \PlaylistEntry.video)
+  var playlistEntries: [PlaylistEntry] = []
+
+  /// Playlists containing this video
+  var playlists: [Playlist] {
+    playlistEntries.compactMap { $0.playlist }
+  }
+
   // MARK: - Computed Download Properties
 
   /// Whether there is an active download in progress

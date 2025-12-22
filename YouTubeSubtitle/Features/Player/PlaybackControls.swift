@@ -572,7 +572,7 @@ extension PlayerControls {
       configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let downloadManager = DownloadManager(modelContainer: container)
-    let historyService = VideoHistoryService(
+    let historyService = VideoItemService(
       modelContext: container.mainContext,
       downloadManager: downloadManager
     )

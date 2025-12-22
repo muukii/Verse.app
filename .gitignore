@@ -90,7 +90,8 @@ iOSInjectionProject/
 .DS_Store
 vendor
 
+.claude/settings.local.json
+
 # Tuist
 Derived/
-*.xcodeproj
-*.xcworkspace
+
