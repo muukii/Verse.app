@@ -89,3 +89,5 @@ iOSInjectionProject/
 
 .DS_Store
 vendor
+
+.claude/settings.local.json
