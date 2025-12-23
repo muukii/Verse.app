@@ -155,33 +155,12 @@ struct SubtitleListViewContainer: View {
     SubtitleListView(
       cues: cues,
       currentTime: model.currentTime,
-      currentCueID: currentCueID,
+      currentCueID: model.currentCueID,  // Use shared logic from PlayerModel
       isLoading: isLoading,
       transcriptionState: transcriptionState,
       error: error,
       onAction: onAction
     )
-  }
-
-  /// Compute the current cue ID based on currentTime.
-  /// This only changes when the active subtitle changes, not every 500ms.
-  private var currentCueID: Subtitle.Cue.ID? {
-    let currentTimeValue = model.currentTime.value
-    guard !cues.isEmpty else { return nil }
-
-    if let currentIndex = cues.firstIndex(where: {
-      $0.startTime > currentTimeValue
-    }) {
-      if currentIndex > 0 {
-        return cues[currentIndex - 1].id
-      }
-      return nil
-    } else {
-      if let lastCue = cues.last, currentTimeValue >= lastCue.startTime {
-        return lastCue.id
-      }
-      return nil
-    }
   }
 }
 
