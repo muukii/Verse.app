@@ -20,20 +20,28 @@ struct WordExplanationSheet: View {
   @State private var isStreaming: Bool = false
   @State private var streamTask: Task<Void, Never>?
   @State private var showsInstructionViewer: Bool = false
+  @State private var followUpQuestion: String = ""
+  @State private var conversationHistory: [(question: String, answer: String)] = []
 
   var body: some View {
     NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-          // Selected text display
-          selectedTextSection
+      VStack(spacing: 0) {
+        // Main content with explanation and original text
+        ScrollView {
+          VStack(alignment: .leading, spacing: 16) {
+            // Explanation section (moved to top)
+            explanationSection
 
-          Divider()
+            Divider()
 
-          // Explanation section
-          explanationSection
+            // Selected text display (moved to bottom)
+            selectedTextSection
+          }
+          .padding()
         }
-        .padding()
+
+        // Follow-up input section
+        followUpInputSection
       }
       .navigationTitle("Explanation")
       .navigationBarTitleDisplayMode(.inline)
@@ -139,6 +147,65 @@ struct WordExplanationSheet: View {
           errorView(message: message)
         }
       }
+
+      // Show conversation history if there are follow-up exchanges
+      if !conversationHistory.isEmpty {
+        Divider()
+          .padding(.vertical, 8)
+
+        ForEach(Array(conversationHistory.enumerated()), id: \.offset) { index, exchange in
+          VStack(alignment: .leading, spacing: 8) {
+            // Follow-up question
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: "person.circle.fill")
+                .foregroundStyle(.blue)
+              Text(exchange.question)
+                .font(.body)
+            }
+
+            // Follow-up answer
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: "sparkles")
+                .foregroundStyle(.purple)
+              Text(markdownAttributedString(from: exchange.answer))
+                .font(.body)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Color(.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .textSelection(.enabled)
+            }
+          }
+          .padding(.vertical, 4)
+        }
+      }
+    }
+  }
+
+  private var followUpInputSection: some View {
+    VStack(spacing: 0) {
+      Divider()
+
+      HStack(alignment: .bottom, spacing: 8) {
+        TextField("Follow-up question...", text: $followUpQuestion, axis: .vertical)
+          .textFieldStyle(.plain)
+          .padding(8)
+          .background(Color(.secondarySystemBackground))
+          .clipShape(RoundedRectangle(cornerRadius: 8))
+          .lineLimit(1...4)
+          .disabled(isStreaming)
+
+        Button {
+          sendFollowUpQuestion()
+        } label: {
+          Image(systemName: "arrow.up.circle.fill")
+            .font(.title2)
+            .foregroundStyle(followUpQuestion.isEmpty || isStreaming ? .gray : .blue)
+        }
+        .disabled(followUpQuestion.isEmpty || isStreaming)
+      }
+      .padding()
+      .background(Color(.systemBackground))
     }
   }
 
@@ -256,6 +323,73 @@ struct WordExplanationSheet: View {
     }
 
     isStreaming = false
+  }
+
+  private func sendFollowUpQuestion() {
+    let question = followUpQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !question.isEmpty else { return }
+
+    // Clear the input field
+    followUpQuestion = ""
+
+    // Start streaming follow-up answer
+    streamTask = Task {
+      await generateFollowUpAnswer(question: question)
+    }
+  }
+
+  private func generateFollowUpAnswer(question: String) async {
+    guard !Task.isCancelled else { return }
+
+    let availability = service.checkAvailability()
+    guard case .available = availability else { return }
+
+    isStreaming = true
+    var followUpAnswer = ""
+
+    do {
+      // Create a follow-up context that includes the original text and previous conversation
+      let followUpContext = buildFollowUpContext(question: question)
+
+      for try await content in service.streamExplanation(text: question, context: followUpContext) {
+        guard !Task.isCancelled else {
+          isStreaming = false
+          return
+        }
+        followUpAnswer = content
+      }
+
+      // Add the exchange to conversation history
+      conversationHistory.append((question: question, answer: followUpAnswer))
+
+    } catch {
+      print("[LLM] Follow-up stream error: \(error)")
+    }
+
+    isStreaming = false
+  }
+
+  private func buildFollowUpContext(question: String) -> String {
+    var context = "Original word/phrase: \"\(text)\"\n"
+    context += "Original context: \"\(self.context)\"\n\n"
+
+    // Include the initial explanation if available
+    if case .success(let explanation) = service.state {
+      context += "Previous explanation:\n\(explanation)\n\n"
+    } else if !streamedContent.isEmpty {
+      context += "Previous explanation:\n\(streamedContent)\n\n"
+    }
+
+    // Include conversation history
+    if !conversationHistory.isEmpty {
+      context += "Previous questions and answers:\n"
+      for (index, exchange) in conversationHistory.enumerated() {
+        context += "\nQ\(index + 1): \(exchange.question)\n"
+        context += "A\(index + 1): \(exchange.answer)\n"
+      }
+    }
+
+    return context
   }
 }
 
