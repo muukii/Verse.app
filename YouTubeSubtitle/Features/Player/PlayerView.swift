@@ -48,7 +48,6 @@ struct PlayerView: View {
   @State private var selectedTextForExplanation: (text: String, context: String)?
 
   // On-device transcribe state
-  @State private var showOnDeviceTranscribeSheet: Bool = false
   @State private var onDeviceTranscribeViewModel = OnDeviceTranscribeViewModel()
 
   // Computed property to access videoID from the entity
@@ -164,16 +163,6 @@ struct PlayerView: View {
         ),
         text: selectedCueForTranslation?.decodedText ?? ""
       )
-      .sheet(isPresented: $showOnDeviceTranscribeSheet) {
-        OnDeviceTranscribeSheet(
-          viewModel: onDeviceTranscribeViewModel,
-          videoID: videoID,
-          onComplete: { subtitles in
-            currentSubtitles = subtitles
-            try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: subtitles)
-          }
-        )
-      }
       .sheet(item: $selectedWord) { word in
         WordDetailSheet(word: word.value)
       }
@@ -226,12 +215,10 @@ struct PlayerView: View {
       HStack(spacing: 16) {
         // On-device transcribe button (only when no local file exists)
         if model.localFileURL == nil {
-          Button {
-            showOnDeviceTranscribeSheet = true
-          } label: {
-            Image(systemName: "waveform.badge.mic")
-              .font(.system(size: 20))
-          }
+          OnDeviceTranscribeButton(
+            phase: onDeviceTranscribeViewModel.phase,
+            action: { startBackgroundTranscription() }
+          )
           .popoverTip(TranscribeTip())
         }
 
@@ -369,6 +356,12 @@ struct PlayerView: View {
         await MainActor.run {
           transcriptError = error.localizedDescription
           isLoadingTranscripts = false
+
+          // Auto-start on-device transcription when YouTube captions are not available
+          // Only if no local file exists (on-device transcription downloads the video)
+          if model.localFileURL == nil {
+            startBackgroundTranscription()
+          }
         }
       }
     }
@@ -404,6 +397,22 @@ struct PlayerView: View {
           transcriptionState = .failed(error.localizedDescription)
           isTranscribing = false
         }
+      }
+    }
+  }
+
+  /// Starts on-device transcription in the background (download + transcribe)
+  private func startBackgroundTranscription() {
+    Task {
+      do {
+        let subtitles = try await onDeviceTranscribeViewModel.startTranscription(
+          videoID: videoID,
+          downloadManager: downloadManager
+        )
+        currentSubtitles = subtitles
+        try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: subtitles)
+      } catch {
+        // Error is already captured in viewModel.phase
       }
     }
   }
@@ -743,6 +752,61 @@ private struct WordDetailSheet: View {
         context: word
       )
     }
+  }
+}
+
+// MARK: - On-Device Transcribe Button
+
+/// Toolbar button that shows on-device transcription state
+private struct OnDeviceTranscribeButton: View {
+  let phase: OnDeviceTranscribeViewModel.Phase
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      Group {
+        switch phase {
+        case .idle, .completed:
+          Image(systemName: "waveform.badge.mic")
+            .font(.system(size: 16))
+        case .fetchingStreams:
+          ProgressView()
+            .controlSize(.small)
+        case .downloading(let progress):
+          CircularProgressView(progress: progress, systemImage: "arrow.down")
+        case .transcribing(let progress):
+          CircularProgressView(progress: progress, systemImage: "waveform")
+        case .failed:
+          Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: 18))
+            .foregroundStyle(.orange)
+        }
+      }
+      .frame(width: 32, height: 32)
+    }
+    .disabled(phase.isProcessing)
+  }
+}
+
+/// Circular progress indicator with icon
+private struct CircularProgressView: View {
+  let progress: Double
+  let systemImage: String
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .stroke(Color.secondary.opacity(0.3), lineWidth: 2)
+      Circle()
+        .trim(from: 0, to: progress)
+        .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+        .rotationEffect(.degrees(-90))
+        .animation(.linear(duration: 0.1), value: progress)
+      Image(systemName: systemImage)
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(.blue)
+    }
+    .frame(width: 22, height: 22)
   }
 }
 
