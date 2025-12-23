@@ -14,6 +14,7 @@
 		B00CF0B12EE43A3700FA7361 /* TypedIdentifier in Frameworks */ = {isa = PBXBuildFile; productRef = B00CF0B02EE43A3700FA7361 /* TypedIdentifier */; };
 		B046D4AE2EE324FC00367936 /* AnyLanguageModelMLX in Frameworks */ = {isa = PBXBuildFile; productRef = B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */; };
 		B07A2DA52EE42AE800E05A39 /* SwiftUIRingSlider in Frameworks */ = {isa = PBXBuildFile; productRef = B07A2DA42EE42AE800E05A39 /* SwiftUIRingSlider */; };
+		B09F54462EFA74EA005C59D3 /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = B09F54452EFA74EA005C59D3 /* Algorithms */; };
 		B0FAE6862EDC2500008493F1 /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE6852EDC2500008493F1 /* YouTubeKit */; };
 		B0FAE68A2EDC2600008493F1 /* YouTubePlayerKit in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE6892EDC2600008493F1 /* YouTubePlayerKit */; };
 		B0FAE68C2EDC3000008493F1 /* YoutubeTranscript in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE68B2EDC3000008493F1 /* YoutubeTranscript */; };
@@ -73,6 +74,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B09F54462EFA74EA005C59D3 /* Algorithms in Frameworks */,
 				B00C03192EE47DEF00FA7361 /* AsyncMultiplexImage in Frameworks */,
 				B0091B4A2EE825DF0077B368 /* StateGraph in Frameworks */,
 				B0092E942EE873AE0077B368 /* Components.framework in Frameworks */,
@@ -180,6 +182,7 @@
 				B00C03182EE47DEF00FA7361 /* AsyncMultiplexImage */,
 				B00C031A2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke */,
 				B0091B492EE825DF0077B368 /* StateGraph */,
+				B09F54452EFA74EA005C59D3 /* Algorithms */,
 			);
 			productName = YouTubeSubtitle;
 			productReference = B0FAE6772EDC249B008493F1 /* YouTubeSubtitle.app */;
@@ -222,6 +225,7 @@
 				B00CF0AF2EE43A3700FA7361 /* XCRemoteSwiftPackageReference "swift-typed-identifier" */,
 				B00C03172EE47DEF00FA7361 /* XCRemoteSwiftPackageReference "swiftui-async-multiplex-image" */,
 				B0091B482EE825DF0077B368 /* XCRemoteSwiftPackageReference "swift-state-graph" */,
+				B09F54442EFA74EA005C59D3 /* XCRemoteSwiftPackageReference "swift-algorithms" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0FAE6782EDC249B008493F1 /* Products */;
@@ -671,6 +675,14 @@
 				minimumVersion = 0.2.0;
 			};
 		};
+		B09F54442EFA74EA005C59D3 /* XCRemoteSwiftPackageReference "swift-algorithms" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-algorithms.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.1;
+			};
+		};
 		B0FAE6872EDC2500008493F1 /* XCRemoteSwiftPackageReference "YouTubeKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/alexeichhorn/YouTubeKit";
@@ -734,6 +746,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B07A2DA32EE42AE800E05A39 /* XCRemoteSwiftPackageReference "swiftui-ring-slider" */;
 			productName = SwiftUIRingSlider;
+		};
+		B09F54452EFA74EA005C59D3 /* Algorithms */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B09F54442EFA74EA005C59D3 /* XCRemoteSwiftPackageReference "swift-algorithms" */;
+			productName = Algorithms;
 		};
 		B0FAE6852EDC2500008493F1 /* YouTubeKit */ = {
 			isa = XCSwiftPackageProductDependency;

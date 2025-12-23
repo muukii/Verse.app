@@ -5,43 +5,148 @@
 //  Created by Hiroshi Kimura on 2025/12/04.
 //
 
+import Algorithms
 import Foundation
 import SwiftUI
 
-// MARK: - SeekMode
+// MARK: - SeekSeconds (shared)
 
-enum SeekMode: String, CaseIterable, Codable {
-  case seconds3 = "3"
-  case seconds5 = "5"
-  case seconds10 = "10"
-  case seconds15 = "15"
-  case seconds30 = "30"
-  case subtitle = "subtitle"
+enum SeekSeconds: Double, CaseIterable, Codable {
+  case s3 = 3
+  case s5 = 5
+  case s10 = 10
+  case s15 = 15
+  case s30 = 30
+
+  var displayName: String {
+    "\(Int(rawValue)) seconds"
+  }
+}
+
+// MARK: - BackwardSeekMode
+
+enum BackwardSeekMode: Hashable, Codable {
+  case seconds(SeekSeconds)
+  case subtitle(Subtitle)
+
+  enum Subtitle: String, CaseIterable, Codable {
+    case current = "current"
+    case skip = "skip"
+
+    var displayName: String {
+      switch self {
+      case .current: return "Subtitle"
+      case .skip: return "Subtitle (Skip)"
+      }
+    }
+  }
 
   var displayName: String {
     switch self {
-    case .seconds3: return "3 seconds"
-    case .seconds5: return "5 seconds"
-    case .seconds10: return "10 seconds"
-    case .seconds15: return "15 seconds"
-    case .seconds30: return "30 seconds"
+    case .seconds(let s): return s.displayName
+    case .subtitle(let s): return s.displayName
+    }
+  }
+
+  var interval: Double? {
+    switch self {
+    case .seconds(let s): return s.rawValue
+    case .subtitle: return nil
+    }
+  }
+
+  static var allCases: [BackwardSeekMode] {
+    SeekSeconds.allCases.map { .seconds($0) } + Subtitle.allCases.map { .subtitle($0) }
+  }
+}
+
+// MARK: - BackwardSeekMode + RawRepresentable
+
+extension BackwardSeekMode: RawRepresentable {
+  init?(rawValue: String) {
+    let parts = rawValue.split(separator: ":")
+    guard parts.count == 2 else { return nil }
+
+    let type = String(parts[0])
+    let value = String(parts[1])
+
+    switch type {
+    case "seconds":
+      guard let doubleValue = Double(value),
+            let seconds = SeekSeconds(rawValue: doubleValue) else { return nil }
+      self = .seconds(seconds)
+    case "subtitle":
+      guard let subtitle = Subtitle(rawValue: value) else { return nil }
+      self = .subtitle(subtitle)
+    default:
+      return nil
+    }
+  }
+
+  var rawValue: String {
+    switch self {
+    case .seconds(let s):
+      return "seconds:\(Int(s.rawValue))"
+    case .subtitle(let s):
+      return "subtitle:\(s.rawValue)"
+    }
+  }
+}
+
+// MARK: - ForwardSeekMode
+
+enum ForwardSeekMode: Hashable, Codable {
+  case seconds(SeekSeconds)
+  case subtitle  // Forward only has one subtitle mode (next)
+
+  var displayName: String {
+    switch self {
+    case .seconds(let s): return s.displayName
     case .subtitle: return "Subtitle"
     }
   }
 
   var interval: Double? {
     switch self {
-    case .seconds3: return 3
-    case .seconds5: return 5
-    case .seconds10: return 10
-    case .seconds15: return 15
-    case .seconds30: return 30
+    case .seconds(let s): return s.rawValue
     case .subtitle: return nil
     }
   }
 
-  var isSubtitleBased: Bool {
-    self == .subtitle
+  static var allCases: [ForwardSeekMode] {
+    SeekSeconds.allCases.map { .seconds($0) } + [.subtitle]
+  }
+}
+
+// MARK: - ForwardSeekMode + RawRepresentable
+
+extension ForwardSeekMode: RawRepresentable {
+  init?(rawValue: String) {
+    let parts = rawValue.split(separator: ":")
+    guard parts.count == 2 else { return nil }
+
+    let type = String(parts[0])
+    let value = String(parts[1])
+
+    switch type {
+    case "seconds":
+      guard let doubleValue = Double(value),
+            let seconds = SeekSeconds(rawValue: doubleValue) else { return nil }
+      self = .seconds(seconds)
+    case "subtitle":
+      self = .subtitle
+    default:
+      return nil
+    }
+  }
+
+  var rawValue: String {
+    switch self {
+    case .seconds(let s):
+      return "seconds:\(Int(s.rawValue))"
+    case .subtitle:
+      return "subtitle:next"
+    }
   }
 }
 
@@ -214,20 +319,34 @@ final class PlayerModel {
 
   // MARK: - Subtitle-based Seeking
 
-  /// Returns the start time of the previous subtitle cue relative to current time.
-  /// - Returns: Start time of the previous cue, or nil if at the beginning
-  func previousSubtitleTime() -> Double? {
+  /// Returns the index of the current subtitle cue using binary search.
+  /// "Current" means the most recently started subtitle before or at currentTime.
+  /// This handles overlapping subtitles correctly by using startTime-based logic.
+  /// - Returns: Index of the current cue, or nil if no subtitle has started yet
+  func currentCueIndex() -> Int? {
     guard !cues.isEmpty else { return nil }
 
-    // Find the last cue that starts before current time (with small threshold)
-    let threshold = 0.5 // If we're less than 0.5s into current cue, go to previous one
-    let adjustedTime = currentTime.value - threshold
+    // Binary search using swift-algorithms' partitioningIndex
+    // Find the first cue whose startTime > currentTime
+    let index = cues.partitioningIndex { $0.startTime > currentTime.value }
 
-    // Find all cues before adjusted time
-    let previousCues = cues.filter { $0.startTime < adjustedTime }
+    // The cue before that (index - 1) is the "current" one
+    return index > 0 ? index - 1 : nil
+  }
 
-    // Return the last one (most recent)
-    return previousCues.last?.startTime
+  /// Returns the ID of the current subtitle cue.
+  /// Uses the same logic as currentCueIndex() for consistency with scroll highlighting.
+  var currentCueID: Subtitle.Cue.ID? {
+    guard let index = currentCueIndex() else { return nil }
+    return cues[index].id
+  }
+
+  /// Returns the start time of the current subtitle (Type A behavior).
+  /// Always returns the start of the most recently started subtitle.
+  /// - Returns: Start time of the current cue, or nil if no subtitle has started yet
+  func previousSubtitleTime() -> Double? {
+    guard let index = currentCueIndex() else { return nil }
+    return cues[index].startTime
   }
 
   /// Returns the start time of the next subtitle cue relative to current time.
@@ -248,6 +367,23 @@ final class PlayerModel {
     return cues.first(where: {
       $0.startTime <= currentTime.value && currentTime.value < $0.endTime
     })?.startTime
+  }
+
+  /// Returns the start time for skip-backward behavior (Type B).
+  /// Always goes to the PREVIOUS subtitle (one step back from current).
+  /// Uses the same currentCueIndex() logic for consistency.
+  /// This enables repeated presses to navigate backward through subtitles.
+  /// - Returns: Start time of the previous subtitle, or nil if at the beginning
+  func previousSubtitleTimeSkip() -> Double? {
+    guard let currentIndex = currentCueIndex(), currentIndex > 0 else { return nil }
+    return cues[currentIndex - 1].startTime
+  }
+
+  /// Returns the start time of the next subtitle cue (skip mode).
+  /// Same behavior as nextSubtitleTime() - always goes to next cue.
+  /// - Returns: Start time of the next cue, or nil if at the end
+  func nextSubtitleTimeSkip() -> Double? {
+    return nextSubtitleTime()
   }
 
   // MARK: - Controller Lifecycle
@@ -338,21 +474,45 @@ final class PlayerModel {
     }
   }
 
+  /// Seeks to the previous subtitle (skip mode - always skip current)
+  func seekToPreviousSubtitleSkip() {
+    guard let controller else { return }
+    Task {
+      if let previousTime = previousSubtitleTimeSkip() {
+        await controller.seek(to: previousTime)
+      }
+    }
+  }
+
+  /// Seeks to the next subtitle (skip mode)
+  func seekToNextSubtitleSkip() {
+    guard let controller else { return }
+    Task {
+      if let nextTime = nextSubtitleTimeSkip() {
+        await controller.seek(to: nextTime)
+      }
+    }
+  }
+
   /// Seeks backward based on the specified mode
-  func backward(how mode: SeekMode) {
-    if mode.isSubtitleBased {
+  func backward(how mode: BackwardSeekMode) {
+    switch mode {
+    case .seconds(let s):
+      seekBackward(interval: s.rawValue)
+    case .subtitle(.current):
       seekToPreviousSubtitle()
-    } else {
-      seekBackward(interval: mode.interval ?? 3)
+    case .subtitle(.skip):
+      seekToPreviousSubtitleSkip()
     }
   }
 
   /// Seeks forward based on the specified mode
-  func forward(how mode: SeekMode) {
-    if mode.isSubtitleBased {
+  func forward(how mode: ForwardSeekMode) {
+    switch mode {
+    case .seconds(let s):
+      seekForward(interval: s.rawValue)
+    case .subtitle:
       seekToNextSubtitle()
-    } else {
-      seekForward(interval: mode.interval ?? 3)
     }
   }
 
