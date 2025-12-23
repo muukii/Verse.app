@@ -218,6 +218,14 @@ final class PlayerModel {
   /// Current subtitle cues for subtitle-based seeking
   var cues: [Subtitle.Cue] = []
 
+  // MARK: - Step Mode State
+
+  /// Step mode - stops at each subtitle cue's end time
+  var isStepModeEnabled: Bool = false
+
+  /// Tracks the ID of the last cue we stopped at (prevents re-stopping on same cue)
+  private var lastStoppedCueID: Subtitle.Cue.ID?
+
   // MARK: - Controller State
 
   /// The player controller (YouTube or local)
@@ -310,6 +318,26 @@ final class PlayerModel {
       return nil
     }
     return 0
+  }
+
+  // MARK: - Step Mode
+
+  /// Checks if playback should stop at current cue's end time (step mode).
+  /// Returns the cue to stop at, nil otherwise.
+  func checkStepModeStop() -> Subtitle.Cue? {
+    guard isStepModeEnabled, !cues.isEmpty else { return nil }
+
+    let currentTimeValue = currentTime.value
+
+    // Find cue whose end time we've reached
+    for cue in cues {
+      if currentTimeValue >= cue.endTime &&
+        currentTimeValue < cue.endTime + 0.15 &&
+        cue.id != lastStoppedCueID {
+        return cue
+      }
+    }
+    return nil
   }
 
   /// Toggles loop playback
@@ -662,6 +690,12 @@ final class PlayerModel {
         // Check end-of-video loop
         else if let loopStartTime = self.checkEndOfVideoLoop() {
           await self.controller?.seek(to: loopStartTime)
+        }
+        // Check step mode stop
+        else if let cue = self.checkStepModeStop() {
+          self.lastStoppedCueID = cue.id
+          await self.controller?.pause()
+          self.isPlaying = false
         }
 
         try? await Task.sleep(for: .milliseconds(100))

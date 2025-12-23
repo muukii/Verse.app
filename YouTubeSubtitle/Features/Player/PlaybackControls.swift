@@ -146,6 +146,7 @@ extension PlayerControls {
       .seconds(.s3)
     @AppStorage("forward2SeekMode") private var forward2SeekMode: ForwardSeekMode =
       .subtitle
+    @AppStorage("isStepModeEnabled") private var isStepModeEnabled: Bool = false
 
     // MARK: - BackwardJumpButton
 
@@ -233,6 +234,53 @@ extension PlayerControls {
       }
     }
 
+    // MARK: - PlayPauseButton
+
+    private struct PlayPauseButton: View {
+      let model: PlayerModel
+      @Binding var isStepModeEnabled: Bool
+      let onTap: () -> Void
+
+      private var playIcon: String {
+        if model.isPlaying {
+          return isStepModeEnabled ? "pause" : "pause.fill"
+        } else {
+          return isStepModeEnabled ? "play" : "play.fill"
+        }
+      }
+
+      var body: some View {
+        Button {
+          onTap()
+        } label: {
+          Image(systemName: playIcon)
+            .font(.system(size: 32))
+        }
+        .contextMenu {
+          Button {
+            isStepModeEnabled = false
+          } label: {
+            HStack {
+              Text("Normal")
+              if !isStepModeEnabled {
+                Image(systemName: "checkmark")
+              }
+            }
+          }
+          Button {
+            isStepModeEnabled = true
+          } label: {
+            HStack {
+              Text("Step Mode")
+              if isStepModeEnabled {
+                Image(systemName: "checkmark")
+              }
+            }
+          }
+        }
+      }
+    }
+
     // MARK: - SecondsIcon (shared)
 
     private struct SecondsIcon: View {
@@ -288,13 +336,12 @@ extension PlayerControls {
             BackwardJumpButton(model: model, mode: $backward1SeekMode)
           }
 
-          // Play/Pause button
-          Button {
-            model.togglePlayPause()
-          } label: {
-            Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
-              .font(.system(size: 32))
-          }
+          // Play/Pause button (context menu toggles step mode)
+          PlayPauseButton(
+            model: model,
+            isStepModeEnabled: $isStepModeEnabled,
+            onTap: { model.togglePlayPause() }
+          )
 
           // Forward buttons group
           HStack(spacing: 12) {
@@ -305,6 +352,12 @@ extension PlayerControls {
         .tint(Color.primary)
       }
       .padding(.horizontal, 20)
+      .onAppear {
+        model.isStepModeEnabled = isStepModeEnabled
+      }
+      .onChange(of: isStepModeEnabled) { _, newValue in
+        model.isStepModeEnabled = newValue
+      }
     }
 
   }
