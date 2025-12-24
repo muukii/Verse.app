@@ -1,127 +1,192 @@
-# YouTubeSubtitle - Product Specification
+# Verse (YouTubeSubtitle) - Product Specification
 
 ## Overview
 
-YouTubeSubtitle is a macOS/iOS application that allows users to watch YouTube videos with subtitles displayed alongside. It features tap-to-jump navigation, auto-scrolling subtitles, and watch history management.
+Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that lets users watch YouTube videos with synced subtitles, navigation tools, and on-device language assistance.
 
 ### Target Users
-- Language learners (e.g., English learners)
-- Users who want to understand content precisely while reading subtitles
-- Users who want to repeatedly watch specific sections
+- Language learners (English, Japanese, and other subtitle languages)
+- Students watching educational content
+- Viewers who prefer reading along with video
 
 ## Core Features
 
 ### 1. Video Playback
 
-#### 1.1 YouTube Video Playback
-- Play videos from YouTube URLs
-- Support for play/pause and seek operations
-- Supported URL formats:
-  - `https://www.youtube.com/watch?v=VIDEO_ID`
-  - `https://youtu.be/VIDEO_ID`
+#### 1.1 Video Sources
+- Play YouTube videos by URL (watch, youtu.be, shorts, etc.)
+- In-app YouTube browser with "Open with Subtitles" action
+- Deep link and Shortcuts support for opening YouTube URLs
+- Local playback when a video has been downloaded (feature-flagged)
 
 #### 1.2 Playback Controls
-- **Time Display**: Current time / Total duration
-- **Seek Bar**: Drag to jump to any position
-- **Playback Speed**: 0.25x - 2.0x (0.25 increments)
-- **Loop/Repeat**:
-  - Set start and end times
-  - Repeat playback of specified section
-- **Step Mode**:
-  - Pauses playback at each subtitle cue's end (for language learning)
-  - Toggle via context menu on play button (Normal / Step Mode)
-  - Behavior: Auto-stop at each cue's `endTime` → tap play to continue to next cue
-  - Visual indicator: Outline icons (`play`/`pause`) in step mode, filled icons (`play.fill`/`pause.fill`) in normal mode
-  - Setting persisted via `@AppStorage`
+- Play/pause, time display, and scrubber
+- Playback speed: 0.5x to 2.0x (0.25 increments)
+- Seek buttons with configurable modes:
+  - Seconds jump (3, 5, 10, 15, 30)
+  - Subtitle-based jump (current / next)
+- Step Mode:
+  - Toggle via play/pause context menu
+  - Auto-pauses at each subtitle cue end
+  - Outline play/pause icons in step mode, filled icons in normal mode
+- Loop control:
+  - Loop entire video, or A-B section if repeat points are set
+- A-B repeat:
+  - Set A/B from subtitle menu or repeat setup UI
+  - Ring slider controls for precise A/B times
+- Collapse/expand player to focus on subtitles
+- Resume playback from last saved position
 
-### 2. Subtitle Features
+### 2. Subtitles
 
-#### 2.1 Subtitle Retrieval and Display
-- **Supported Languages**: English subtitles
-- **Display Format**: Timestamp + subtitle text
-- **Auto-fetch**: Subtitles are automatically retrieved when opening a video
+#### 2.1 Retrieval and Caching
+- Auto-fetch YouTube transcripts on load (language auto-detected by YouTube)
+- Cached subtitles stored locally per history item
+- On-device transcription (SpeechAnalyzer) when captions are unavailable
+- Manual subtitle import from files (SRT, VTT, SBV, CSV, LRC, TTML)
 
-#### 2.2 Subtitle Navigation
-- **Tap to Jump**: Tap a subtitle to seek to that timestamp
-- **Current Subtitle Highlight**: Currently playing subtitle highlighted in blue
-- **Auto-scroll (Tracking)**:
-  - Enabled by default
-  - Subtitles automatically scroll to follow playback position
+#### 2.2 Display
+- List of cues with timestamps
+- Current cue highlight
+- Word-level highlight when timing data is available (transcription)
 
-#### 2.3 Subtitle Tracking Control
-- **Toggle Button**: "eye" / "eye.slash" icon in header
-- **Auto-disable**: Automatically turns off when user manually scrolls
-- **Manual Enable**: Tap button to re-enable tracking
+#### 2.3 Navigation and Tracking
+- Tap timestamp to seek
+- Auto-scroll tracking enabled by default
+- Tracking toggle (arrow-up-left icon):
+  - Auto-disables on manual scroll or text selection
+  - Tap to re-enable and jump to current cue
 
-### 3. Watch History
+#### 2.4 Subtitle Actions
+- Swipe actions:
+  - Translate (leading)
+  - Explain (trailing)
+- Context menu per cue:
+  - Copy
+  - Explain
+  - Translate
+  - Set as A (start) / B (end)
+- Word tap opens Word Detail (translate, explain, copy)
+- Text selection supports Explain with context
 
-#### 3.1 History Management
-- **Auto-save**: Automatically added to history when opening a video
-- **Duplicate Prevention**: Only keeps the most recent entry for each video
-- **Maximum Entries**: 50 (oldest entries auto-deleted)
-- **Data Storage**: Stored locally on device
+#### 2.5 Subtitle Management
+- Export subtitles in selected format (SRT, VTT, SBV, CSV, LRC, TTML)
+- Share YouTube URL from player menu
+- If local file exists:
+  - Switch playback source (YouTube / Local)
+  - Transcribe audio to subtitles
+  - Delete local video
 
-#### 3.2 History Display
-- **List Format**: Thumbnail + Title + Timestamp
-- **Thumbnail**: Video thumbnail image (120x68px)
-- **Title**: Auto-fetched video title
-- **Relative Time**: "2 hours ago", "1 day ago", etc.
+### 3. AI and Language Tools
+- Word/phrase explanations using on-device LLMs
+  - Apple Intelligence or local MLX models
+  - Streaming output with follow-up questions
+  - "Open in Gemini" shortcut (when available)
+- Customizable explanation instructions in Settings
+- System Translation for subtitle lines and words
 
-#### 3.3 History Operations
-- **Tap to Play**: Tap history item to open video
-- **Swipe to Delete**: Delete individual items
-- **Clear All**: "Clear History" button in toolbar
+### 4. History and Library
 
-### 4. External Integration
+#### 4.1 Watch History
+- Auto-saved on open
+- Deduplicated by video ID (most recent kept)
+- Max 50 items
+- Local storage (SwiftData)
+- List display: thumbnail, title, author (when available), relative time
+- Actions: tap to open, swipe to delete, clear all
 
-#### 4.1 Shortcuts Support
-- **Shortcuts App**: "Open YouTube Video" action available
-- **Siri Support**: Voice command activation
-- **URL Reception**: Receive YouTube URLs from Shortcuts or other apps
+#### 4.2 Playlists (Experimental)
+- Create, rename, delete playlists
+- Add videos from history (context menu)
+- Reorder and remove entries
+- Open videos from playlist view
+
+#### 4.3 Vocabulary (Experimental)
+- Manual vocabulary list (term, meaning, context, notes)
+- Learning state badges (New, Learning, Reviewing, Mastered)
+- Search, add, edit, delete
+
+### 5. Downloads and Offline Playback (Feature-Flagged)
+- Download progressive MP4 streams with quality selection
+- Progress indicators in history and player
+- Local playback with source switching
+- Delete downloaded files
+- UI hidden in Release builds; downloads still used internally for transcription
+
+### 6. External Integrations
+- Siri and Shortcuts: "Open YouTube Video" intent
+- Deep link handling for YouTube URLs
+- In-app YouTube browser (with iOS sign-in flow)
+
+### 7. Live Transcription (Experimental)
+- Real-time microphone transcription (iOS 26+ physical device)
+- Word tap for translation/explanation
+- Shareable session transcript
+- Session history with detail view and export
 
 ## Screen Layout
 
-### Home Screen (HomeView)
-- **URL Input Field**: Enter YouTube URL
-- **Watch History List**:
-  - Thumbnail image
-  - Video title
-  - Watch time (relative display)
-- **Operations**:
-  - Press Enter after URL input to open video
-  - Tap history item to open video
-  - Swipe to delete individual items
-  - Clear all from toolbar
+### Home (HomeView)
+- Empty state with "Try Demo Video"
+- History list with thumbnails and metadata
+- Toolbar: Settings, Clear History (when available)
+- Bottom bar: Paste URL, Browse YouTube
+- Context menu: Add to Playlist
 
-### Player Screen (PlayerView)
-- **Left Side: Video Player**
-  - YouTube player
-  - Playback controls (play/pause, seek bar)
-  - Playback speed adjustment
-  - Loop settings
-- **Right Side: Subtitle Panel**
-  - Header (subtitle count, tracking button)
-  - Subtitle list (scrollable)
-  - Current subtitle highlighted
+### URL Input Sheet (URLInputSheet)
+- URL field with live metadata preview
+- "Open Video" primary action
+
+### YouTube Browser (YouTubeWebView)
+- Web view with back/forward/reload
+- iOS sign-in action
+- "Open with Subtitles" overlay on watch/shorts pages
+
+### Player (PlayerView)
+- Video player at top (YouTube or Local)
+- Collapsible player area
+- Subtitle list with tracking toggle
+- Playback controls: scrubber, speed, seek, loop, A-B setup
+- Toolbar: subtitle management, on-device transcribe, download (if enabled)
+
+### Settings (SettingsView)
+- AI backend selection and status
+- Local MLX model selection
+- Explain instruction editor
+- Siri and Shortcuts tips
+- Experimental: Vocabulary, Playlists, Live Transcription
+- Debug-only feature flags
 
 ## UI/UX Specifications
 
-### Colors
-- **Current Subtitle**: Blue background highlight
-- **Normal Subtitle**: Light gray background
-- **Tracking ON**: Blue icon
-- **Tracking OFF**: Gray icon
+### Visuals
+- Accent color used for current subtitle and word highlights
+- Tracking toggle: filled icon when enabled, outlined when disabled
+- Subtitle row timestamp pill for quick seek
 
-### Layout
-- **HomeView**: Vertical layout (input at top, list below)
-- **PlayerView**: Horizontal 2-column layout
-- **Subtitle Panel Width**: Fixed or variable
+### Interactions
+- Auto-tracking stops on manual scroll or selection
+- Swipe actions for translate/explain
+- Context menus for subtitle actions and step mode
+- Sheets use medium/large detents on iOS
+
+## Data and Storage
+- SwiftData local storage only (no cloud sync)
+- Cached subtitles stored in history items
+- Downloaded videos stored in Documents
+- Subtitle import/export via Files
+
+## Limitations
+- Channel/author names may be unavailable (metadata limitation)
+- No subtitle language selector yet
+- Download UI disabled in Release builds
+- On-device and live transcription require iOS 26+ physical device
+- Apple Intelligence features require supported device and enabled system setting
 
 ## Future Enhancements
-
-- [ ] Display author/channel name (not supported by YouTubeKit)
-- [ ] Subtitle language selection
-- [ ] Playlist support
-- [ ] Offline subtitle storage
-- [ ] Subtitle search functionality
-- [ ] Enhanced dark mode support
+- CloudKit sync for history, playlists, and vocabulary
+- Subtitle language selection and multi-language support
+- Subtitle search and filtering
+- Improved channel/author metadata
+- Dedicated subtitle library management
+- Expanded iPad/macOS layout optimizations
