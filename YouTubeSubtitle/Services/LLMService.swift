@@ -25,41 +25,53 @@ struct MLXModel: Identifiable, Hashable {
 @Observable
 final class LLMService {
 
+  // MARK: - Device Language
+
+  /// Returns the device's preferred language name for LLM responses.
+  /// For example: "Japanese", "English", "French", etc.
+  static var deviceLanguage: String {
+    guard let languageCode = Locale.current.language.languageCode?.identifier else {
+      return "English"
+    }
+    // Get the language name in English (e.g., "Japanese", "French")
+    return Locale(identifier: "en").localizedString(forLanguageCode: languageCode) ?? "English"
+  }
+
   // MARK: - Default Instructions
 
   static let defaultSystemInstruction = """
-    あなたは英語学習をサポートする言語アシスタントです。
-    ユーザーは動画のサブタイトルから単語やフレーズを選択して質問します。
+    You are a language assistant that supports English learning.
+    Users select words or phrases from video subtitles to ask questions.
 
-    ## 入力形式
-    - 「Selected」: ユーザーが説明を求めている単語/フレーズ
-    - 「Context」: その単語/フレーズが出現する前後のサブタイトル文脈
+    ## Input Format
+    - "Selected": The word/phrase the user wants explained
+    - "Context": The surrounding subtitle context where the word/phrase appears
 
-    ## 出力ルール
+    ## Output Rules
 
-    ### 1. 単語の場合（1〜2語）
-    以下の形式で回答:
-    - **品詞**: 名詞/動詞/形容詞/副詞など
-    - **発音**: カタカナ表記
-    - **意味**: 文脈に基づいた日本語訳
-    - **文脈での使われ方**: このサブタイトルでどのような意味で使われているか
-    - **例文**: 実用的な例文1つ（日本語訳付き）
+    ### 1. For Words (1-2 words)
+    Respond in the following format:
+    - **Part of Speech**: noun/verb/adjective/adverb, etc.
+    - **Pronunciation**: Phonetic notation
+    - **Meaning**: Translation based on context
+    - **Usage in Context**: How it is used in this specific subtitle
+    - **Example Sentence**: One practical example sentence (with translation)
 
-    ### 2. フレーズ・イディオムの場合（3語以上、または慣用句）
-    以下の形式で回答:
-    - **種類**: イディオム/句動詞/コロケーション/慣用表現など
-    - **意味**: 日本語での意味
-    - **文脈での使われ方**: このサブタイトルでどのような意味で使われているか
-    - **ニュアンス**: フォーマル/カジュアル、使用場面など
-    - **例文**: 実用的な例文1つ（日本語訳付き）
+    ### 2. For Phrases/Idioms (3+ words, or idiomatic expressions)
+    Respond in the following format:
+    - **Type**: idiom/phrasal verb/collocation/fixed expression, etc.
+    - **Meaning**: Explanation of the meaning
+    - **Usage in Context**: How it is used in this specific subtitle
+    - **Nuance**: Formal/casual, usage situations, etc.
+    - **Example Sentence**: One practical example sentence (with translation)
 
-    ### 3. 文全体・長い文章の場合
-    以下の形式で回答:
-    - **文構造**: 主語・動詞・目的語などの構造説明
-    - **日本語訳**: 自然な日本語訳
-    - **ポイント**: 文法的に注目すべき点や難しい部分の解説
+    ### 3. For Full Sentences/Longer Text
+    Respond in the following format:
+    - **Sentence Structure**: Explanation of subject, verb, object structure
+    - **Translation**: Natural translation
+    - **Key Points**: Notable grammatical points or difficult parts
 
-    回答は簡潔に、必要な情報のみを含めてください。
+    Keep your response concise, including only necessary information.
     """
 
   static let defaultUserPromptTemplate = """
@@ -68,7 +80,7 @@ final class LLMService {
     Context:
     {context}
 
-    上記のサブタイトル文脈の中で、「{text}」について説明してください。
+    Please explain "{text}" in the context of the above subtitles.
     """
 
   // MARK: - Types
@@ -276,8 +288,9 @@ final class LLMService {
   func explain(
     text: String,
     context: String,
-    targetLanguage: String = "Japanese"
+    targetLanguage: String? = nil
   ) async throws -> String {
+    let resolvedLanguage = targetLanguage ?? Self.deviceLanguage
     let availability = checkAvailability()
 
     switch availability {
@@ -288,7 +301,7 @@ final class LLMService {
         backend: backend,
         text: text,
         context: context,
-        targetLanguage: targetLanguage
+        targetLanguage: resolvedLanguage
       )
 
     case .unavailable(let reason):
@@ -301,8 +314,9 @@ final class LLMService {
   func streamExplanation(
     text: String,
     context: String,
-    targetLanguage: String = "Japanese"
+    targetLanguage: String? = nil
   ) -> AsyncThrowingStream<String, any Error> {
+    let resolvedLanguage = targetLanguage ?? Self.deviceLanguage
     let availability = checkAvailability()
 
     switch availability {
@@ -313,7 +327,7 @@ final class LLMService {
         backend: backend,
         text: text,
         context: context,
-        targetLanguage: targetLanguage
+        targetLanguage: resolvedLanguage
       )
 
     case .unavailable(let reason):
