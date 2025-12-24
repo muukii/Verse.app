@@ -54,6 +54,15 @@ struct WordExplanationSheet: View {
 
         ToolbarItem(placement: .primaryAction) {
           HStack(spacing: 12) {
+            // Open in Gemini button
+            if canOpenInGemini {
+              Button {
+                openInGemini()
+              } label: {
+                Image(systemName: "sparkle.magnifyingglass")
+              }
+            }
+
             Button {
               showsInstructionViewer = true
             } label: {
@@ -281,7 +290,55 @@ struct WordExplanationSheet: View {
     .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 
+  // MARK: - Computed Properties
+
+  /// Determines if the "Open in Gemini" button should be shown
+  private var canOpenInGemini: Bool {
+    switch service.state {
+    case .success:
+      return true
+    case .loading:
+      return !streamedContent.isEmpty
+    default:
+      return false
+    }
+  }
+
   // MARK: - Actions
+
+  /// Opens the current explanation in Google Gemini
+  private func openInGemini() {
+    // Get the explanation text
+    let explanation: String
+    if case .success(let text) = service.state {
+      explanation = text
+    } else if !streamedContent.isEmpty {
+      explanation = streamedContent
+    } else {
+      return
+    }
+
+    // Build the prompt for Gemini
+    var prompt = "I have a question about this word/phrase: \"\(text)\"\n\n"
+    if !context.isEmpty && context != text {
+      prompt += "Context: \"\(context)\"\n\n"
+    }
+    prompt += "I received this explanation:\n\n\(explanation)\n\n"
+    prompt += "Can you help me understand this better or provide additional insights?"
+
+    // URL encode the prompt
+    guard let encodedPrompt = prompt.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+          let url = URL(string: "https://gemini.google.com/app?prompt=\(encodedPrompt)") else {
+      return
+    }
+
+    // Open the URL
+    #if os(iOS)
+    UIApplication.shared.open(url)
+    #elseif os(macOS)
+    NSWorkspace.shared.open(url)
+    #endif
+  }
 
   private func generateExplanation() async {
     // Check if task was already cancelled
