@@ -1,127 +1,127 @@
-# YouTubeSubtitle - プロダクト仕様書
+# YouTubeSubtitle - Product Specification
 
-## 概要
+## Overview
 
-YouTubeSubtitleは、YouTube動画の字幕を表示しながら動画を視聴できるmacOS/iOSアプリケーションです。字幕のタップジャンプ、自動スクロール、視聴履歴管理などの機能を備えています。
+YouTubeSubtitle is a macOS/iOS application that allows users to watch YouTube videos with subtitles displayed alongside. It features tap-to-jump navigation, auto-scrolling subtitles, and watch history management.
 
-### ターゲットユーザー
-- 語学学習者（英語学習など）
-- 字幕を見ながら正確に内容を理解したいユーザー
-- 特定の部分を繰り返し視聴したいユーザー
+### Target Users
+- Language learners (e.g., English learners)
+- Users who want to understand content precisely while reading subtitles
+- Users who want to repeatedly watch specific sections
 
-## 主要機能
+## Core Features
 
-### 1. 動画再生機能
+### 1. Video Playback
 
-#### 1.1 YouTube動画の再生
-- YouTube URLから動画を再生
-- 再生/一時停止、シーク操作対応
-- 対応URL形式:
+#### 1.1 YouTube Video Playback
+- Play videos from YouTube URLs
+- Support for play/pause and seek operations
+- Supported URL formats:
   - `https://www.youtube.com/watch?v=VIDEO_ID`
   - `https://youtu.be/VIDEO_ID`
 
-#### 1.2 再生コントロール
-- **再生時間表示**: 現在時間 / 総時間
-- **シークバー**: ドラッグで任意の位置にジャンプ
-- **再生速度調整**: 0.25x - 2.0x（0.25刻み）
-- **リピート機能**:
-  - 開始時間・終了時間を設定
-  - 指定区間の繰り返し再生
-- **ステップモード**:
-  - 字幕キューごとに再生を停止するモード（語学学習向け）
-  - 再生ボタンの長押しコンテキストメニューで切り替え（Normal / Step Mode）
-  - 動作: 各字幕の`endTime`で自動停止 → 再生ボタンで次のキューへ
-  - 視覚的表示: ステップモード時はアウトラインアイコン（`play`/`pause`）、通常時は塗りつぶしアイコン（`play.fill`/`pause.fill`）
-  - 設定は`@AppStorage`で永続化
+#### 1.2 Playback Controls
+- **Time Display**: Current time / Total duration
+- **Seek Bar**: Drag to jump to any position
+- **Playback Speed**: 0.25x - 2.0x (0.25 increments)
+- **Loop/Repeat**:
+  - Set start and end times
+  - Repeat playback of specified section
+- **Step Mode**:
+  - Pauses playback at each subtitle cue's end (for language learning)
+  - Toggle via context menu on play button (Normal / Step Mode)
+  - Behavior: Auto-stop at each cue's `endTime` → tap play to continue to next cue
+  - Visual indicator: Outline icons (`play`/`pause`) in step mode, filled icons (`play.fill`/`pause.fill`) in normal mode
+  - Setting persisted via `@AppStorage`
 
-### 2. 字幕機能
+### 2. Subtitle Features
 
-#### 2.1 字幕の取得と表示
-- **対応言語**: 英語字幕
-- **表示形式**: タイムスタンプ + 字幕テキスト
-- **自動取得**: 動画を開くと自動的に字幕を取得
+#### 2.1 Subtitle Retrieval and Display
+- **Supported Languages**: English subtitles
+- **Display Format**: Timestamp + subtitle text
+- **Auto-fetch**: Subtitles are automatically retrieved when opening a video
 
-#### 2.2 字幕ナビゲーション
-- **タップでジャンプ**: 字幕をタップすると該当時間に移動
-- **現在字幕のハイライト**: 再生中の字幕を青色で強調表示
-- **自動スクロール（トラッキング）**:
-  - デフォルトでON
-  - 再生位置に合わせて字幕が自動的にスクロール
+#### 2.2 Subtitle Navigation
+- **Tap to Jump**: Tap a subtitle to seek to that timestamp
+- **Current Subtitle Highlight**: Currently playing subtitle highlighted in blue
+- **Auto-scroll (Tracking)**:
+  - Enabled by default
+  - Subtitles automatically scroll to follow playback position
 
-#### 2.3 字幕トラッキング制御
-- **トグルボタン**: ヘッダーの"eye" / "eye.slash"アイコン
-- **自動OFF機能**: ユーザーが手動でスクロールすると自動的にOFFになる
-- **手動ON**: ボタンをタップして再度有効化
+#### 2.3 Subtitle Tracking Control
+- **Toggle Button**: "eye" / "eye.slash" icon in header
+- **Auto-disable**: Automatically turns off when user manually scrolls
+- **Manual Enable**: Tap button to re-enable tracking
 
-### 3. 視聴履歴機能
+### 3. Watch History
 
-#### 3.1 履歴管理
-- **自動保存**: 動画を開くと自動的に履歴に追加
-- **重複防止**: 同じ動画は最新のもののみ保持
-- **最大件数**: 50件（古いものから自動削除）
-- **データ保存**: デバイス内にローカル保存
+#### 3.1 History Management
+- **Auto-save**: Automatically added to history when opening a video
+- **Duplicate Prevention**: Only keeps the most recent entry for each video
+- **Maximum Entries**: 50 (oldest entries auto-deleted)
+- **Data Storage**: Stored locally on device
 
-#### 3.2 履歴表示
-- **リスト形式**: サムネイル + タイトル + タイムスタンプ
-- **サムネイル**: 動画のサムネイル画像を表示（120x68px）
-- **タイトル**: 動画タイトルを自動取得
-- **相対時間表示**: "2 hours ago", "1 day ago"など
+#### 3.2 History Display
+- **List Format**: Thumbnail + Title + Timestamp
+- **Thumbnail**: Video thumbnail image (120x68px)
+- **Title**: Auto-fetched video title
+- **Relative Time**: "2 hours ago", "1 day ago", etc.
 
-#### 3.3 履歴操作
-- **タップで再生**: 履歴アイテムをタップして動画を開く
-- **スワイプ削除**: 個別アイテムの削除
-- **全削除**: ツールバーの"Clear History"ボタン
+#### 3.3 History Operations
+- **Tap to Play**: Tap history item to open video
+- **Swipe to Delete**: Delete individual items
+- **Clear All**: "Clear History" button in toolbar
 
-### 4. 外部連携機能
+### 4. External Integration
 
-#### 4.1 Shortcuts対応
-- **Shortcutsアプリ対応**: "Open YouTube Video"アクションが利用可能
-- **Siri対応**: 音声コマンドでの起動可能
-- **外部からのURL受信**: Shortcutsや他のアプリからYouTube URLを受け取って動画を開く
+#### 4.1 Shortcuts Support
+- **Shortcuts App**: "Open YouTube Video" action available
+- **Siri Support**: Voice command activation
+- **URL Reception**: Receive YouTube URLs from Shortcuts or other apps
 
-## 画面構成
+## Screen Layout
 
-### ホーム画面 (HomeView)
-- **URL入力欄**: YouTube URLを入力
-- **視聴履歴リスト**: 
-  - サムネイル画像
-  - 動画タイトル
-  - 視聴日時（相対表示）
-- **操作**:
-  - URL入力後Enterで動画を開く
-  - 履歴アイテムタップで動画を開く
-  - スワイプで個別削除
-  - ツールバーから全削除
+### Home Screen (HomeView)
+- **URL Input Field**: Enter YouTube URL
+- **Watch History List**:
+  - Thumbnail image
+  - Video title
+  - Watch time (relative display)
+- **Operations**:
+  - Press Enter after URL input to open video
+  - Tap history item to open video
+  - Swipe to delete individual items
+  - Clear all from toolbar
 
-### プレイヤー画面 (PlayerView)
-- **左側: 動画プレイヤー**
-  - YouTubeプレイヤー
-  - 再生コントロール（再生/停止、シークバー）
-  - 再生速度調整
-  - リピート設定
-- **右側: 字幕パネル**
-  - ヘッダー（字幕数、トラッキングボタン）
-  - 字幕リスト（スクロール可能）
-  - 現在の字幕をハイライト表示
+### Player Screen (PlayerView)
+- **Left Side: Video Player**
+  - YouTube player
+  - Playback controls (play/pause, seek bar)
+  - Playback speed adjustment
+  - Loop settings
+- **Right Side: Subtitle Panel**
+  - Header (subtitle count, tracking button)
+  - Subtitle list (scrollable)
+  - Current subtitle highlighted
 
-## UI/UX仕様
+## UI/UX Specifications
 
-### カラー
-- **現在字幕**: 青色背景で強調
-- **通常字幕**: 薄いグレー背景
-- **トラッキングON**: 青色アイコン
-- **トラッキングOFF**: グレーアイコン
+### Colors
+- **Current Subtitle**: Blue background highlight
+- **Normal Subtitle**: Light gray background
+- **Tracking ON**: Blue icon
+- **Tracking OFF**: Gray icon
 
-### レイアウト
-- **HomeView**: 縦方向レイアウト（上部入力、下部リスト）
-- **PlayerView**: 横方向2カラムレイアウト
-- **字幕パネル幅**: 固定幅または可変
+### Layout
+- **HomeView**: Vertical layout (input at top, list below)
+- **PlayerView**: Horizontal 2-column layout
+- **Subtitle Panel Width**: Fixed or variable
 
-## 今後の拡張案
+## Future Enhancements
 
-- [ ] 作者名の表示（YouTubeKitでは未対応）
-- [ ] 字幕言語の選択機能
-- [ ] プレイリスト対応
-- [ ] オフライン字幕保存
-- [ ] 字幕検索機能
-- [ ] ダークモード対応強化
+- [ ] Display author/channel name (not supported by YouTubeKit)
+- [ ] Subtitle language selection
+- [ ] Playlist support
+- [ ] Offline subtitle storage
+- [ ] Subtitle search functionality
+- [ ] Enhanced dark mode support
