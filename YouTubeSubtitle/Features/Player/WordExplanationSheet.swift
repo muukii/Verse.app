@@ -475,7 +475,7 @@ struct WordExplanationSheetContent: View {
   private func markdownAttributedString(from text: String) -> AttributedString {
     // Preprocess: Convert single newlines to double newlines for proper line breaks
     // In Markdown, single \n is ignored; \n\n creates a paragraph break
-    let preprocessed = text.replacingOccurrences(of: "\n", with: "\n\n")
+    let preprocessed = text
 
     do {
       let attributed = try AttributedString(
