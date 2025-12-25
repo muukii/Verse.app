@@ -112,7 +112,7 @@ struct WordExplanationSheet: View {
         }
       }
       .sheet(isPresented: $showsInstructionViewer) {
-        InstructionViewerSheet(service: service)
+        InstructionViewerSheet(service: service, text: text, context: context)
       }
     }
     .presentationDetents([.medium, .large])
@@ -474,88 +474,77 @@ struct WordExplanationSheet: View {
 
 // MARK: - Instruction Viewer Sheet
 
-/// Sheet view for displaying the current instruction settings used in explanation.
+/// Sheet view for displaying the composed prompt used in explanation.
 private struct InstructionViewerSheet: View {
   let service: LLMService
+  let text: String
+  let context: String
 
   @Environment(\.dismiss) private var dismiss
-  @State private var showsRawText: Bool = false
+
+  /// The full composed prompt that will be sent to the LLM
+  private var composedPrompt: String {
+    ExplanationPrompt.buildFullPrompt(
+      text: text,
+      context: context,
+      customSystemInstruction: service.customSystemInstruction,
+      customUserPromptTemplate: service.customUserPromptTemplate
+    )
+  }
 
   var body: some View {
     NavigationStack {
-      List {
-        // MARK: - Display Mode Toggle
-        Section {
-          Toggle("Show Raw Text", isOn: $showsRawText)
-        }
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          // MARK: - Composed Prompt
+          VStack(alignment: .leading, spacing: 8) {
+            HStack {
+              Label("Composed Prompt", systemImage: "text.alignleft")
+                .font(.headline)
+              Spacer()
+              // Show if using custom settings
+              if !service.customSystemInstruction.isEmpty || !service.customUserPromptTemplate.isEmpty {
+                Text("Custom")
+                  .font(.caption2)
+                  .padding(.horizontal, 6)
+                  .padding(.vertical, 2)
+                  .background(Color.blue.opacity(0.2))
+                  .clipShape(Capsule())
+                  .foregroundStyle(.blue)
+              }
+            }
 
-        // MARK: - System Instruction
-        Section {
-          if showsRawText {
-            Text(service.effectiveSystemInstruction)
+            Text(composedPrompt)
               .font(.system(.caption, design: .monospaced))
-              .textSelection(.enabled)
-          } else {
-            Text(markdownAttributedString(from: service.effectiveSystemInstruction))
-              .font(.callout)
+              .padding()
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(Color(.secondarySystemBackground))
+              .clipShape(RoundedRectangle(cornerRadius: 8))
               .textSelection(.enabled)
           }
-        } header: {
-          HStack {
-            Text("System Instruction")
-            Spacer()
-            if service.customSystemInstruction.isEmpty {
-              Text("Default")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            } else {
-              Text("Custom")
-                .font(.caption2)
-                .foregroundStyle(.blue)
-            }
-          }
-        }
 
-        // MARK: - User Prompt Template
-        Section {
-          if showsRawText {
-            Text(service.effectiveUserPromptTemplate)
-              .font(.system(.caption, design: .monospaced))
-              .textSelection(.enabled)
-          } else {
-            Text(markdownAttributedString(from: service.effectiveUserPromptTemplate))
-              .font(.callout)
-              .textSelection(.enabled)
-          }
-        } header: {
-          HStack {
-            Text("User Prompt Template")
-            Spacer()
-            if service.customUserPromptTemplate.isEmpty {
-              Text("Default")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            } else {
-              Text("Custom")
-                .font(.caption2)
-                .foregroundStyle(.blue)
-            }
-          }
-        }
+          Divider()
 
-        // MARK: - Backend Info
-        Section {
-          LabeledContent("Backend", value: service.preferredBackend.displayName)
-          if service.preferredBackend == .mlx {
-            if let model = LLMService.availableMLXModels.first(where: { $0.id == service.selectedMLXModelId }) {
-              LabeledContent("Model", value: model.name)
+          // MARK: - Backend Info
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Configuration", systemImage: "gearshape")
+              .font(.headline)
+
+            VStack(alignment: .leading, spacing: 4) {
+              LabeledContent("Backend", value: service.preferredBackend.displayName)
+              if service.preferredBackend == .mlx {
+                if let model = LLMService.availableMLXModels.first(where: { $0.id == service.selectedMLXModelId }) {
+                  LabeledContent("Model", value: model.name)
+                }
+              }
+              LabeledContent("Language", value: ExplanationPrompt.deviceLanguage)
             }
+            .font(.callout)
           }
-        } header: {
-          Text("Configuration")
         }
+        .padding()
       }
-      .navigationTitle("Instruction Details")
+      .navigationTitle("Prompt Details")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
@@ -567,19 +556,6 @@ private struct InstructionViewerSheet: View {
     }
     .presentationDetents([.medium, .large])
     .presentationDragIndicator(.visible)
-  }
-
-  /// Convert Markdown string to AttributedString for rendering.
-  private func markdownAttributedString(from text: String) -> AttributedString {
-    do {
-      let attributed = try AttributedString(
-        markdown: text,
-        options: .init(interpretedSyntax: .full)
-      )
-      return attributed
-    } catch {
-      return AttributedString(text)
-    }
   }
 }
 
