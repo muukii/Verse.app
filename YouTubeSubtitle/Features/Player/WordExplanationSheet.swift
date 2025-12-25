@@ -287,20 +287,17 @@ struct WordExplanationSheet: View {
     // Preprocess: Convert single newlines to double newlines for proper line breaks
     // In Markdown, single \n is ignored; \n\n creates a paragraph break
     let preprocessed = text
-      .replacingOccurrences(of: "\n\n", with: "\u{0000}")  // Preserve existing double newlines
-      .replacingOccurrences(of: "\n", with: "\n\n")        // Convert single to double
-      .replacingOccurrences(of: "\u{0000}", with: "\n\n")  // Restore original doubles
-
-    do {
-      let attributed = try AttributedString(
-        markdown: preprocessed,
-        options: .init(interpretedSyntax: .full)
-      )
-      return attributed
-    } catch {
+    
+//    do {
+//      let attributed = try AttributedString(
+//        markdown: preprocessed,
+//        options: .init()
+//      )
+//      return attributed
+//    } catch {
       // Fallback to plain text if markdown parsing fails
       return AttributedString(text)
-    }
+//    }
   }
 
   private func errorView(message: String) -> some View {

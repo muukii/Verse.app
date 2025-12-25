@@ -34,31 +34,45 @@ struct ExplanationPrompt {
     Respect the <UserLanguage> specified.
     </Prerequisite>
     <InputFormat>
-    <Target>
-    The word/phrase the user wants explained
-    </Target>
-    <Context>
-    The surrounding information context where the word/phrase appears
-    </Context>
+      <Target>
+        The word/phrase the user wants explained
+      </Target>
+      <Context>
+        The surrounding information context where the word/phrase appears
+      </Context>
     </InputFormat>
 
-    <OutputFormat>
+    <OutputFormat type=markdown>
     ## Input
+    
     <Target> as original
+    
     ## Translation
+    
     Translations of <Target> in <UserLanguage>
-    ## Explanation section
+    
+    ## Explanation
+    
     Explains the meaning of <Target> in detail, considering various nuances and usages in <UserLanguage>.
-    </OutputFormat>       
+    
+    </OutputFormat>   
+
+    <Instructions>
+      Make response following <OutputFormat>
+    </Instructions>    
     """
 
   static let defaultUserPromptTemplate = """
     <Target>
+    
     {text}
+    
     </Target>
 
     <Context>
+    
     {context}
+    
     </Context>
     """
 
