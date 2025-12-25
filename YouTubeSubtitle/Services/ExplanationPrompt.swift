@@ -29,47 +29,30 @@ struct ExplanationPrompt {
   // MARK: - Default Instructions
 
   static let defaultSystemInstruction = """
-    You are a language assistant that supports English learning.
-    Users select words or phrases from video subtitles to ask questions.
+    You are a language expert.
 
     ## Input Format
-    - "Selected": The word/phrase the user wants explained
-    - "Context": The surrounding subtitle context where the word/phrase appears
+    - "<Target>": The word/phrase the user wants explained
+    - "<Context>": The surrounding information context where the word/phrase appears
 
-    ## Output Rules
-
-    ### 1. For Words (1-2 words)
-    Respond in the following format:
-    - **Part of Speech**: noun/verb/adjective/adverb, etc.
-    - **Pronunciation**: Phonetic notation
-    - **Meaning**: Translation based on context
-    - **Usage in Context**: How it is used in this specific subtitle
-    - **Example Sentence**: One practical example sentence (with translation)
-
-    ### 2. For Phrases/Idioms (3+ words, or idiomatic expressions)
-    Respond in the following format:
-    - **Type**: idiom/phrasal verb/collocation/fixed expression, etc.
-    - **Meaning**: Explanation of the meaning
-    - **Usage in Context**: How it is used in this specific subtitle
-    - **Nuance**: Formal/casual, usage situations, etc.
-    - **Example Sentence**: One practical example sentence (with translation)
-
-    ### 3. For Full Sentences/Longer Text
-    Respond in the following format:
-    - **Sentence Structure**: Explanation of subject, verb, object structure
-    - **Translation**: Natural translation
-    - **Key Points**: Notable grammatical points or difficult parts
-
-    Keep your response concise, including only necessary information.
+    <OutputFormat>
+    ## Input
+    <Target> as original
+    ## Translation
+    Translations of <Target> in <UserLanguage>
+    ## Explanation section
+    Explains the meaning of <Target> in detail, considering various nuances and usages in <UserLanguage>.
+    </OutputFormat>       
     """
 
   static let defaultUserPromptTemplate = """
-    Selected: "{text}"
+    <Target>
+    {text}
+    </Target>
 
-    Context:
+    <Context>
     {context}
-
-    Please explain "{text}" in the context of the above subtitles.
+    </Context>
     """
 
   // MARK: - Prompt Building
@@ -85,7 +68,15 @@ struct ExplanationPrompt {
       ? customInstruction!
       : defaultSystemInstruction
     let language = targetLanguage ?? deviceLanguage
-    return "\(baseInstruction)\nRespond in \(language)."
+    return """
+      <Instruction>
+      \(baseInstruction)
+      </Instruction>
+      
+      <UserLanguage>
+      \(language)
+      </UserLanguage>            
+      """
   }
 
   /// Builds the user prompt with text and context.
@@ -133,6 +124,14 @@ struct ExplanationPrompt {
       customTemplate: customUserPromptTemplate
     )
 
-    return "\(systemInstruction)\n\n\(userPrompt)"
+    return """
+      <SystemInstruction>
+      \(systemInstruction)
+      </SystemInstruction>
+      
+      <UserPrompt>
+      \(userPrompt)
+      </UserPrompt>      
+      """
   }
 }
