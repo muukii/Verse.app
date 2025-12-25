@@ -13,20 +13,16 @@ struct ExplanationPrompt {
 
   // MARK: - Device Language
 
-  /// Returns the app's preferred language name for LLM responses.
-  /// Uses the app's localization setting (from Bundle.main.preferredLocalizations),
-  /// falling back to device locale if unavailable.
+  /// Returns the user's preferred language name for LLM responses.
+  /// Uses Locale.preferredLanguages which reflects the user's system language settings.
   /// For example: "Japanese", "English", "French", etc.
   static var deviceLanguage: String {
-    // First, try to get the app's preferred localization (respects app's Info.plist localizations)
-    let languageCode: String
-    if let appLanguage = Bundle.main.preferredLocalizations.first {
-      languageCode = appLanguage
-    } else if let localeCode = Locale.current.language.languageCode?.identifier {
-      languageCode = localeCode
-    } else {
+    // Get the user's preferred language from system settings
+    guard let preferredLanguage = Locale.preferredLanguages.first else {
       return "English"
     }
+    // Extract the language code (e.g., "ja" from "ja-JP")
+    let languageCode = Locale(identifier: preferredLanguage).language.languageCode?.identifier ?? preferredLanguage
     return Locale(identifier: "en").localizedString(forLanguageCode: languageCode) ?? "English"
   }
 
