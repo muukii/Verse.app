@@ -25,63 +25,11 @@ struct MLXModel: Identifiable, Hashable {
 @Observable
 final class LLMService {
 
-  // MARK: - Device Language
+  // MARK: - Default Instructions (delegated to ExplanationPrompt)
 
-  /// Returns the device's preferred language name for LLM responses.
-  /// For example: "Japanese", "English", "French", etc.
-  static var deviceLanguage: String {
-    guard let languageCode = Locale.current.language.languageCode?.identifier else {
-      return "English"
-    }
-    // Get the language name in English (e.g., "Japanese", "French")
-    return Locale(identifier: "en").localizedString(forLanguageCode: languageCode) ?? "English"
-  }
-
-  // MARK: - Default Instructions
-
-  static let defaultSystemInstruction = """
-    You are a language assistant that supports English learning.
-    Users select words or phrases from video subtitles to ask questions.
-
-    ## Input Format
-    - "Selected": The word/phrase the user wants explained
-    - "Context": The surrounding subtitle context where the word/phrase appears
-
-    ## Output Rules
-
-    ### 1. For Words (1-2 words)
-    Respond in the following format:
-    - **Part of Speech**: noun/verb/adjective/adverb, etc.
-    - **Pronunciation**: Phonetic notation
-    - **Meaning**: Translation based on context
-    - **Usage in Context**: How it is used in this specific subtitle
-    - **Example Sentence**: One practical example sentence (with translation)
-
-    ### 2. For Phrases/Idioms (3+ words, or idiomatic expressions)
-    Respond in the following format:
-    - **Type**: idiom/phrasal verb/collocation/fixed expression, etc.
-    - **Meaning**: Explanation of the meaning
-    - **Usage in Context**: How it is used in this specific subtitle
-    - **Nuance**: Formal/casual, usage situations, etc.
-    - **Example Sentence**: One practical example sentence (with translation)
-
-    ### 3. For Full Sentences/Longer Text
-    Respond in the following format:
-    - **Sentence Structure**: Explanation of subject, verb, object structure
-    - **Translation**: Natural translation
-    - **Key Points**: Notable grammatical points or difficult parts
-
-    Keep your response concise, including only necessary information.
-    """
-
-  static let defaultUserPromptTemplate = """
-    Selected: "{text}"
-
-    Context:
-    {context}
-
-    Please explain "{text}" in the context of the above subtitles.
-    """
+  static var deviceLanguage: String { ExplanationPrompt.deviceLanguage }
+  static var defaultSystemInstruction: String { ExplanationPrompt.defaultSystemInstruction }
+  static var defaultUserPromptTemplate: String { ExplanationPrompt.defaultUserPromptTemplate }
 
   // MARK: - Types
 
@@ -505,14 +453,18 @@ final class LLMService {
   // MARK: - Shared Helpers
 
   private func buildInstructions(targetLanguage: String) -> String {
-    let baseInstruction = effectiveSystemInstruction
-    return "\(baseInstruction)\nRespond in \(targetLanguage)."
+    ExplanationPrompt.buildSystemInstruction(
+      customInstruction: customSystemInstruction,
+      targetLanguage: targetLanguage
+    )
   }
 
   private func buildPrompt(text: String, context: String) -> String {
-    effectiveUserPromptTemplate
-      .replacingOccurrences(of: "{text}", with: text)
-      .replacingOccurrences(of: "{context}", with: context)
+    ExplanationPrompt.buildUserPrompt(
+      text: text,
+      context: context,
+      customTemplate: customUserPromptTemplate
+    )
   }
 
   private func handleGenerationError(

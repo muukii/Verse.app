@@ -7,6 +7,42 @@
 
 import SwiftUI
 
+// MARK: - Gemini URL Builder
+
+/// Builds URLs for opening Google Gemini with a prompt
+struct GeminiURLBuilder {
+  private static let baseURL = "https://gemini.google.com"
+  private static let promptParameter = "prompt_text"
+
+  /// Builds a Gemini URL with the given prompt text
+  /// - Parameter prompt: The prompt text to send to Gemini
+  /// - Returns: A URL if successfully built, nil otherwise
+  static func buildURL(prompt: String) -> URL? {
+    var components = URLComponents(string: baseURL)
+    components?.queryItems = [
+      URLQueryItem(name: promptParameter, value: prompt)
+    ]
+
+    if let url = components?.url {
+      print("[GeminiURLBuilder] URL length: \(url.absoluteString.count)")
+      return url
+    }
+    return nil
+  }
+
+  /// Builds a Gemini URL for asking about a word/phrase with context
+  /// Uses the same prompt format as the on-device LLM (via ExplanationPrompt)
+  /// - Parameters:
+  ///   - text: The word or phrase to ask about
+  ///   - context: The context in which the word/phrase appeared
+  /// - Returns: A URL if successfully built, nil otherwise
+  static func buildURL(text: String, context: String) -> URL? {
+    // Use the shared ExplanationPrompt component (same format as LLMService)
+    let prompt = ExplanationPrompt.buildFullPrompt(text: text, context: context)
+    return buildURL(prompt: prompt)
+  }
+}
+
 // MARK: - Word Explanation Sheet
 
 /// Sheet view for displaying LLM-generated word/phrase explanations.
@@ -293,50 +329,35 @@ struct WordExplanationSheet: View {
   // MARK: - Computed Properties
 
   /// Determines if the "Open in Gemini" button should be shown
+  /// Always available since we use the same prompt as on-device LLM (no need to wait for explanation)
   private var canOpenInGemini: Bool {
-    switch service.state {
-    case .success:
-      return true
-    case .loading:
-      return !streamedContent.isEmpty
-    default:
-      return false
-    }
+    return true
   }
 
   // MARK: - Actions
 
-  /// Opens the current explanation in Google Gemini
+  /// Opens Google Gemini with the same prompt as on-device LLM
   private func openInGemini() {
-    // Get the explanation text
-    let explanation: String
-    if case .success(let text) = service.state {
-      explanation = text
-    } else if !streamedContent.isEmpty {
-      explanation = streamedContent
-    } else {
+    print("[Gemini] openInGemini() called")
+    print("[Gemini] text: \(text)")
+    print("[Gemini] context: \(context)")
+
+    // Build URL using GeminiURLBuilder (same prompt format as LLMService)
+    guard let url = GeminiURLBuilder.buildURL(text: text, context: context) else {
+      print("[Gemini] Failed to build URL")
       return
     }
 
-    // Build the prompt for Gemini
-    var prompt = "I have a question about this word/phrase: \"\(text)\"\n\n"
-    if !context.isEmpty && context != text {
-      prompt += "Context: \"\(context)\"\n\n"
-    }
-    prompt += "I received this explanation:\n\n\(explanation)\n\n"
-    prompt += "Can you help me understand this better or provide additional insights?"
-
-    // URL encode the prompt
-    guard let encodedPrompt = prompt.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-          let url = URL(string: "https://gemini.google.com/app?prompt=\(encodedPrompt)") else {
-      return
-    }
+    print("[Gemini] Opening URL: \(url)")
 
     // Open the URL
     #if os(iOS)
-    UIApplication.shared.open(url)
+    UIApplication.shared.open(url) { success in
+      print("[Gemini] UIApplication.open completed, success: \(success)")
+    }
     #elseif os(macOS)
-    NSWorkspace.shared.open(url)
+    let success = NSWorkspace.shared.open(url)
+    print("[Gemini] NSWorkspace.open completed, success: \(success)")
     #endif
   }
 
