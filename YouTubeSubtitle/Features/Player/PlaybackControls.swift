@@ -8,6 +8,7 @@
 import Components
 import SwiftUI
 import SwiftUIRingSlider
+import TipKit
 
 // MARK: - PlayerControls
 
@@ -256,6 +257,7 @@ extension PlayerControls {
           Image(systemName: playIcon)
             .font(.system(size: 32))
         }
+        .popoverTip(StepModeTip())
         .contextMenu {
           Button {
             isStepModeEnabled = false
