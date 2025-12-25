@@ -284,9 +284,16 @@ struct WordExplanationSheet: View {
   /// Convert Markdown string to AttributedString for rendering.
   /// Falls back to plain text if Markdown parsing fails.
   private func markdownAttributedString(from text: String) -> AttributedString {
+    // Preprocess: Convert single newlines to double newlines for proper line breaks
+    // In Markdown, single \n is ignored; \n\n creates a paragraph break
+    let preprocessed = text
+      .replacingOccurrences(of: "\n\n", with: "\u{0000}")  // Preserve existing double newlines
+      .replacingOccurrences(of: "\n", with: "\n\n")        // Convert single to double
+      .replacingOccurrences(of: "\u{0000}", with: "\n\n")  // Restore original doubles
+
     do {
-      var attributed = try AttributedString(
-        markdown: text,
+      let attributed = try AttributedString(
+        markdown: preprocessed,
         options: .init(interpretedSyntax: .full)
       )
       return attributed

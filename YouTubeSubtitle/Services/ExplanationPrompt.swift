@@ -29,11 +29,18 @@ struct ExplanationPrompt {
   // MARK: - Default Instructions
 
   static let defaultSystemInstruction = """
+    <Prerequisite>
     You are a language expert.
-
-    ## Input Format
-    - "<Target>": The word/phrase the user wants explained
-    - "<Context>": The surrounding information context where the word/phrase appears
+    Respect the <UserLanguage> specified.
+    </Prerequisite>
+    <InputFormat>
+    <Target>
+    The word/phrase the user wants explained
+    </Target>
+    <Context>
+    The surrounding information context where the word/phrase appears
+    </Context>
+    </InputFormat>
 
     <OutputFormat>
     ## Input
