@@ -475,10 +475,18 @@ struct WordExplanationSheetContent: View {
   private func markdownAttributedString(from text: String) -> AttributedString {
     // Preprocess: Convert single newlines to double newlines for proper line breaks
     // In Markdown, single \n is ignored; \n\n creates a paragraph break
-    let preprocessed = text
+    let preprocessed = text.replacingOccurrences(of: "\n", with: "\n\n")
 
-    // Fallback to plain text if markdown parsing fails
-    return AttributedString(text)
+    do {
+      let attributed = try AttributedString(
+        markdown: preprocessed,
+        options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+      )
+      return attributed
+    } catch {
+      // Fallback to plain text if markdown parsing fails
+      return AttributedString(text)
+    }
   }
 
   private func errorView(message: String) -> some View {
@@ -662,6 +670,53 @@ private struct InstructionViewerSheet: View {
       (question: "Can you give me more examples?", answer: "Sure! Here are more examples:\n- Coffee shops are ubiquitous in urban areas.\n- Wi-Fi has become ubiquitous in public spaces."),
       (question: "What's the origin of this word?", answer: "The word comes from Latin 'ubique' meaning 'everywhere'.")
     ],
+    followUpQuestion: .constant(""),
+    showsInstructionViewer: .constant(false),
+    service: LLMService(),
+    onClose: {},
+    onRetry: {},
+    onSendFollowUp: {},
+    onOpenGemini: {}
+  )
+}
+
+#Preview("Rich Markdown") {
+  WordExplanationSheetContent(
+    text: "nevertheless",
+    context: "Nevertheless, we decided to proceed with the plan.",
+    serviceState: .success("""
+      ## Input
+
+      nevertheless
+
+      ## Translation
+
+      それにもかかわらず、しかしながら
+
+      ## Explanation
+
+      **Nevertheless** is an adverb used to introduce a statement that contrasts with or seems to contradict something that has been said previously.
+
+      ### Usage Examples
+
+      - The weather was terrible. *Nevertheless*, we enjoyed our trip.
+      - He was tired; *nevertheless*, he continued working.
+
+      ### Synonyms
+
+      - however
+      - nonetheless
+      - even so
+      - still
+      - yet
+
+      ### Register
+
+      This word is considered **formal** and is commonly used in *written English* and *academic contexts*.
+      """),
+    streamedContent: "",
+    isStreaming: false,
+    conversationHistory: [],
     followUpQuestion: .constant(""),
     showsInstructionViewer: .constant(false),
     service: LLMService(),
