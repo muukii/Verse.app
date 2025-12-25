@@ -285,9 +285,10 @@ struct WordExplanationSheet: View {
   /// Falls back to plain text if Markdown parsing fails.
   private func markdownAttributedString(from text: String) -> AttributedString {
     do {
-      var attributed = try AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))
-      // Apply default font to maintain consistency
-      attributed.font = .body
+      var attributed = try AttributedString(
+        markdown: text,
+        options: .init(interpretedSyntax: .full)
+      )
       return attributed
     } catch {
       // Fallback to plain text if markdown parsing fails
@@ -571,11 +572,10 @@ private struct InstructionViewerSheet: View {
   /// Convert Markdown string to AttributedString for rendering.
   private func markdownAttributedString(from text: String) -> AttributedString {
     do {
-      var attributed = try AttributedString(
+      let attributed = try AttributedString(
         markdown: text,
-        options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        options: .init(interpretedSyntax: .full)
       )
-      attributed.font = .callout
       return attributed
     } catch {
       return AttributedString(text)
