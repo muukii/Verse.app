@@ -276,6 +276,7 @@ enum SubtitleAction {
   case tap(time: Double)
   case setRepeatA(time: Double)
   case setRepeatB(time: Double)
+  case setRepeatRange(startTime: Double, endTime: Double)
   case explain(cue: Subtitle.Cue)
   case translate(cue: Subtitle.Cue)
   case wordTap(word: String)
@@ -296,7 +297,7 @@ private struct SubtitleScrollContent: View {
 
   var body: some View {
     List {
-      ForEach(cues) { cue in
+      ForEach(Array(cues.enumerated()), id: \.element.id) { index, cue in
         SubtitleRowView(
           cue: cue,
           currentTime: currentTime,
@@ -309,6 +310,10 @@ private struct SubtitleScrollContent: View {
               onAction(.setRepeatA(time: cue.startTime))
             case .setRepeatB:
               onAction(.setRepeatB(time: cue.endTime))
+            case .setRepeatRange:
+              // Use next cue's startTime as end to handle overlapping cues
+              let endTime = cues[safe: index + 1]?.startTime ?? cue.endTime
+              onAction(.setRepeatRange(startTime: cue.startTime, endTime: endTime))
             case .explain:
               onAction(.explain(cue: cue))
             case .translate:
