@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if os(iOS)
+import SafariServices
+#endif
 
 // MARK: - Gemini URL Builder
 
@@ -43,6 +46,34 @@ struct GeminiURLBuilder {
   }
 }
 
+// MARK: - Safari View (iOS only)
+
+#if os(iOS)
+/// SwiftUI wrapper for SFSafariViewController
+struct SafariView: UIViewControllerRepresentable {
+  let url: URL
+
+  func makeUIViewController(context: Context) -> SFSafariViewController {
+    let configuration = SFSafariViewController.Configuration()
+    configuration.entersReaderIfAvailable = false
+    configuration.barCollapsingEnabled = true
+    let safari = SFSafariViewController(url: url, configuration: configuration)
+    safari.preferredControlTintColor = .systemBlue
+    return safari
+  }
+
+  func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
+    // No updates needed
+  }
+}
+#endif
+
+// MARK: - URL Identifiable Extension
+
+extension URL: @retroactive Identifiable {
+  public var id: String { absoluteString }
+}
+
 // MARK: - Word Explanation Sheet (Stateful Container)
 
 /// Sheet view for displaying LLM-generated word/phrase explanations.
@@ -59,6 +90,7 @@ struct WordExplanationSheet: View {
   @State private var showsInstructionViewer: Bool = false
   @State private var followUpQuestion: String = ""
   @State private var conversationHistory: [(question: String, answer: String)] = []
+  @State private var geminiURL: URL?
 
   var body: some View {
     WordExplanationSheetContent(
@@ -89,6 +121,12 @@ struct WordExplanationSheet: View {
       // Also cancel any ongoing generation in the service
       service.cancelCurrentGeneration()
     }
+    #if os(iOS)
+    .fullScreenCover(item: $geminiURL) { url in
+      SafariView(url: url)
+        .ignoresSafeArea()
+    }
+    #endif
   }
 
   // MARK: - Actions
@@ -116,9 +154,8 @@ struct WordExplanationSheet: View {
 
     // Open the URL
     #if os(iOS)
-    UIApplication.shared.open(url) { success in
-      print("[Gemini] UIApplication.open completed, success: \(success)")
-    }
+    // Use SFSafariViewController on iOS for in-app browsing
+    geminiURL = url
     #elseif os(macOS)
     let success = NSWorkspace.shared.open(url)
     print("[Gemini] NSWorkspace.open completed, success: \(success)")
