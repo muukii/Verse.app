@@ -145,11 +145,12 @@ final class VideoItemService {
 
   // MARK: - Update Playback Position
 
-  /// Update playback position for a video to enable resume functionality.
+  /// Update playback position and duration for a video to enable resume functionality.
   /// - Parameters:
   ///   - videoID: The video ID to update
   ///   - position: Current playback position in seconds. Pass nil to clear the position.
-  func updatePlaybackPosition(videoID: YouTubeContentID, position: Double?) throws {
+  ///   - duration: Total video duration in seconds. Pass nil to keep existing value.
+  func updatePlaybackPosition(videoID: YouTubeContentID, position: Double?, duration: Double? = nil) throws {
     let videoIDRaw = videoID.rawValue
     let descriptor = FetchDescriptor<VideoItem>(
       predicate: #Predicate { $0._videoID == videoIDRaw }
@@ -160,6 +161,9 @@ final class VideoItemService {
     }
 
     item.lastPlaybackPosition = position
+    if let duration {
+      item.duration = duration
+    }
 
     try modelContext.save()
   }

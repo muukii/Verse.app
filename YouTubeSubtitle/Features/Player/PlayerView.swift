@@ -425,9 +425,14 @@ struct PlayerView: View {
   /// Save current playback position to SwiftData for resume functionality
   private func savePlaybackPosition() {
     let position = model.currentTime.value
+    let duration = model.duration
     // Only save if position is meaningful (more than 5 seconds)
     guard position > 5 else { return }
-    try? historyService.updatePlaybackPosition(videoID: videoID, position: position)
+    try? historyService.updatePlaybackPosition(
+      videoID: videoID,
+      position: position,
+      duration: duration > 0 ? duration : nil
+    )
   }
 
   /// Restore saved playback position when video loads

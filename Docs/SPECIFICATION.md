@@ -93,12 +93,14 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
 - Max 50 items
 - Local storage (SwiftData)
 - List display: thumbnail, title, author (when available), relative time
+- Playback progress bar: red bar on thumbnail bottom showing watch progress
 - Actions: tap to open, swipe to delete, clear all
 
 #### 4.2 Playlists (Experimental)
 - Create, rename, delete playlists
 - Add videos from history (context menu)
 - Reorder and remove entries
+- Video entries show playback progress bar on thumbnails
 - Open videos from playlist view
 
 #### 4.3 Vocabulary (Experimental)
@@ -128,7 +130,7 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
 
 ### Home (HomeView)
 - Empty state with "Try Demo Video"
-- History list with thumbnails and metadata
+- History list with thumbnails, metadata, and playback progress bars
 - Toolbar: Settings, Clear History (when available)
 - Bottom bar: Paste URL, Browse YouTube
 - Context menu: Add to Playlist

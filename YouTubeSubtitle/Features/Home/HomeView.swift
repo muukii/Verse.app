@@ -243,6 +243,14 @@ struct VideoHistoryCell: View {
     downloadManager.downloadProgress(for: item.videoID)
   }
 
+  /// Playback progress (0.0 to 1.0) for progress bar display
+  private var playbackProgress: Double? {
+    guard let position = item.lastPlaybackPosition,
+          let duration = item.duration,
+          duration > 0 else { return nil }
+    return min(max(position / duration, 0), 1)
+  }
+
   var body: some View {
     HStack(spacing: 12) {
       // サムネイル画像
@@ -359,6 +367,9 @@ struct VideoHistoryCell: View {
       .aspectRatio(contentMode: .fill)
       .frame(width: 120, height: 68)
       .clipShape(RoundedRectangle(cornerRadius: 8))
+      .overlay(alignment: .bottom) {
+        playbackProgressBar
+      }
     } else {
       Rectangle()
         .fill(Color.gray.opacity(0.3))
@@ -369,6 +380,27 @@ struct VideoHistoryCell: View {
             .foregroundStyle(.white)
             .font(.title)
         }
+        .overlay(alignment: .bottom) {
+          playbackProgressBar
+        }
+    }
+  }
+
+  @ViewBuilder
+  private var playbackProgressBar: some View {
+    if let progress = playbackProgress {
+      GeometryReader { geometry in
+        Rectangle()
+          .fill(Color.red)
+          .frame(width: geometry.size.width * progress, height: 3)
+      }
+      .frame(height: 3)
+      .clipShape(
+        UnevenRoundedRectangle(
+          bottomLeadingRadius: 8,
+          bottomTrailingRadius: progress >= 0.99 ? 8 : 0
+        )
+      )
     }
   }
 
