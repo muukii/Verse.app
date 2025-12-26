@@ -50,6 +50,9 @@ struct PlayerView: View {
   // On-device transcribe state
   @State private var onDeviceTranscribeViewModel = OnDeviceTranscribeViewModel()
 
+  // Playback position auto-save state
+  @State private var savePositionTask: Task<Void, Never>?
+
   // Computed property to access videoID from the entity
   private var videoID: YouTubeContentID { videoItem.videoID }
 
@@ -182,10 +185,17 @@ struct PlayerView: View {
       .onDisappear {
         // Save playback position before leaving
         savePlaybackPosition()
+        // Cancel periodic save task
+        savePositionTask?.cancel()
+        savePositionTask = nil
         model.cleanup()
       }
       .onChange(of: scenePhase) { _, newPhase in
         model.handleScenePhaseChange(to: newPhase)
+        // Save playback position when app goes to background
+        if newPhase == .background {
+          savePlaybackPosition()
+        }
       }
       .onChange(of: videoItem.isDownloaded) { _, isDownloaded in
         // When download completes, automatically switch to local playback
@@ -205,6 +215,8 @@ struct PlayerView: View {
           fetchTranscripts(videoID: videoID)
           // Restore playback position if available
           restorePlaybackPosition()
+          // Start periodic playback position saving (every 30 seconds)
+          startPeriodicPositionSaving()
         }
     }
   }
@@ -438,6 +450,26 @@ struct PlayerView: View {
       try? await Task.sleep(for: .milliseconds(500))
       await MainActor.run {
         model.seek(to: savedPosition)
+      }
+    }
+  }
+
+  /// Start periodic playback position saving (every 30 seconds)
+  private func startPeriodicPositionSaving() {
+    // Cancel any existing task
+    savePositionTask?.cancel()
+
+    savePositionTask = Task { @MainActor in
+      while !Task.isCancelled {
+        // Wait 30 seconds
+        try? await Task.sleep(for: .seconds(30))
+
+        guard !Task.isCancelled else { break }
+
+        // Save position if video is playing or paused (but loaded)
+        if model.isControllerReady {
+          savePlaybackPosition()
+        }
       }
     }
   }

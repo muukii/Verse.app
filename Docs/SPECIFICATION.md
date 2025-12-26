@@ -36,6 +36,9 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
   - Ring slider controls for precise A/B times
 - Collapse/expand player to focus on subtitles
 - Resume playback from last saved position
+  - Auto-saves position every 30 seconds during playback
+  - Saves when app goes to background
+  - Saves when leaving the player screen
 
 ### 2. Subtitles
 
