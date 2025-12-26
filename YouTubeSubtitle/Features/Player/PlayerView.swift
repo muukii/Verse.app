@@ -274,6 +274,9 @@ struct PlayerView: View {
             model.repeatStartTime = time
           case .setRepeatB(let time):
             model.repeatEndTime = time
+          case .setRepeatRange(let startTime, let endTime):
+            model.repeatStartTime = startTime
+            model.repeatEndTime = endTime
           case .explain(let cue):
             selectedCueForExplanation = cue
           case .translate(let cue):

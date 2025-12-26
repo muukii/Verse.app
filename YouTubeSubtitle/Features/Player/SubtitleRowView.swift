@@ -17,6 +17,7 @@ struct SubtitleRowView: View {
     case tap
     case setRepeatA
     case setRepeatB
+    case setRepeatRange
     case explain
     case translate
     case wordTap(String)
@@ -128,6 +129,12 @@ struct SubtitleRowView: View {
       }
 
       Divider()
+
+      Button {
+        onAction(.setRepeatRange)
+      } label: {
+        Label("Repeat This", systemImage: "repeat.1")
+      }
 
       Button {
         onAction(.setRepeatA)
