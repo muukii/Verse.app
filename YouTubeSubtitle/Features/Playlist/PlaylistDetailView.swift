@@ -104,26 +104,18 @@ struct PlaylistDetailView: View {
 struct PlaylistVideoCell: View {
   let video: VideoItem
 
+  /// Playback progress (0.0 to 1.0) for progress bar display
+  private var playbackProgress: Double? {
+    guard let position = video.lastPlaybackPosition,
+          let duration = video.duration,
+          duration > 0 else { return nil }
+    return min(max(position / duration, 0), 1)
+  }
+
   var body: some View {
     HStack(spacing: 12) {
       // Thumbnail
-      if let thumbnailURL = video.thumbnailURL.flatMap({ URL(string: $0) }) {
-        AsyncMultiplexImageNuke(
-          imageRepresentation: .remote(.init(constant: thumbnailURL))
-        )
-        .aspectRatio(contentMode: .fill)
-        .frame(width: 80, height: 45)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-      } else {
-        Rectangle()
-          .fill(Color.gray.opacity(0.2))
-          .overlay {
-            Image(systemName: "play.rectangle.fill")
-              .foregroundStyle(.tertiary)
-          }
-          .frame(width: 80, height: 45)
-          .clipShape(RoundedRectangle(cornerRadius: 6))
-      }
+      thumbnailView
 
       // Info
       VStack(alignment: .leading, spacing: 4) {
@@ -143,6 +135,51 @@ struct PlaylistVideoCell: View {
       Spacer()
     }
     .padding(.vertical, 4)
+  }
+
+  @ViewBuilder
+  private var thumbnailView: some View {
+    if let thumbnailURL = video.thumbnailURL.flatMap({ URL(string: $0) }) {
+      AsyncMultiplexImageNuke(
+        imageRepresentation: .remote(.init(constant: thumbnailURL))
+      )
+      .aspectRatio(contentMode: .fill)
+      .frame(width: 80, height: 45)
+      .clipShape(RoundedRectangle(cornerRadius: 6))
+      .overlay(alignment: .bottom) {
+        playbackProgressBar
+      }
+    } else {
+      Rectangle()
+        .fill(Color.gray.opacity(0.2))
+        .overlay {
+          Image(systemName: "play.rectangle.fill")
+            .foregroundStyle(.tertiary)
+        }
+        .frame(width: 80, height: 45)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(alignment: .bottom) {
+          playbackProgressBar
+        }
+    }
+  }
+
+  @ViewBuilder
+  private var playbackProgressBar: some View {
+    if let progress = playbackProgress {
+      GeometryReader { geometry in
+        Rectangle()
+          .fill(Color.red)
+          .frame(width: geometry.size.width * progress, height: 3)
+      }
+      .frame(height: 3)
+      .clipShape(
+        UnevenRoundedRectangle(
+          bottomLeadingRadius: 6,
+          bottomTrailingRadius: progress >= 0.99 ? 6 : 0
+        )
+      )
+    }
   }
 }
 
