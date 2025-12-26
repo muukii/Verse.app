@@ -50,7 +50,6 @@ struct HomeView: View {
               } label: {
                 VideoItemCell(
                   video: item,
-                  style: .regular,
                   namespace: heroNamespace,
                   downloadManager: downloadManager,
                   showTimestamp: true

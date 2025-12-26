@@ -73,7 +73,7 @@ struct PlaylistDetailView: View {
         Button {
           selectedVideoItem = video
         } label: {
-          VideoItemCell(video: video, style: .compact)
+          VideoItemCell(video: video)
         }
         .buttonStyle(.plain)
       }

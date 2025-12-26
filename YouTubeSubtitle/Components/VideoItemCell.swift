@@ -5,46 +5,14 @@ import AsyncMultiplexImage_Nuke
 // MARK: - VideoItemCell
 
 /// A unified video item cell component used across the app.
-/// Supports different display styles for Home and Playlist screens.
 struct VideoItemCell: View {
   let video: VideoItem
-  var style: Style = .regular
   var namespace: Namespace.ID?
   var downloadManager: DownloadManager?
   var showTimestamp: Bool = false
 
-  enum Style {
-    case regular    // Home screen style (larger)
-    case compact    // Playlist style (smaller)
-
-    var thumbnailSize: CGSize {
-      switch self {
-      case .regular: return CGSize(width: 120, height: 68)
-      case .compact: return CGSize(width: 80, height: 45)
-      }
-    }
-
-    var cornerRadius: CGFloat {
-      switch self {
-      case .regular: return 8
-      case .compact: return 6
-      }
-    }
-
-    var titleFont: Font {
-      switch self {
-      case .regular: return .headline
-      case .compact: return .subheadline.weight(.medium)
-      }
-    }
-
-    var authorFont: Font {
-      switch self {
-      case .regular: return .subheadline
-      case .compact: return .caption
-      }
-    }
-  }
+  private let thumbnailSize = CGSize(width: 120, height: 68)
+  private let cornerRadius: CGFloat = 8
 
   /// Download progress from DownloadManager
   private var downloadProgress: DownloadProgress? {
@@ -70,12 +38,12 @@ struct VideoItemCell: View {
 
       VStack(alignment: .leading, spacing: 4) {
         Text(video.title ?? video.videoID.rawValue)
-          .font(style.titleFont)
+          .font(.headline)
           .lineLimit(2)
 
         if let author = video.author {
           Text(author)
-            .font(style.authorFont)
+            .font(.subheadline)
             .foregroundStyle(.secondary)
             .lineLimit(1)
         }
@@ -95,13 +63,8 @@ struct VideoItemCell: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-
-      if style == .compact {
-        Spacer()
-      }
     }
     .contentShape(Rectangle())
-    .padding(.vertical, style == .compact ? 4 : 0)
     .modifier(MatchedTransitionModifier(id: video.videoID, namespace: namespace))
   }
 
@@ -115,16 +78,16 @@ struct VideoItemCell: View {
         imageRepresentation: .remote(.init(constant: thumbnailURL))
       )
       .aspectRatio(contentMode: .fill)
-      .frame(width: style.thumbnailSize.width, height: style.thumbnailSize.height)
-      .clipShape(RoundedRectangle(cornerRadius: style.cornerRadius))
+      .frame(width: thumbnailSize.width, height: thumbnailSize.height)
+      .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
       .overlay(alignment: .bottom) {
         playbackProgressBar
       }
     } else {
       Rectangle()
         .fill(Color.gray.opacity(0.3))
-        .frame(width: style.thumbnailSize.width, height: style.thumbnailSize.height)
-        .clipShape(RoundedRectangle(cornerRadius: style.cornerRadius))
+        .frame(width: thumbnailSize.width, height: thumbnailSize.height)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .overlay {
           Image(systemName: "play.rectangle")
             .foregroundStyle(.white)
@@ -149,8 +112,8 @@ struct VideoItemCell: View {
       .frame(height: 3)
       .clipShape(
         UnevenRoundedRectangle(
-          bottomLeadingRadius: style.cornerRadius,
-          bottomTrailingRadius: progress >= 0.99 ? style.cornerRadius : 0
+          bottomLeadingRadius: cornerRadius,
+          bottomTrailingRadius: progress >= 0.99 ? cornerRadius : 0
         )
       )
     }
