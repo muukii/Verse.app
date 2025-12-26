@@ -122,7 +122,7 @@ struct WordExplanationSheet: View {
       service.cancelCurrentGeneration()
     }
     #if os(iOS)
-    .fullScreenCover(item: $geminiURL) { url in
+    .sheet(item: $geminiURL) { url in
       SafariView(url: url)
         .ignoresSafeArea()
     }
@@ -156,9 +156,6 @@ struct WordExplanationSheet: View {
     #if os(iOS)
     // Use SFSafariViewController on iOS for in-app browsing
     geminiURL = url
-    #elseif os(macOS)
-    let success = NSWorkspace.shared.open(url)
-    print("[Gemini] NSWorkspace.open completed, success: \(success)")
     #endif
   }
 
