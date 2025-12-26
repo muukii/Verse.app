@@ -9,6 +9,22 @@ import AnyLanguageModelMLX  // Re-exports AnyLanguageModel with MLX trait enable
 import StateGraph
 import SwiftUI
 
+// MARK: - Vocabulary Auto-Fill Response
+
+/// Structured response for vocabulary term auto-fill feature.
+/// Uses @Generable macro to enable structured JSON response from LLM.
+@Generable
+struct VocabularyAutoFillResponse: Sendable {
+  @Guide(description: "The meaning or definition of the term in the user's language")
+  var meaning: String
+
+  @Guide(description: "An example sentence using the term in its original language")
+  var exampleSentence: String
+
+  @Guide(description: "Additional notes about the term's usage, nuances, or etymology")
+  var notes: String
+}
+
 // MARK: - MLX Model Definition
 
 struct MLXModel: Identifiable, Hashable {
@@ -290,6 +306,108 @@ final class LLMService {
     cancelCurrentGeneration()
     state = .idle
     anyLMSession = nil
+  }
+
+  // MARK: - Vocabulary Auto-Fill
+
+  /// Generate vocabulary fields (meaning, example sentence, notes) for a given term.
+  /// Uses structured response to get predictable JSON output.
+  func generateVocabularyAutoFill(
+    term: String,
+    context: String? = nil,
+    targetLanguage: String? = nil
+  ) async throws -> VocabularyAutoFillResponse {
+    let resolvedLanguage = targetLanguage ?? Self.deviceLanguage
+    let availability = checkAvailability()
+
+    switch availability {
+    case .available(let backend):
+      let model = makeModel(for: backend)
+      return try await generateVocabularyFields(
+        model: model,
+        backend: backend,
+        term: term,
+        context: context,
+        targetLanguage: resolvedLanguage
+      )
+
+    case .unavailable(let reason):
+      state = .error(reason.localizedDescription)
+      throw LLMError.notAvailable(reason)
+    }
+  }
+
+  /// Generate vocabulary fields using structured response.
+  private func generateVocabularyFields(
+    model: any AnyLanguageModel.LanguageModel,
+    backend: Backend,
+    term: String,
+    context: String?,
+    targetLanguage: String
+  ) async throws -> VocabularyAutoFillResponse {
+    state = .loading
+    currentBackend = backend
+
+    do {
+      let instructions = buildVocabularyAutoFillInstructions(targetLanguage: targetLanguage)
+      let session = AnyLanguageModel.LanguageModelSession(
+        model: model,
+        instructions: instructions
+      )
+      self.anyLMSession = session
+
+      let prompt = buildVocabularyAutoFillPrompt(term: term, context: context)
+      let response = try await session.respond(
+        to: AnyLanguageModel.Prompt(prompt),
+        generating: VocabularyAutoFillResponse.self
+      )
+
+      state = .idle
+      return response.content
+
+    } catch let error as AnyLanguageModel.LanguageModelSession.GenerationError {
+      let errorMessage = handleGenerationError(error)
+      state = .error(errorMessage)
+      throw LLMError.generationFailed(errorMessage)
+
+    } catch {
+      let errorMessage = String(describing: error)
+      state = .error(errorMessage)
+      throw LLMError.unknown(error)
+    }
+  }
+
+  /// Build system instructions for vocabulary auto-fill.
+  private func buildVocabularyAutoFillInstructions(targetLanguage: String) -> String {
+    """
+    You are a language expert helping users build their vocabulary.
+    Generate helpful information for learning a word or phrase.
+
+    Important guidelines:
+    - Provide the meaning/definition in \(targetLanguage)
+    - Create an example sentence in the original language of the term
+    - Include useful notes about usage, nuances, common collocations, or etymology
+    - Keep responses concise but informative
+    - If context is provided, consider how the term is used in that specific context
+    """
+  }
+
+  /// Build prompt for vocabulary auto-fill.
+  private func buildVocabularyAutoFillPrompt(term: String, context: String?) -> String {
+    if let context = context, !context.isEmpty {
+      return """
+        Term: \(term)
+        Context: \(context)
+
+        Generate vocabulary information for this term, considering the context in which it appears.
+        """
+    } else {
+      return """
+        Term: \(term)
+
+        Generate vocabulary information for this term.
+        """
+    }
   }
 
   /// Cancel any ongoing generation.
