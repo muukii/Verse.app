@@ -417,7 +417,7 @@ final class RealtimeTranscriptionViewModel {
   private var speechAnalyzer: SpeechAnalyzer?
   private var transcriber: SpeechTranscriber?
   private var resultsTask: Task<Void, Never>?
-  private var analysisTask: Task<Void, Error>?
+  private var analysisTask: Task<Void, any Error>?
   private var inputContinuation: AsyncStream<AnalyzerInput>.Continuation?
 
   // MARK: - Public Methods

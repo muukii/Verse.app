@@ -198,7 +198,7 @@ struct VideoItemCell: View {
 // MARK: - Matched Transition Modifier
 
 private struct MatchedTransitionModifier: ViewModifier {
-  let id: VideoID
+  let id: YouTubeContentID
   let namespace: Namespace.ID?
 
   func body(content: Content) -> some View {
