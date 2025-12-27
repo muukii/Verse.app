@@ -44,7 +44,7 @@ struct PlayerView: View {
   // Subtitle interaction state
   @State private var selectedCueForExplanation: Subtitle.Cue?
   @State private var selectedCueForTranslation: Subtitle.Cue?
-  @State private var selectedWord: IdentifiableWord?
+  @State private var selectedWord: Identified<String>?
   @State private var selectedTextForExplanation: (text: String, context: String)?
 
   // On-device transcribe state
@@ -294,7 +294,7 @@ struct PlayerView: View {
           case .translate(let cue):
             selectedCueForTranslation = cue
           case .wordTap(let word):
-            selectedWord = IdentifiableWord(value: word)
+            selectedWord = Identified(word)
           case .explainSelection(let text, let context):
             selectedTextForExplanation = (text, context)
           }
@@ -704,93 +704,6 @@ extension PlayerView {
       case .failed:
         Label("Retry", systemImage: "exclamationmark.circle")
       }
-    }
-  }
-}
-
-// MARK: - Identifiable Word Wrapper
-
-private struct IdentifiableWord: Identifiable {
-  let id = UUID()
-  let value: String
-}
-
-// MARK: - Word Detail Sheet
-
-private struct WordDetailSheet: View {
-  @Environment(\.dismiss) private var dismiss
-  let word: String
-
-  @State private var showTranslation = false
-  @State private var showExplanation = false
-
-  var body: some View {
-    NavigationStack {
-      VStack(spacing: 24) {
-        Text(word)
-          .font(.largeTitle)
-          .fontWeight(.bold)
-          .padding(.top, 40)
-
-        Text("Tapped word")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-
-        Spacer()
-
-        VStack(spacing: 12) {
-          // Translate button
-          Button {
-            showTranslation = true
-          } label: {
-            Label("Translate", systemImage: "translate")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.borderedProminent)
-
-          // Explain button
-          Button {
-            showExplanation = true
-          } label: {
-            Label("Explain", systemImage: "sparkles")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.borderedProminent)
-
-          // Copy button
-          Button {
-            UIPasteboard.general.string = word
-          } label: {
-            Label("Copy to Clipboard", systemImage: "doc.on.doc")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.bordered)
-        }
-        .padding(.horizontal)
-        .padding(.bottom, 40)
-      }
-      .navigationTitle("Word Detail")
-      #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-      #endif
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Done") {
-            dismiss()
-          }
-        }
-      }
-    }
-    .presentationDetents([.medium])
-    .translationPresentation(
-      isPresented: $showTranslation,
-      text: word
-    )
-    .sheet(isPresented: $showExplanation) {
-      WordExplanationSheet(
-        text: word,
-        context: word
-      )
     }
   }
 }

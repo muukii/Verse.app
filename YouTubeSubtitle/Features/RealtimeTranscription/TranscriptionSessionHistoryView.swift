@@ -167,6 +167,8 @@ struct TranscriptionSessionDetailView: View {
   let session: TranscriptionSession
   @State private var editedTitle: String = ""
   @State private var isEditing = false
+  @State private var selectedWord: Identified<String>?
+  @State private var explainText: Identified<String>?
 
   var body: some View {
     NavigationStack {
@@ -201,6 +203,12 @@ struct TranscriptionSessionDetailView: View {
       }
       .onAppear {
         editedTitle = session.title ?? ""
+      }
+      .sheet(item: $selectedWord) { item in
+        WordDetailSheet(word: item.value)
+      }
+      .sheet(item: $explainText) { item in
+        WordExplanationSheet(text: item.value, context: item.value)
       }
     }
   }
@@ -258,7 +266,15 @@ struct TranscriptionSessionDetailView: View {
 
       let sortedEntries = session.entries.sorted { $0.timestamp < $1.timestamp }
       ForEach(sortedEntries) { entry in
-        EntryBubbleView(entry: entry)
+        EntryBubbleView(
+          entry: entry,
+          onWordTap: { word in
+            selectedWord = Identified(word)
+          },
+          onExplain: { text in
+            explainText = Identified(text)
+          }
+        )
       }
     }
   }
@@ -300,11 +316,20 @@ struct TranscriptionSessionDetailView: View {
 
 private struct EntryBubbleView: View {
   let entry: TranscriptionEntry
+  var onWordTap: ((String) -> Void)?
+  var onExplain: ((String) -> Void)?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      Text(entry.text)
-        .font(.body)
+      SelectableSubtitleTextView(
+        text: entry.text,
+        wordTimings: entry.wordTimings.isEmpty ? nil : entry.wordTimings,
+        onWordTap: { word, _ in
+          onWordTap?(word)
+        },
+        onExplain: onExplain
+      )
+      .fixedSize(horizontal: false, vertical: true)
 
       Text(entry.formattedTime)
         .font(.caption2)

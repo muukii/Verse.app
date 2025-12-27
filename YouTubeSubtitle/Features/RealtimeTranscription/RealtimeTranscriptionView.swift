@@ -16,10 +16,8 @@ import Translation
 struct RealtimeTranscriptionView: View {
   @Environment(\.modelContext) private var modelContext
   @State private var viewModel: RealtimeTranscriptionViewModel?
-  @State private var selectedWord: String?
-  @State private var showWordDetail = false
-  @State private var explainText: String?
-  @State private var showExplainSheet = false
+  @State private var selectedWord: Identified<String>?
+  @State private var explainText: Identified<String>?
   @State private var showSessionHistory = false
 
   var body: some View {
@@ -64,15 +62,11 @@ struct RealtimeTranscriptionView: View {
       // Prevent screen sleep during recording
       UIApplication.shared.isIdleTimerDisabled = isRecording ?? false
     }
-    .sheet(isPresented: $showWordDetail) {
-      if let word = selectedWord {
-        WordDetailSheet(word: word)
-      }
+    .sheet(item: $selectedWord) { item in
+      WordDetailSheet(word: item.value)
     }
-    .sheet(isPresented: $showExplainSheet) {
-      if let text = explainText {
-        ExplainSheet(text: text)
-      }
+    .sheet(item: $explainText) { item in
+      ExplainSheet(text: item.value)
     }
     .sheet(isPresented: $showSessionHistory) {
       TranscriptionSessionHistoryView()
@@ -145,12 +139,10 @@ struct RealtimeTranscriptionView: View {
             TranscriptionBubble(
               item: item,
               onWordTap: { word in
-                selectedWord = word
-                showWordDetail = true
+                selectedWord = Identified(word)
               },
               onExplain: { text in
-                explainText = text
-                showExplainSheet = true
+                explainText = Identified(text)
               }
             )
             .id(item.id)
@@ -679,86 +671,6 @@ final class RealtimeTranscriptionViewModel {
     let db = 20 * log10(max(rms, 0.000001))
 
     audioLevel = db
-  }
-}
-
-// MARK: - Word Detail Sheet
-
-private struct WordDetailSheet: View {
-  @Environment(\.dismiss) private var dismiss
-  let word: String
-
-  @State private var showTranslation = false
-  @State private var showExplanation = false
-
-  var body: some View {
-    NavigationStack {
-      VStack(spacing: 24) {
-        Text(word)
-          .font(.largeTitle)
-          .fontWeight(.bold)
-          .padding(.top, 40)
-
-        Text("Tapped word")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-
-        Spacer()
-
-        VStack(spacing: 12) {
-          // Translate button
-          Button {
-            showTranslation = true
-          } label: {
-            Label("Translate", systemImage: "translate")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.borderedProminent)
-
-          // Explain button
-          Button {
-            showExplanation = true
-          } label: {
-            Label("Explain", systemImage: "sparkles")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.borderedProminent)
-
-          // Copy button
-          Button {
-            UIPasteboard.general.string = word
-          } label: {
-            Label("Copy to Clipboard", systemImage: "doc.on.doc")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.bordered)
-        }
-        .padding(.horizontal)
-        .padding(.bottom, 40)
-      }
-      .navigationTitle("Word Detail")
-      #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-      #endif
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Done") {
-            dismiss()
-          }
-        }
-      }
-    }
-    .presentationDetents([.medium])
-    .translationPresentation(
-      isPresented: $showTranslation,
-      text: word
-    )
-    .sheet(isPresented: $showExplanation) {
-      WordExplanationSheet(
-        text: word,
-        context: word
-      )
-    }
   }
 }
 
