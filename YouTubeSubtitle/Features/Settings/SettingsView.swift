@@ -10,7 +10,9 @@ import SwiftUI
 
 struct SettingsView: View {
   @Environment(\.dismiss) private var dismiss
+  @Environment(VideoItemService.self) private var historyService
   @State private var llmService = LLMService()
+  @State private var showClearHistoryConfirmation = false
 
   var body: some View {
     NavigationStack {
@@ -83,6 +85,24 @@ struct SettingsView: View {
           Text("Create custom shortcuts with the Shortcuts app.")
         }
 
+        // MARK: - Data Management
+        Section {
+          Button(role: .destructive) {
+            showClearHistoryConfirmation = true
+          } label: {
+            Label {
+              Text("Clear History")
+            } icon: {
+              Image(systemName: "trash")
+                .foregroundStyle(.red)
+            }
+          }
+        } header: {
+          Text("Data")
+        } footer: {
+          Text("Remove all watched videos from history. This cannot be undone.")
+        }
+
         // MARK: - Feature Flags (DEBUG only)
         #if DEBUG
         FeatureFlagsSettingsView()
@@ -153,6 +173,20 @@ struct SettingsView: View {
             dismiss()
           }
         }
+      }
+      .confirmationDialog(
+        "Clear History",
+        isPresented: $showClearHistoryConfirmation,
+        titleVisibility: .visible
+      ) {
+        Button("Clear All History", role: .destructive) {
+          Task {
+            try? await historyService.clearAllHistory()
+          }
+        }
+        Button("Cancel", role: .cancel) {}
+      } message: {
+        Text("Are you sure you want to clear all history? This will remove all watched videos and cannot be undone.")
       }
     }
   }
