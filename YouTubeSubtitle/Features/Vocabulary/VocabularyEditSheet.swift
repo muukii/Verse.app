@@ -30,11 +30,17 @@ struct VocabularyEditSheet: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(VocabularyService.self) private var vocabularyService
 
+  @State private var llmService = LLMService()
+
   @State private var term: String = ""
   @State private var meaning: String = ""
   @State private var context: String = ""
   @State private var notes: String = ""
   @State private var showDeleteConfirmation: Bool = false
+
+  // Auto-fill state
+  @State private var isAutoFilling: Bool = false
+  @State private var autoFillError: String?
 
   private var title: String {
     mode.isEditing ? "Edit Term" : "Add Term"
@@ -47,12 +53,36 @@ struct VocabularyEditSheet: View {
   var body: some View {
     NavigationStack {
       Form {
-        // Term (required)
+        // Term (required) with auto-fill button
         Section {
-          TextField("Word or phrase", text: $term)
-            .textInputAutocapitalization(.never)
+          HStack {
+            TextField("Word or phrase", text: $term)
+              .textInputAutocapitalization(.never)
+
+            Button {
+              Task {
+                await performAutoFill()
+              }
+            } label: {
+              if isAutoFilling {
+                ProgressView()
+                  .controlSize(.small)
+              } else {
+                Image(systemName: "sparkles")
+              }
+            }
+            .disabled(term.trimmingCharacters(in: .whitespaces).isEmpty || isAutoFilling)
+            .buttonStyle(.borderless)
+          }
         } header: {
           Text("Term")
+        } footer: {
+          if let error = autoFillError {
+            Text(error)
+              .foregroundStyle(.red)
+          } else {
+            Text("Tap ✨ to auto-fill fields using AI")
+          }
         }
 
         // Meaning
@@ -173,6 +203,36 @@ struct VocabularyEditSheet: View {
     }
 
     dismiss()
+  }
+
+  private func performAutoFill() async {
+    let trimmedTerm = term.trimmingCharacters(in: .whitespaces)
+    guard !trimmedTerm.isEmpty else { return }
+
+    isAutoFilling = true
+    autoFillError = nil
+
+    do {
+      let response = try await llmService.generateVocabularyAutoFill(
+        term: trimmedTerm,
+        context: context.isEmpty ? nil : context
+      )
+
+      // Only fill empty fields to preserve user input
+      if meaning.isEmpty {
+        meaning = response.meaning
+      }
+      if context.isEmpty {
+        context = response.exampleSentence
+      }
+      if notes.isEmpty {
+        notes = response.notes
+      }
+    } catch {
+      autoFillError = error.localizedDescription
+    }
+
+    isAutoFilling = false
   }
 }
 

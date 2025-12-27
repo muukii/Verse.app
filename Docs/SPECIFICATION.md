@@ -108,6 +108,7 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
 
 #### 4.3 Vocabulary (Experimental)
 - Manual vocabulary list (term, meaning, context, notes)
+- AI auto-fill: tap ✨ button after entering a term to auto-generate meaning, example sentence, and notes using on-device LLM (structured response)
 - Learning state badges (New, Learning, Reviewing, Mastered)
 - Search, add, edit, delete
 
