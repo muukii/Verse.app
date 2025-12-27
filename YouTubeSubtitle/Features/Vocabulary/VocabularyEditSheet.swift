@@ -219,14 +219,14 @@ struct VocabularyEditSheet: View {
       )
 
       // Only fill empty fields to preserve user input
-      if meaning.isEmpty {
-        meaning = response.meaning
+      if meaning.isEmpty, let responseMeaning = response.meaning {
+        meaning = responseMeaning
       }
-      if context.isEmpty {
-        context = response.exampleSentence
+      if context.isEmpty, let responseExample = response.exampleSentence {
+        context = responseExample
       }
-      if notes.isEmpty {
-        notes = response.notes
+      if notes.isEmpty, let responseNotes = response.notes {
+        notes = responseNotes
       }
     } catch {
       autoFillError = error.localizedDescription

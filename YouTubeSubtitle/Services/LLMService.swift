@@ -16,13 +16,13 @@ import SwiftUI
 @Generable
 struct VocabularyAutoFillResponse: Sendable {
   @Guide(description: "The meaning or definition of the term in the user's language")
-  var meaning: String
+  var meaning: String?
 
   @Guide(description: "An example sentence using the term in its original language")
-  var exampleSentence: String
+  var exampleSentence: String?
 
   @Guide(description: "Additional notes about the term's usage, nuances, or etymology")
-  var notes: String
+  var notes: String?
 }
 
 // MARK: - MLX Model Definition
@@ -366,11 +366,39 @@ final class LLMService {
       return response.content
 
     } catch let error as AnyLanguageModel.LanguageModelSession.GenerationError {
+      print("[LLMService] VocabularyAutoFill GenerationError: \(error)")
       let errorMessage = handleGenerationError(error)
       state = .error(errorMessage)
       throw LLMError.generationFailed(errorMessage)
 
+    } catch let error as DecodingError {
+      print("[LLMService] VocabularyAutoFill DecodingError: \(error)")
+      switch error {
+      case .typeMismatch(let type, let context):
+        print("[LLMService] Type mismatch - expected: \(type)")
+        print("[LLMService] Coding path: \(context.codingPath.map(\.stringValue).joined(separator: "."))")
+        print("[LLMService] Debug description: \(context.debugDescription)")
+        if let underlyingError = context.underlyingError {
+          print("[LLMService] Underlying error: \(underlyingError)")
+        }
+      case .valueNotFound(let type, let context):
+        print("[LLMService] Value not found - type: \(type)")
+        print("[LLMService] Coding path: \(context.codingPath.map(\.stringValue).joined(separator: "."))")
+      case .keyNotFound(let key, let context):
+        print("[LLMService] Key not found: \(key.stringValue)")
+        print("[LLMService] Coding path: \(context.codingPath.map(\.stringValue).joined(separator: "."))")
+      case .dataCorrupted(let context):
+        print("[LLMService] Data corrupted: \(context.debugDescription)")
+      @unknown default:
+        print("[LLMService] Unknown decoding error")
+      }
+      let errorMessage = "Failed to decode response: \(error.localizedDescription)"
+      state = .error(errorMessage)
+      throw LLMError.generationFailed(errorMessage)
+
     } catch {
+      print("[LLMService] VocabularyAutoFill Unknown error: \(error)")
+      print("[LLMService] Error type: \(type(of: error))")
       let errorMessage = String(describing: error)
       state = .error(errorMessage)
       throw LLMError.unknown(error)
