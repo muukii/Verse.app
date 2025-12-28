@@ -10,6 +10,16 @@ import SwiftUI
 
 // MARK: - Vocabulary Auto-Fill Response
 
+/// Example sentence structure for auto-fill.
+@Generable
+struct ExampleSentence: Sendable {
+  @Guide(description: "The example sentence in the original language of the term")
+  var originalSentence: String
+
+  @Guide(description: "Translation of the example sentence")
+  var translatedSentence: String
+}
+
 /// Structured response for vocabulary term auto-fill feature.
 /// Uses FoundationModels' native @Generable for constrained sampling.
 @Generable
@@ -17,8 +27,11 @@ struct VocabularyAutoFillResult: Sendable {
   @Guide(description: "The meaning or definition of the term")
   var meaning: String
 
-  @Guide(description: "An example sentence using the term")
-  var exampleSentence: String
+  @Guide(description: "The part of speech (noun, verb, adjective, adverb, pronoun, preposition, conjunction, interjection, phrase, idiom, or other)")
+  var partOfSpeech: String
+
+  @Guide(description: "Example sentences using the term", .count(2))
+  var examples: [ExampleSentence]
 
   @Guide(description: "Additional notes about usage, nuances, or etymology")
   var notes: String
@@ -175,10 +188,10 @@ final class FoundationModelService {
 
     Important guidelines:
     - Provide the meaning/definition in \(languageName)
-    - Create an example sentence in the original language of the term
+    - Identify the part of speech (noun, verb, adjective, adverb, pronoun, preposition, conjunction, interjection, phrase, idiom, or other)
+    - Create 2 example sentences in the original language of the term with their translations in \(languageName)
     - Include useful notes about usage, nuances, common collocations, or etymology
     - Keep responses concise but informative
-    - If context is provided, consider how the term is used in that specific context
     """
   }
 

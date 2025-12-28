@@ -34,13 +34,21 @@ struct VocabularyEditSheet: View {
 
   @State private var term: String = ""
   @State private var meaning: String = ""
-  @State private var context: String = ""
+  @State private var partOfSpeech: PartOfSpeech? = nil
+  @State private var examples: [EditableExample] = []
   @State private var notes: String = ""
   @State private var showDeleteConfirmation: Bool = false
 
   // Auto-fill state
   @State private var isAutoFilling: Bool = false
   @State private var autoFillError: String?
+
+  /// Editable example for UI state management
+  struct EditableExample: Identifiable {
+    let id = UUID()
+    var originalSentence: String
+    var translatedSentence: String
+  }
 
   private var title: String {
     mode.isEditing ? "Edit Term" : "Add Term"
@@ -93,14 +101,38 @@ struct VocabularyEditSheet: View {
           Text("Meaning")
         }
 
-        // Context
+        // Part of Speech
         Section {
-          TextField("Example sentence", text: $context, axis: .vertical)
-            .lineLimit(2...4)
+          Picker("Part of Speech", selection: $partOfSpeech) {
+            Text("Not specified").tag(nil as PartOfSpeech?)
+            ForEach(PartOfSpeech.allCases, id: \.self) { pos in
+              Text(pos.displayName).tag(pos as PartOfSpeech?)
+            }
+          }
         } header: {
-          Text("Context")
-        } footer: {
-          Text("The sentence where you found this term")
+          Text("Part of Speech")
+        }
+
+        // Examples
+        Section {
+          ForEach($examples) { $example in
+            VStack(alignment: .leading, spacing: 8) {
+              TextField("Example sentence", text: $example.originalSentence, axis: .vertical)
+                .lineLimit(2...4)
+              TextField("Translation", text: $example.translatedSentence, axis: .vertical)
+                .lineLimit(2...4)
+                .foregroundStyle(.secondary)
+            }
+          }
+          .onDelete(perform: deleteExample)
+
+          Button {
+            addExample()
+          } label: {
+            Label("Add Example", systemImage: "plus")
+          }
+        } header: {
+          Text("Examples")
         }
 
         // Notes
@@ -169,8 +201,16 @@ struct VocabularyEditSheet: View {
     if case .edit(let item) = mode {
       term = item.term
       meaning = item.meaning ?? ""
-      context = item.context ?? ""
+      partOfSpeech = item.partOfSpeech
       notes = item.notes ?? ""
+
+      // Load examples
+      examples = item.sortedExamples.map { example in
+        EditableExample(
+          originalSentence: example.originalSentence,
+          translatedSentence: example.translatedSentence
+        )
+      }
     }
   }
 
@@ -179,16 +219,24 @@ struct VocabularyEditSheet: View {
     guard !trimmedTerm.isEmpty else { return }
 
     let trimmedMeaning = meaning.isEmpty ? nil : meaning
-    let trimmedContext = context.isEmpty ? nil : context
     let trimmedNotes = notes.isEmpty ? nil : notes
+
+    // Convert EditableExample to ExampleInput
+    let exampleInputs = examples
+      .filter { !$0.originalSentence.trimmingCharacters(in: .whitespaces).isEmpty }
+      .map { VocabularyService.ExampleInput(
+        originalSentence: $0.originalSentence,
+        translatedSentence: $0.translatedSentence
+      )}
 
     switch mode {
     case .add:
       try? vocabularyService.addItem(
         term: trimmedTerm,
         meaning: trimmedMeaning,
-        context: trimmedContext,
         notes: trimmedNotes,
+        partOfSpeech: partOfSpeech,
+        examples: exampleInputs,
         duplicateHandling: .allowDuplicate
       )
 
@@ -197,8 +245,9 @@ struct VocabularyEditSheet: View {
         item,
         term: trimmedTerm,
         meaning: trimmedMeaning,
-        context: trimmedContext,
-        notes: trimmedNotes
+        notes: trimmedNotes,
+        partOfSpeech: partOfSpeech,
+        examples: exampleInputs
       )
     }
 
@@ -215,15 +264,23 @@ struct VocabularyEditSheet: View {
     do {
       let response = try await foundationModelService.generateVocabularyAutoFill(
         term: trimmedTerm,
-        context: context.isEmpty ? nil : context
+        context: nil
       )
 
       // Only fill empty fields to preserve user input
       if meaning.isEmpty && !response.meaning.isEmpty {
         meaning = response.meaning
       }
-      if context.isEmpty && !response.exampleSentence.isEmpty {
-        context = response.exampleSentence
+      if partOfSpeech == nil {
+        partOfSpeech = PartOfSpeech(rawValue: response.partOfSpeech.lowercased())
+      }
+      if examples.isEmpty && !response.examples.isEmpty {
+        examples = response.examples.map { example in
+          EditableExample(
+            originalSentence: example.originalSentence,
+            translatedSentence: example.translatedSentence
+          )
+        }
       }
       if notes.isEmpty && !response.notes.isEmpty {
         notes = response.notes
@@ -233,6 +290,16 @@ struct VocabularyEditSheet: View {
     }
 
     isAutoFilling = false
+  }
+
+  // MARK: - Example Management
+
+  private func addExample() {
+    examples.append(EditableExample(originalSentence: "", translatedSentence: ""))
+  }
+
+  private func deleteExample(at offsets: IndexSet) {
+    examples.remove(atOffsets: offsets)
   }
 }
 
