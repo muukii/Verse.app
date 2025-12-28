@@ -12,17 +12,16 @@ import SwiftUI
 // MARK: - Vocabulary Auto-Fill Response
 
 /// Structured response for vocabulary term auto-fill feature.
-/// Uses @Generable macro to enable structured JSON response from LLM.
-@Generable
+@Generable(description: "Vocabulary information for learning a word or phrase")
 struct VocabularyAutoFillResponse: Sendable {
-  @Guide(description: "The meaning or definition of the term in the user's language")
-  var meaning: String?
+  @Guide(description: "The meaning or definition of the term")
+  var meaning: String
 
-  @Guide(description: "An example sentence using the term in its original language")
-  var exampleSentence: String?
+  @Guide(description: "An example sentence using the term")
+  var exampleSentence: String
 
-  @Guide(description: "Additional notes about the term's usage, nuances, or etymology")
-  var notes: String?
+  @Guide(description: "Additional notes about usage, nuances, or etymology")
+  var notes: String
 }
 
 // MARK: - MLX Model Definition
@@ -337,7 +336,7 @@ final class LLMService {
     }
   }
 
-  /// Generate vocabulary fields using structured response.
+  /// Generate vocabulary fields using structured response with @Generable.
   private func generateVocabularyFields(
     model: any AnyLanguageModel.LanguageModel,
     backend: Backend,
@@ -357,10 +356,15 @@ final class LLMService {
       self.anyLMSession = session
 
       let prompt = buildVocabularyAutoFillPrompt(term: term, context: context)
+
+      // Use structured generation with @Generable
       let response = try await session.respond(
-        to: AnyLanguageModel.Prompt(prompt),
-        generating: VocabularyAutoFillResponse.self
+        to: prompt,
+        generating: VocabularyAutoFillResponse.self,
+        includeSchemaInPrompt: true
       )
+
+      print("[LLMService] VocabularyAutoFill response: \(response.content)")
 
       state = .idle
       return response.content
@@ -368,31 +372,6 @@ final class LLMService {
     } catch let error as AnyLanguageModel.LanguageModelSession.GenerationError {
       print("[LLMService] VocabularyAutoFill GenerationError: \(error)")
       let errorMessage = handleGenerationError(error)
-      state = .error(errorMessage)
-      throw LLMError.generationFailed(errorMessage)
-
-    } catch let error as DecodingError {
-      print("[LLMService] VocabularyAutoFill DecodingError: \(error)")
-      switch error {
-      case .typeMismatch(let type, let context):
-        print("[LLMService] Type mismatch - expected: \(type)")
-        print("[LLMService] Coding path: \(context.codingPath.map(\.stringValue).joined(separator: "."))")
-        print("[LLMService] Debug description: \(context.debugDescription)")
-        if let underlyingError = context.underlyingError {
-          print("[LLMService] Underlying error: \(underlyingError)")
-        }
-      case .valueNotFound(let type, let context):
-        print("[LLMService] Value not found - type: \(type)")
-        print("[LLMService] Coding path: \(context.codingPath.map(\.stringValue).joined(separator: "."))")
-      case .keyNotFound(let key, let context):
-        print("[LLMService] Key not found: \(key.stringValue)")
-        print("[LLMService] Coding path: \(context.codingPath.map(\.stringValue).joined(separator: "."))")
-      case .dataCorrupted(let context):
-        print("[LLMService] Data corrupted: \(context.debugDescription)")
-      @unknown default:
-        print("[LLMService] Unknown decoding error")
-      }
-      let errorMessage = "Failed to decode response: \(error.localizedDescription)"
       state = .error(errorMessage)
       throw LLMError.generationFailed(errorMessage)
 
@@ -417,6 +396,11 @@ final class LLMService {
     - Include useful notes about usage, nuances, common collocations, or etymology
     - Keep responses concise but informative
     - If context is provided, consider how the term is used in that specific context
+
+    IMPORTANT: You must respond with ONLY a valid JSON object in this exact format:
+    {"meaning": "...", "exampleSentence": "...", "notes": "..."}
+
+    Do not include any text before or after the JSON. Do not use markdown code blocks.
     """
   }
 
@@ -427,13 +411,13 @@ final class LLMService {
         Term: \(term)
         Context: \(context)
 
-        Generate vocabulary information for this term, considering the context in which it appears.
+        Respond with JSON only.
         """
     } else {
       return """
         Term: \(term)
 
-        Generate vocabulary information for this term.
+        Respond with JSON only.
         """
     }
   }

@@ -26,8 +26,8 @@ final class VocabularyService {
   enum DuplicateHandling: Sendable {
     /// Do nothing if duplicate exists (default for tap-to-add)
     case skip
-    /// Update context of existing item (useful when same term appears in different contexts)
-    case updateContext
+    /// Update meaning of existing item if not already set
+    case updateMeaning
     /// Create duplicate anyway
     case allowDuplicate
   }
@@ -46,14 +46,21 @@ final class VocabularyService {
     }
   }
 
+  /// Example input for creating vocabulary examples.
+  struct ExampleInput: Sendable {
+    let originalSentence: String
+    let translatedSentence: String
+  }
+
   /// Add a new vocabulary item.
   /// Returns the result of duplicate checking.
   @discardableResult
   func addItem(
     term: String,
     meaning: String? = nil,
-    context: String? = nil,
     notes: String? = nil,
+    partOfSpeech: PartOfSpeech? = nil,
+    examples: [ExampleInput] = [],
     duplicateHandling: DuplicateHandling = .skip
   ) throws -> AddResult {
     // Check for existing item with same term (case-insensitive)
@@ -62,13 +69,8 @@ final class VocabularyService {
       case .skip:
         return .skipped(existing: existing)
 
-      case .updateContext:
-        // Update context if new one is provided
-        if let newContext = context, !newContext.isEmpty {
-          existing.context = newContext
-          existing.updatedAt = Date()
-        }
-        // Also update meaning if provided and existing is nil
+      case .updateMeaning:
+        // Update meaning if provided and existing is nil
         if let newMeaning = meaning, existing.meaning == nil {
           existing.meaning = newMeaning
           existing.updatedAt = Date()
@@ -84,11 +86,31 @@ final class VocabularyService {
     let item = VocabularyItem(
       term: term,
       meaning: meaning,
-      context: context,
-      notes: notes
+      notes: notes,
+      partOfSpeech: partOfSpeech
     )
 
     modelContext.insert(item)
+
+    // Add examples with LexoRank sort ordering
+    for (index, example) in examples.enumerated() {
+      let sortOrder: String
+      if index == 0 {
+        sortOrder = LexoRank.initial()
+      } else {
+        let keys = LexoRank.distributeKeys(count: index + 1)
+        sortOrder = keys[index]
+      }
+
+      let vocabularyExample = VocabularyExample(
+        sortOrder: sortOrder,
+        originalSentence: example.originalSentence,
+        translatedSentence: example.translatedSentence
+      )
+      vocabularyExample.vocabularyItem = item
+      modelContext.insert(vocabularyExample)
+    }
+
     try modelContext.save()
 
     return .created(item: item)
@@ -172,8 +194,9 @@ final class VocabularyService {
     _ item: VocabularyItem,
     term: String? = nil,
     meaning: String? = nil,
-    context: String? = nil,
-    notes: String? = nil
+    notes: String? = nil,
+    partOfSpeech: PartOfSpeech?? = nil,
+    examples: [ExampleInput]? = nil
   ) throws {
     if let term {
       item.updateTerm(term)
@@ -182,12 +205,35 @@ final class VocabularyService {
       item.meaning = meaning
       item.updatedAt = Date()
     }
-    if let context {
-      item.context = context
-      item.updatedAt = Date()
-    }
     if let notes {
       item.notes = notes
+      item.updatedAt = Date()
+    }
+    // Handle double optional: nil = no change, .some(nil) = clear, .some(.some(value)) = set
+    if let partOfSpeechValue = partOfSpeech {
+      item.partOfSpeech = partOfSpeechValue
+      item.updatedAt = Date()
+    }
+
+    // Update examples if provided
+    if let newExamples = examples {
+      // Delete existing examples
+      for example in item.examples ?? [] {
+        modelContext.delete(example)
+      }
+
+      // Add new examples with LexoRank sort ordering
+      let keys = LexoRank.distributeKeys(count: newExamples.count)
+      for (index, example) in newExamples.enumerated() {
+        let vocabularyExample = VocabularyExample(
+          sortOrder: keys.isEmpty ? LexoRank.initial() : keys[index],
+          originalSentence: example.originalSentence,
+          translatedSentence: example.translatedSentence
+        )
+        vocabularyExample.vocabularyItem = item
+        modelContext.insert(vocabularyExample)
+      }
+
       item.updatedAt = Date()
     }
 

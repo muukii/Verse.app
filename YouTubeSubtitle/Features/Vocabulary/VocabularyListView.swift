@@ -119,13 +119,11 @@ struct VocabularyCell: View {
           .lineLimit(2)
       }
 
-      // Context
-      if let context = item.context, !context.isEmpty {
-        Text("\"\(context)\"")
+      // Part of Speech
+      if let partOfSpeech = item.partOfSpeech {
+        Text(partOfSpeech.displayName)
           .font(.caption)
           .foregroundStyle(.tertiary)
-          .lineLimit(1)
-          .italic()
       }
 
       // Footer: Date and Learning State
