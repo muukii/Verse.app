@@ -93,10 +93,14 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
 #### 4.1 Watch History
 - Auto-saved on open
 - Deduplicated by video ID (most recent kept)
-- Max 50 items
+- No item limit
 - Local storage (SwiftData)
 - List display: thumbnail, title, author (when available), relative time
 - Playback progress bar: red bar on thumbnail bottom showing watch progress
+- Manual reordering: drag & drop support in edit mode
+  - Edit button in top-left toolbar toggles edit mode
+  - Uses lexicographic string ordering for efficient reordering
+  - New items are added to the top of the list
 - Actions: tap to open, swipe to delete, clear all
 
 #### 4.2 Playlists (Experimental)
@@ -135,8 +139,9 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
 ### Home (HomeView)
 - Empty state with "Try Demo Video"
 - History list with thumbnails, metadata, and playback progress bars
-- Toolbar: Settings, Clear History (when available)
+- Toolbar: Edit (for reordering), Settings, Clear History (when available)
 - Bottom bar: Paste URL, Browse YouTube
+- Edit mode: drag handles for reordering history items
 - Context menu: Add to Playlist
 
 ### URL Input Sheet (URLInputSheet)

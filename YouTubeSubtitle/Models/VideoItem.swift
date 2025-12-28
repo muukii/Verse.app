@@ -30,6 +30,10 @@ final class VideoItem: TypedIdentifiable {
   var thumbnailURL: String?
   var timestamp: Date
 
+  /// Lexicographic order key for manual sorting in history list.
+  /// nil means the item needs to be initialized with a sort order.
+  var sortOrder: String?
+
   // Transcript cache
   var transcriptData: Data?
   var transcriptLanguage: String?
