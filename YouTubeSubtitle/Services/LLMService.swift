@@ -6,20 +6,22 @@
 //
 
 import AnyLanguageModelMLX  // Re-exports AnyLanguageModel with MLX trait enabled
-import FoundationModels
 import StateGraph
 import SwiftUI
 
-// Note: VocabularyAutoFillResponse is defined in VocabularyAutoFillTypes.swift
-// to avoid type ambiguity between FoundationModels and AnyLanguageModel.
+// MARK: - Vocabulary Auto-Fill Response
 
-// MARK: - Vocabulary Auto-Fill JSON Response (for MLX parsing)
+/// Structured response for vocabulary term auto-fill feature.
+@Generable(description: "Vocabulary information for learning a word or phrase")
+struct VocabularyAutoFillResponse: Sendable {
+  @Guide(description: "The meaning or definition of the term")
+  var meaning: String
 
-/// JSON-decodable response for MLX backend (which doesn't support constrained decoding).
-private struct VocabularyAutoFillJSONResponse: Decodable {
-  let meaning: String
-  let exampleSentence: String
-  let notes: String
+  @Guide(description: "An example sentence using the term")
+  var exampleSentence: String
+
+  @Guide(description: "Additional notes about usage, nuances, or etymology")
+  var notes: String
 }
 
 // MARK: - MLX Model Definition
@@ -334,9 +336,7 @@ final class LLMService {
     }
   }
 
-  /// Generate vocabulary fields using structured response.
-  /// Uses FoundationModels' native structured generation for Apple Intelligence,
-  /// and JSON parsing for MLX backend.
+  /// Generate vocabulary fields using structured response with @Generable.
   private func generateVocabularyFields(
     model: any AnyLanguageModel.LanguageModel,
     backend: Backend,
@@ -349,41 +349,29 @@ final class LLMService {
 
     do {
       let instructions = buildVocabularyAutoFillInstructions(targetLanguage: targetLanguage)
+      let session = AnyLanguageModel.LanguageModelSession(
+        model: model,
+        instructions: instructions
+      )
+      self.anyLMSession = session
+
       let prompt = buildVocabularyAutoFillPrompt(term: term, context: context)
 
-      let response: VocabularyAutoFillResponse
+      // Use structured generation with @Generable
+      let response = try await session.respond(
+        to: prompt,
+        generating: VocabularyAutoFillResponse.self,
+        includeSchemaInPrompt: true
+      )
 
-      switch backend {
-      case .appleIntelligence:
-        // Use FoundationModels' native structured generation API
-        response = try await generateVocabularyFieldsWithFoundationModels(
-          instructions: instructions,
-          prompt: prompt
-        )
-
-      case .mlx:
-        // Use JSON parsing for MLX backend
-        response = try await generateVocabularyFieldsWithMLX(
-          model: model,
-          instructions: instructions,
-          prompt: prompt
-        )
-      }
-
-      print("[LLMService] VocabularyAutoFill response: \(response)")
+      print("[LLMService] VocabularyAutoFill response: \(response.content)")
 
       state = .idle
-      return response
+      return response.content
 
     } catch let error as AnyLanguageModel.LanguageModelSession.GenerationError {
       print("[LLMService] VocabularyAutoFill GenerationError: \(error)")
       let errorMessage = handleGenerationError(error)
-      state = .error(errorMessage)
-      throw LLMError.generationFailed(errorMessage)
-
-    } catch let error as FoundationModels.LanguageModelSession.GenerationError {
-      print("[LLMService] VocabularyAutoFill FoundationModels GenerationError: \(error)")
-      let errorMessage = handleFoundationModelsGenerationError(error)
       state = .error(errorMessage)
       throw LLMError.generationFailed(errorMessage)
 
@@ -393,77 +381,6 @@ final class LLMService {
       let errorMessage = String(describing: error)
       state = .error(errorMessage)
       throw LLMError.unknown(error)
-    }
-  }
-
-  /// Generate vocabulary fields using FoundationModels' native structured generation.
-  /// This uses constrained sampling to force the model output into the defined structure.
-  private func generateVocabularyFieldsWithFoundationModels(
-    instructions: String,
-    prompt: String
-  ) async throws -> VocabularyAutoFillResponse {
-    let systemModel = FoundationModels.SystemLanguageModel.default
-    let fmSession = FoundationModels.LanguageModelSession(
-      model: systemModel,
-      instructions: instructions
-    )
-
-    // Use native structured generation with constrained sampling
-    let response = try await fmSession.respond(
-      to: prompt,
-      generating: VocabularyAutoFillResponse.self
-    )
-
-    // Extract content from Response wrapper
-    return response.content
-  }
-
-  /// Generate vocabulary fields using MLX with JSON parsing.
-  /// MLX doesn't support constrained decoding, so we use JSON prompting.
-  private func generateVocabularyFieldsWithMLX(
-    model: any AnyLanguageModel.LanguageModel,
-    instructions: String,
-    prompt: String
-  ) async throws -> VocabularyAutoFillResponse {
-    let session = AnyLanguageModel.LanguageModelSession(
-      model: model,
-      instructions: instructions
-    )
-    self.anyLMSession = session
-
-    let response = try await session.respond(to: AnyLanguageModel.Prompt(prompt))
-    let content = response.content
-
-    // Parse JSON response
-    guard let jsonData = content.data(using: .utf8) else {
-      throw LLMError.generationFailed("Failed to convert response to data")
-    }
-
-    let decoder = JSONDecoder()
-    let parsed = try decoder.decode(VocabularyAutoFillJSONResponse.self, from: jsonData)
-
-    return VocabularyAutoFillResponse(
-      meaning: parsed.meaning,
-      exampleSentence: parsed.exampleSentence,
-      notes: parsed.notes
-    )
-  }
-
-  /// Handle FoundationModels generation errors.
-  private func handleFoundationModelsGenerationError(
-    _ error: FoundationModels.LanguageModelSession.GenerationError
-  ) -> String {
-    switch error {
-    case .exceededContextWindowSize:
-      return "The text is too long to process. Please try with a shorter selection."
-    case .assetsUnavailable:
-      return "Language model assets are not available. Please try again later."
-    case .guardrailViolation:
-      return "The content violates safety guidelines."
-    case .unsupportedLanguageOrLocale:
-      return "The language or locale is not supported."
-    @unknown default:
-      return "An unknown error occurred: \(error)"
     }
   }
 

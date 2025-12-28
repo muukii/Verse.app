@@ -30,7 +30,7 @@ struct VocabularyEditSheet: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(VocabularyService.self) private var vocabularyService
 
-  @State private var llmService = LLMService()
+  @State private var foundationModelService = FoundationModelService()
 
   @State private var term: String = ""
   @State private var meaning: String = ""
@@ -213,7 +213,7 @@ struct VocabularyEditSheet: View {
     autoFillError = nil
 
     do {
-      let response = try await llmService.generateVocabularyAutoFill(
+      let response = try await foundationModelService.generateVocabularyAutoFill(
         term: trimmedTerm,
         context: context.isEmpty ? nil : context
       )
