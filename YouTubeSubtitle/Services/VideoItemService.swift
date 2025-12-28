@@ -26,14 +26,14 @@ final class VideoItemService {
 
   /// Add a video to history with metadata.
   /// Removes any existing entry for the same videoID to prevent duplicates.
-  /// Keeps only the most recent 50 items.
+  /// New items are inserted at the top of the list.
   func addToHistory(videoID: YouTubeContentID, url: String) async throws {
     // Fetch metadata
     let metadata = await VideoMetadataFetcher.fetch(videoID: videoID)
 
-    // Fetch all history items
+    // Fetch all history items sorted by sortOrder
     let descriptor = FetchDescriptor<VideoItem>(
-      sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+      sortBy: [SortDescriptor(\.sortOrder)]
     )
     let history = try modelContext.fetch(descriptor)
 
@@ -41,6 +41,17 @@ final class VideoItemService {
     let existingItems = history.filter { $0.videoID == videoID }
     for item in existingItems {
       modelContext.delete(item)
+    }
+
+    // Calculate sortOrder for new item (insert at top)
+    let sortedHistory = history.filter { item in
+      item.sortOrder != nil && !existingItems.contains { $0.id == item.id }
+    }
+    let newSortOrder: String
+    if let firstItem = sortedHistory.first, let firstKey = firstItem.sortOrder {
+      newSortOrder = LexoRank.before(firstKey)
+    } else {
+      newSortOrder = LexoRank.initial()
     }
 
     // Insert new item
@@ -51,17 +62,11 @@ final class VideoItemService {
       author: metadata.author,
       thumbnailURL: metadata.thumbnailURL
     )
+    newItem.sortOrder = newSortOrder
     modelContext.insert(newItem)
 
-    // Keep only most recent 50 items
-    if history.count > 50 {
-      let itemsToDelete = history.suffix(history.count - 50)
-      for item in itemsToDelete {
-        try await deleteHistoryItem(item)
-      }
-    }
-
     try modelContext.save()
+    try checkAndRebalanceIfNeeded()
   }
 
   // MARK: - Delete History Item
@@ -266,6 +271,107 @@ final class VideoItemService {
   /// Check if a video is in a specific playlist.
   func isVideo(_ video: VideoItem, in playlist: Playlist) -> Bool {
     playlist.entries.contains { $0.video?.id == video.id }
+  }
+
+  // MARK: - History Ordering
+
+  /// Initialize sort orders for all history items (migration from timestamp-based ordering).
+  /// Only initializes items that don't have a sortOrder yet.
+  func initializeSortOrders() throws {
+    let descriptor = FetchDescriptor<VideoItem>(
+      sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+    )
+    let items = try modelContext.fetch(descriptor)
+
+    // Check if initialization is needed
+    let itemsWithoutOrder = items.filter { $0.sortOrder == nil }
+    guard !itemsWithoutOrder.isEmpty else { return }
+
+    // If some items have sortOrder and some don't, only initialize the ones without
+    if itemsWithoutOrder.count < items.count {
+      // Mixed state: assign orders to items without them, placing at the end
+      let itemsWithOrder = items.filter { $0.sortOrder != nil }
+        .sorted { ($0.sortOrder ?? "") < ($1.sortOrder ?? "") }
+
+      var lastKey = itemsWithOrder.last?.sortOrder ?? LexoRank.initial()
+      for item in itemsWithoutOrder {
+        lastKey = LexoRank.after(lastKey)
+        item.sortOrder = lastKey
+      }
+    } else {
+      // All items need initialization: distribute evenly
+      let keys = LexoRank.distributeKeys(count: items.count)
+      for (index, item) in items.enumerated() {
+        item.sortOrder = keys[index]
+      }
+    }
+
+    try modelContext.save()
+  }
+
+  /// Move a history item from one position to another (for drag and drop).
+  func moveHistoryItem(from sourceIndex: Int, to destinationIndex: Int) throws {
+    let descriptor = FetchDescriptor<VideoItem>(
+      sortBy: [SortDescriptor(\.sortOrder)]
+    )
+    var items = try modelContext.fetch(descriptor).filter { $0.sortOrder != nil }
+
+    guard sourceIndex < items.count else { return }
+    guard sourceIndex != destinationIndex else { return }
+
+    let movingItem = items[sourceIndex]
+    items.remove(at: sourceIndex)
+
+    // Calculate the actual insert index
+    let insertIndex: Int
+    if destinationIndex > sourceIndex {
+      insertIndex = destinationIndex - 1
+    } else {
+      insertIndex = destinationIndex
+    }
+
+    // Determine the keys before and after the insert position
+    let beforeItem: VideoItem?
+    let afterItem: VideoItem?
+
+    if insertIndex == 0 {
+      // Insert at beginning
+      beforeItem = nil
+      afterItem = items.first
+    } else if insertIndex >= items.count {
+      // Insert at end
+      beforeItem = items.last
+      afterItem = nil
+    } else {
+      // Insert in middle
+      beforeItem = items[insertIndex - 1]
+      afterItem = items[insertIndex]
+    }
+
+    let newKey = LexoRank.between(beforeItem?.sortOrder, afterItem?.sortOrder)
+    movingItem.sortOrder = newKey
+
+    try modelContext.save()
+    try checkAndRebalanceIfNeeded()
+  }
+
+  /// Check if sort order keys need rebalancing and perform it if necessary.
+  private func checkAndRebalanceIfNeeded() throws {
+    let descriptor = FetchDescriptor<VideoItem>(
+      sortBy: [SortDescriptor(\.sortOrder)]
+    )
+    let items = try modelContext.fetch(descriptor).filter { $0.sortOrder != nil }
+    let keys = items.compactMap(\.sortOrder)
+
+    guard LexoRank.needsRebalancing(keys) else { return }
+
+    // Rebalance: assign new evenly distributed keys
+    let newKeys = LexoRank.distributeKeys(count: items.count)
+    for (index, item) in items.enumerated() {
+      item.sortOrder = newKeys[index]
+    }
+
+    try modelContext.save()
   }
 }
 

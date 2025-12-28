@@ -14,7 +14,7 @@ struct HomeView: View {
   @Environment(VideoItemService.self) private var historyService
   @Environment(VocabularyService.self) private var vocabularyService
   @Environment(DownloadManager.self) private var downloadManager
-  @Query(sort: \VideoItem.timestamp, order: .reverse) private var history: [VideoItem]
+  @Query(sort: \VideoItem.sortOrder) private var history: [VideoItem]
 
   @State private var selectedVideoItem: VideoItem?
   @State private var showWebView: Bool = false
@@ -72,12 +72,23 @@ struct HomeView: View {
                 }
               }
             }
+            .onMove { source, destination in
+              guard let sourceIndex = source.first else { return }
+              try? historyService.moveHistoryItem(from: sourceIndex, to: destination)
+            }
           }
           .listStyle(.inset)
         }
       }
       .navigationTitle("")
       .toolbar {
+        // Top toolbar - Edit mode for reordering
+        ToolbarItem(placement: .topBarLeading) {
+          if !history.isEmpty {
+            EditButton()
+          }
+        }
+
         // Top toolbar - Settings
         ToolbarItem(placement: .primaryAction) {
           Button {
@@ -165,8 +176,9 @@ struct HomeView: View {
       .sheet(item: $videoToAddToPlaylist) { video in
         AddToPlaylistSheet(video: video)
       }
-      .onDisappear { 
-        
+      .task {
+        // Initialize sort orders for existing items (migration)
+        try? historyService.initializeSortOrders()
       }
     }
   }
