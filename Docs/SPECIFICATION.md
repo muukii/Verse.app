@@ -101,7 +101,7 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
   - Edit button in top-left toolbar toggles edit mode
   - Uses lexicographic string ordering for efficient reordering
   - New items are added to the top of the list
-- Actions: tap to open, swipe to delete, clear all
+- Actions: tap to open, swipe to delete, clear all (in Settings)
 
 #### 4.2 Playlists (Experimental)
 - Create, rename, delete playlists
@@ -165,6 +165,7 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
 - Local MLX model selection
 - Explain instruction editor
 - Siri and Shortcuts tips
+- Data: Clear History (with confirmation dialog)
 - Experimental: Vocabulary, Playlists, Live Transcription
 - Debug-only feature flags
 

@@ -97,18 +97,6 @@ struct HomeView: View {
             Label("Settings", systemImage: "gear")
           }
         }
-        if !history.isEmpty {
-          ToolbarItem(placement: .secondaryAction) {
-            Button(role: .destructive) {
-              Task {
-                try? await historyService.clearAllHistory()
-              }
-            } label: {
-              Label("Clear History", systemImage: "trash")
-            }
-          }
-        }
-
         // Bottom toolbar - Main actions
         ToolbarItemGroup(placement: .bottomBar) {
           Button {
@@ -178,6 +166,7 @@ struct HomeView: View {
       .sheet(isPresented: $showSettings) {
         SettingsView()
           .environment(vocabularyService)
+          .environment(historyService)
       }
       .fittingSheet(isPresented: $showURLInput) {
         URLInputSheet { urlText in
