@@ -15,6 +15,7 @@ struct WordDetailSheet: View {
 
   @State private var showTranslation = false
   @State private var showExplanation = false
+  @State private var showVocabularyEdit = false
 
   var body: some View {
     NavigationStack {
@@ -45,6 +46,15 @@ struct WordDetailSheet: View {
             showExplanation = true
           } label: {
             Label("Explain", systemImage: "sparkles")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.borderedProminent)
+
+          // Add to Vocabulary button
+          Button {
+            showVocabularyEdit = true
+          } label: {
+            Label("Add to Vocabulary", systemImage: "plus.circle")
               .frame(maxWidth: .infinity)
           }
           .buttonStyle(.borderedProminent)
@@ -83,6 +93,9 @@ struct WordDetailSheet: View {
         text: word,
         context: word
       )
+    }
+    .sheet(isPresented: $showVocabularyEdit) {
+      VocabularyEditSheet(mode: .add(initialTerm: word))
     }
   }
 }
