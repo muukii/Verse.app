@@ -276,7 +276,6 @@ struct PlayerView: View {
         model: model,
         cues: currentSubtitles?.cues ?? [],
         isLoading: isLoadingTranscripts,
-        transcriptionState: transcriptionState,
         error: transcriptError,
         onAction: { action in
           switch action {

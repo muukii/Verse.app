@@ -11,133 +11,6 @@ import SwiftUI
 import Translation
 import UIKit
 
-// MARK: - Transcribing View
-
-/// Modern, animated view showing transcription progress with detailed state feedback
-struct TranscribingView: View {
-  let state: TranscriptionService.TranscriptionState
-
-  var body: some View {
-    VStack(spacing: 24) {
-      // Icon with pulse animation
-      iconView
-        .font(.system(size: 64))
-        .symbolEffect(.pulse, options: .repeating)
-
-      // Status text
-      VStack(spacing: 8) {
-        Text(mainMessage)
-          .font(.title3.bold())
-          .foregroundStyle(.primary)
-
-        Text(subMessage)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
-      }
-
-      // Progress bar (only shown during transcription)
-      if case .transcribing(let progress) = state {
-        VStack(spacing: 8) {
-          GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-              // Background track
-              RoundedRectangle(cornerRadius: 8)
-                .fill(Color.secondary.opacity(0.2))
-                .frame(height: 8)
-
-              // Progress fill with gradient
-              RoundedRectangle(cornerRadius: 8)
-                .fill(
-                  LinearGradient(
-                    colors: [.blue, .cyan],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                  )
-                )
-                .frame(width: max(0, geometry.size.width * progress), height: 8)
-                .animation(.smooth(duration: 0.3), value: progress)
-            }
-          }
-          .frame(height: 8)
-
-          // Percentage text
-          Text("\(Int(progress * 100))%")
-            .font(.system(.caption, design: .monospaced).bold())
-            .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: 300)
-      }
-    }
-    .padding(.horizontal, 40)
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-
-  @ViewBuilder
-  private var iconView: some View {
-    switch state {
-    case .idle:
-      Image(systemName: "waveform")
-        .foregroundStyle(.gray)
-    case .preparingAssets:
-      Image(systemName: "gearshape.circle.fill")
-        .foregroundStyle(
-          LinearGradient(
-            colors: [.blue, .cyan],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-          )
-        )
-    case .transcribing:
-      Image(systemName: "mic.circle.fill")
-        .foregroundStyle(
-          LinearGradient(
-            colors: [.blue, .purple],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-          )
-        )
-    case .completed:
-      Image(systemName: "checkmark.circle.fill")
-        .foregroundStyle(.green)
-    case .failed:
-      Image(systemName: "exclamationmark.triangle.fill")
-        .foregroundStyle(.orange)
-    }
-  }
-
-  private var mainMessage: String {
-    switch state {
-    case .idle:
-      return "Preparing..."
-    case .preparingAssets:
-      return "Preparing"
-    case .transcribing:
-      return "Transcribing Audio"
-    case .completed:
-      return "Completed"
-    case .failed:
-      return "Transcription Failed"
-    }
-  }
-
-  private var subMessage: String {
-    switch state {
-    case .idle:
-      return "Getting ready to transcribe"
-    case .preparingAssets:
-      return "Preparing speech recognition model..."
-    case .transcribing(let progress):
-      let percentage = Int(progress * 100)
-      return "Converting speech to text... \(percentage)% complete"
-    case .completed:
-      return "Subtitles are ready"
-    case .failed(let message):
-      return message
-    }
-  }
-}
-
 // MARK: - Subtitle List View Container
 
 /// Container that connects SubtitleListView to PlayerModel.
@@ -147,7 +20,6 @@ struct SubtitleListViewContainer: View {
   let model: PlayerModel
   let cues: [Subtitle.Cue]
   let isLoading: Bool
-  let transcriptionState: TranscriptionService.TranscriptionState
   let error: String?
   let onAction: (SubtitleAction) -> Void
 
@@ -157,7 +29,6 @@ struct SubtitleListViewContainer: View {
       currentTime: model.currentTime,
       currentCueID: model.currentCueID,  // Use shared logic from PlayerModel
       isLoading: isLoading,
-      transcriptionState: transcriptionState,
       error: error,
       onAction: onAction
     )
@@ -171,7 +42,6 @@ struct SubtitleListView: View {
   let currentTime: CurrentTime
   let currentCueID: Subtitle.Cue.ID?
   let isLoading: Bool
-  let transcriptionState: TranscriptionService.TranscriptionState
   let error: String?
   let onAction: (SubtitleAction) -> Void
 
@@ -180,7 +50,7 @@ struct SubtitleListView: View {
   var body: some View {
     Group {
       if isLoading {
-        TranscribingView(state: transcriptionState)
+        ProgressView()
       } else if let error {
         errorView(error: error)
       } else if cues.isEmpty {
@@ -188,22 +58,26 @@ struct SubtitleListView: View {
       } else {
         subtitleList
           .overlay(alignment: .bottomTrailing) {
-            Button {
-              isTrackingEnabled.toggle()
-            } label: {
-              Image(
-                systemName: isTrackingEnabled
-                  ? "arrow.up.left.circle.fill" : "arrow.up.left.circle"
-              )
-              .font(.system(size: 28))
-              .foregroundStyle(isTrackingEnabled ? .blue : .secondary)
-            }
-            .buttonStyle(.plain)
-            .padding(12)
+            trackingButton
           }
       }
     }
 
+  }
+  
+  private var trackingButton: some View {
+    Button {
+      isTrackingEnabled.toggle()
+    } label: {
+      Image(
+        systemName: "arrow.up.left.circle"
+      )
+      .font(.system(size: 28))
+      .foregroundStyle(isTrackingEnabled ? .primary : .secondary)
+    }
+    .buttonStyle(.glassProminent)
+    .frame(width: 48, height: 48)
+    .padding(12)
   }
 
   // MARK: - Error View
@@ -365,7 +239,7 @@ extension Array {
 // MARK: - HTML Decoding Extension
 
 extension String {
-  var htmlDecoded: String {
+  nonisolated var htmlDecoded: String {
     var result =
       self
       .replacingOccurrences(of: "&amp;", with: "&")
@@ -430,31 +304,10 @@ extension String {
         currentTime: currentTime,
         currentCueID: nil,
         isLoading: false,
-        transcriptionState: .idle,
         error: nil,
         onAction: { _ in }
       )
     }
   }
   return PreviewWrapper()
-}
-
-#Preview("Transcribing - Preparing Assets") {
-  TranscribingView(state: .preparingAssets)
-}
-
-#Preview("Transcribing - In Progress") {
-  TranscribingView(state: .transcribing(progress: 0.45))
-}
-
-#Preview("Transcribing - Almost Done") {
-  TranscribingView(state: .transcribing(progress: 0.87))
-}
-
-#Preview("Transcribing - Completed") {
-  TranscribingView(state: .completed)
-}
-
-#Preview("Transcribing - Failed") {
-  TranscribingView(state: .failed("The audio file format is not supported"))
 }
