@@ -266,8 +266,8 @@ struct TranscriptionSessionDetailView: View {
 
       let sortedEntries = session.entries.sorted { $0.timestamp < $1.timestamp }
       ForEach(sortedEntries) { entry in
-        EntryBubbleView(
-          entry: entry,
+        TranscriptionBubbleView(
+          item: entry,
           onWordTap: { word in
             selectedWord = Identified(word)
           },
@@ -309,36 +309,6 @@ struct TranscriptionSessionDetailView: View {
       print("Failed to save title: \(error)")
     }
     isEditing = false
-  }
-}
-
-// MARK: - Entry Bubble View
-
-private struct EntryBubbleView: View {
-  let entry: TranscriptionEntry
-  var onWordTap: ((String) -> Void)?
-  var onExplain: ((String) -> Void)?
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      SelectableSubtitleTextView(
-        text: entry.text,
-        wordTimings: entry.wordTimings.isEmpty ? nil : entry.wordTimings,
-        onWordTap: { word, _ in
-          onWordTap?(word)
-        },
-        onExplain: onExplain
-      )
-      .fixedSize(horizontal: false, vertical: true)
-
-      Text(entry.formattedTime)
-        .font(.caption2)
-        .foregroundStyle(.tertiary)
-    }
-    .padding(12)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color(.secondarySystemBackground))
-    .clipShape(RoundedRectangle(cornerRadius: 12))
   }
 }
 

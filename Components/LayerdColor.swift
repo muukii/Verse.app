@@ -101,37 +101,3 @@ public struct TintContainer<Content: View>: View {
     ExampleView()
   }
 }
-
-extension Color {
-
-}
-
-extension Color {
-
-  public static func `dynamic`(light: UIColor, dark: UIColor) -> Color {
-    Color(
-      uiColor: UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-          return dark
-        default:
-          return light
-        }
-      }
-    )
-  }
-
-  public static func `dynamic`(light: Color, dark: Color) -> Color {
-    Color(
-      uiColor: UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-          return UIColor(dark)
-        default:
-          return UIColor(light)
-        }
-      }
-    )
-  }
-
-}

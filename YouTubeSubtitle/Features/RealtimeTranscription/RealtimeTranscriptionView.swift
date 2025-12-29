@@ -135,7 +135,7 @@ struct RealtimeTranscriptionView: View {
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 12) {
           ForEach(viewModel.transcriptions) { item in
-            TranscriptionBubble(
+            TranscriptionBubbleView(
               item: item,
               onWordTap: { word in
                 selectedWord = Identified(word)
@@ -230,6 +230,7 @@ struct RealtimeTranscriptionView: View {
 
 // MARK: - Transcription Item
 
+@MainActor
 struct TranscriptionItem: Identifiable, Equatable {
   let id = UUID()
   let text: AttributedString
@@ -270,36 +271,12 @@ struct TranscriptionItem: Identifiable, Equatable {
   }
 }
 
-// MARK: - Transcription Bubble
+// MARK: - TranscriptionDisplayable Conformance
 
-private struct TranscriptionBubble: View {
-  let item: TranscriptionItem
-  var highlightTime: CMTime?
-  var onWordTap: ((String) -> Void)?
-  var onExplain: ((String) -> Void)?
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      SelectableSubtitleTextView(
-        text: item.plainText,
-        wordTimings: item.wordTimings,
-        highlightTime: highlightTime,
-        onWordTap: { word, _ in
-          onWordTap?(word)
-        },
-        onExplain: onExplain
-      )
-      .fixedSize(horizontal: false, vertical: true)
-
-      Text(item.formattedTime)
-        .font(.caption2)
-        .foregroundStyle(.tertiary)
-    }
-    .padding(12)
-    .background(Color(.secondarySystemBackground))
-    .clipShape(RoundedRectangle(cornerRadius: 12))
-    .frame(maxWidth: .infinity, alignment: .leading)
-  }
+extension TranscriptionItem: @MainActor TranscriptionDisplayable {
+  var displayText: String { plainText }
+  var displayWordTimings: [Subtitle.WordTiming]? { wordTimings.isEmpty ? nil : wordTimings }
+  var displayFormattedTime: String { formattedTime }
 }
 
 // MARK: - Audio Level Meter

@@ -12,7 +12,7 @@ import Speech
 // MARK: - Subtitle
 
 /// A collection of subtitle cues with support for word-level timing.
-struct Subtitle: @preconcurrency Codable, Equatable, Sendable {
+nonisolated struct Subtitle: Codable, Equatable, Sendable {
   var cues: [Cue]
 
   init(_ cues: [Cue] = []) {
@@ -25,7 +25,7 @@ struct Subtitle: @preconcurrency Codable, Equatable, Sendable {
 extension Subtitle {
 
   /// A single subtitle cue with timing and optional word-level timing information.
-  struct Cue: Equatable, Sendable, Identifiable {
+  nonisolated struct Cue: Equatable, Sendable, Identifiable {
     /// Unique identifier for the cue (1-based position)
     let id: Int
 
@@ -68,8 +68,8 @@ extension Subtitle {
   }
 }
 
-extension Subtitle.Cue: @preconcurrency Codable {
-  init(from decoder: Decoder) throws {
+extension Subtitle.Cue: Codable {
+  init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     id = try container.decode(Int.self, forKey: .id)
     startTime = try container.decode(Double.self, forKey: .startTime)
@@ -79,7 +79,7 @@ extension Subtitle.Cue: @preconcurrency Codable {
     wordTimings = try container.decodeIfPresent([Subtitle.WordTiming].self, forKey: .wordTimings)
   }
 
-  func encode(to encoder: Encoder) throws {
+  func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(id, forKey: .id)
     try container.encode(startTime, forKey: .startTime)
@@ -114,7 +114,7 @@ extension Subtitle.Cue {
 extension Subtitle {
 
   /// Timing information for a single word within a cue.
-  struct WordTiming: @preconcurrency Codable, Equatable, Sendable {
+  nonisolated struct WordTiming: Codable, Equatable, Sendable {
     /// The word text
     let text: String
 

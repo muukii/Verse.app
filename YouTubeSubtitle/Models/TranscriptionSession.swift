@@ -156,3 +156,11 @@ final class TranscriptionEntry: TypedIdentifiable {
     self.wordTimingsData = try? JSONEncoder().encode(wordTimings)
   }
 }
+
+// MARK: - TranscriptionDisplayable Conformance
+
+extension TranscriptionEntry: TranscriptionDisplayable {
+  var displayText: String { text }
+  var displayWordTimings: [Subtitle.WordTiming]? { wordTimings.isEmpty ? nil : wordTimings }
+  var displayFormattedTime: String { formattedTime }
+}
