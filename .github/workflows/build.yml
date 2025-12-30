@@ -29,10 +29,11 @@ jobs:
 
       - name: Build iOS
         run: |
-          xcodebuild \
+          set -o pipefail && xcodebuild \
             -project YouTubeSubtitle.xcodeproj \
             -scheme YouTubeSubtitle \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             -skipMacroValidation \
-            build
+            build | xcbeautify --renderer github-actions
+
