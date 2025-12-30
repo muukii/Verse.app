@@ -228,7 +228,7 @@ struct PlayerView: View {
         // On-device transcribe button (only when no local file exists)
         if model.localFileURL == nil {
           OnDeviceTranscribeButton(
-            phase: onDeviceTranscribeViewModel.phase,
+            phase: currentSubtitles != nil ? .completed : onDeviceTranscribeViewModel.phase,
             action: { startBackgroundTranscription() }
           )
           .popoverTip(TranscribeTip())
@@ -345,6 +345,11 @@ struct PlayerView: View {
         await MainActor.run {
           currentSubtitles = cached
           isLoadingTranscripts = false
+
+          // Auto-start on-device transcription if needed (no word timings yet)
+          if needsOnDeviceTranscription(cached) && model.localFileURL == nil {
+            startBackgroundTranscription()
+          }
         }
         return
       }
@@ -365,6 +370,11 @@ struct PlayerView: View {
         await MainActor.run {
           currentSubtitles = subtitles
           isLoadingTranscripts = false
+
+          // Auto-start on-device transcription after YouTube subtitles are loaded
+          if needsOnDeviceTranscription(subtitles) && model.localFileURL == nil {
+            startBackgroundTranscription()
+          }
         }
       } catch {
         await MainActor.run {
@@ -429,6 +439,14 @@ struct PlayerView: View {
         // Error is already captured in viewModel.phase
       }
     }
+  }
+
+  /// Determines if on-device transcription is needed for the given subtitles.
+  /// Returns true if subtitles are empty or don't have word-level timing (from on-device transcription).
+  private func needsOnDeviceTranscription(_ subtitles: Subtitle?) -> Bool {
+    guard let subtitles, !subtitles.cues.isEmpty else { return true }
+    // If any cue has wordTimings, it's from on-device transcription
+    return !subtitles.cues.contains { $0.hasWordTimings }
   }
 
   // MARK: - Playback Position
@@ -718,9 +736,13 @@ private struct OnDeviceTranscribeButton: View {
     Button(action: action) {
       Group {
         switch phase {
-        case .idle, .completed:
+        case .idle:
           Image(systemName: "waveform.badge.mic")
             .font(.system(size: 16))
+        case .completed:
+          Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 18))
+            .foregroundStyle(.green)
         case .fetchingStreams:
           ProgressView()
             .controlSize(.small)
