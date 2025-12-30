@@ -8,6 +8,19 @@
 import FoundationModels
 import SwiftUI
 
+// MARK: - Explanation Response
+
+/// Structured response for word/phrase explanations.
+/// Uses FoundationModels' native @Generable for constrained sampling.
+@Generable
+struct ExplanationResponse: Sendable {
+  @Guide(description: "Translation of the word/phrase in the user's language")
+  var translation: String
+
+  @Guide(description: "Detailed explanation of the word/phrase including meaning, usage, and nuances")
+  var explanation: String
+}
+
 // MARK: - Explanation Service
 
 /// Service for generating word/phrase explanations using Apple Intelligence.
@@ -149,6 +162,29 @@ final class ExplanationService {
     }
   }
 
+  /// Generate a structured explanation for a word or phrase within its context.
+  /// Uses FoundationModels' native structured generation with constrained sampling.
+  func generateStructuredExplanation(
+    text: String,
+    context: String,
+    targetLanguage: String? = nil
+  ) async throws -> ExplanationResponse {
+    let availability = checkAvailability()
+
+    switch availability {
+    case .available:
+      return try await generateStructuredExplanationImpl(
+        text: text,
+        context: context,
+        targetLanguage: targetLanguage
+      )
+
+    case .unavailable(let reason):
+      state = .error(reason.localizedDescription)
+      throw ExplanationError.notAvailable(reason.localizedDescription)
+    }
+  }
+
   /// Reset the service state.
   func reset() {
     cancelCurrentGeneration()
@@ -162,6 +198,62 @@ final class ExplanationService {
   }
 
   // MARK: - Private Implementation
+
+  /// Generate structured explanation using Apple Intelligence.
+  private func generateStructuredExplanationImpl(
+    text: String,
+    context: String,
+    targetLanguage: String?
+  ) async throws -> ExplanationResponse {
+    state = .loading
+
+    do {
+      let resolvedLanguage = targetLanguage ?? Self.preferredLanguageCode
+      let languageName = Self.languageName(for: resolvedLanguage)
+      let instructions = buildStructuredInstructions(languageName: languageName)
+      let prompt = buildPrompt(text: text, context: context)
+
+      print("[ExplanationService] Starting structured explanation generation")
+      print("[ExplanationService] Target language: \(languageName)")
+
+      let session = LanguageModelSession(
+        model: SystemLanguageModel.default,
+        instructions: instructions
+      )
+
+      // Use native structured generation with constrained sampling
+      let response = try await session.respond(
+        to: prompt,
+        generating: ExplanationResponse.self
+      )
+
+      print("[ExplanationService] Structured response: \(response.content)")
+
+      // Build display text for state
+      let displayText = """
+        ## Translation
+
+        \(response.content.translation)
+
+        ## Explanation
+
+        \(response.content.explanation)
+        """
+
+      state = .success(displayText)
+      return response.content
+
+    } catch let error as LanguageModelSession.GenerationError {
+      let errorMessage = handleGenerationError(error)
+      state = .error(errorMessage)
+      throw ExplanationError.generationFailed(errorMessage)
+
+    } catch {
+      let errorMessage = error.localizedDescription
+      state = .error(errorMessage)
+      throw ExplanationError.unknown(error)
+    }
+  }
 
   /// Generate explanation using Apple Intelligence.
   private func generateExplanation(
@@ -280,6 +372,19 @@ final class ExplanationService {
 
   private func buildInstructions(languageName: String) -> String {
     ExplanationPrompt.buildSystemInstruction(targetLanguage: languageName)
+  }
+
+  private func buildStructuredInstructions(languageName: String) -> String {
+    """
+    You are a language expert helping users understand words and phrases.
+
+    Important guidelines:
+    - Provide the translation in \(languageName)
+    - Provide a detailed explanation in \(languageName)
+    - Consider the context when explaining meaning and usage
+    - Include nuances, common collocations, and usage patterns when relevant
+    - Keep responses clear and educational
+    """
   }
 
   private func buildPrompt(text: String, context: String) -> String {
