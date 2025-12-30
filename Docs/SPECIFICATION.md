@@ -81,11 +81,13 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
   - Delete local video
 
 ### 3. AI and Language Tools
-- Word/phrase explanations using on-device LLMs
-  - Apple Intelligence or local MLX models
-  - Streaming output with follow-up questions
+- Word/phrase explanations using Apple Intelligence
+  - On-device processing with streaming output
+  - Follow-up questions for deeper understanding
   - "Open in Gemini" shortcut (in-app browser on iOS)
-- Customizable explanation instructions in Settings
+- Vocabulary auto-fill using Apple Intelligence
+  - Structured generation for meaning, examples, and notes
+  - Part of speech detection
 - System Translation for subtitle lines and words
 
 ### 4. History and Library
@@ -111,9 +113,9 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
 - Open videos from playlist view
 
 #### 4.3 Vocabulary (Experimental)
-- Manual vocabulary list (term, meaning, context, notes)
+- Manual vocabulary list (term, meaning, part of speech, examples, notes)
 - Add vocabulary from Word Detail: tap "Add to Vocabulary" button to open vocabulary edit sheet with term pre-filled
-- AI auto-fill: tap ✨ button after entering a term to auto-generate meaning, example sentence, and notes using on-device LLM (structured response)
+- AI auto-fill: tap ✨ button after entering a term to auto-generate meaning, part of speech, example sentences with translations, and notes using Apple Intelligence (structured response)
 - Learning state badges (New, Learning, Reviewing, Mastered)
 - Search, add, edit, delete
 
@@ -162,9 +164,8 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
 - Toolbar: subtitle management, on-device transcribe, download (if enabled)
 
 ### Settings (SettingsView)
-- AI backend selection and status
-- Local MLX model selection
-- Explain instruction editor
+- Apple Intelligence status for Word Explanations
+- Apple Intelligence status for Vocabulary Auto-Fill
 - Siri and Shortcuts tips
 - Data: Clear History (with confirmation dialog)
 - Experimental: Vocabulary, Playlists, Live Transcription
@@ -194,7 +195,7 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
 - No subtitle language selector yet
 - Download UI disabled in Release builds
 - On-device and live transcription require iOS 26+ physical device
-- Apple Intelligence features require supported device and enabled system setting
+- Apple Intelligence features (word explanations, vocabulary auto-fill) require supported device and enabled system setting
 
 ## Future Enhancements
 - CloudKit sync for history, playlists, and vocabulary
