@@ -9,7 +9,7 @@ import SwiftUI
 
 struct VocabularyEditSheet: View {
   enum Mode: Identifiable {
-    case add
+    case add(initialTerm: String = "")
     case edit(VocabularyItem)
 
     var id: String {
@@ -22,6 +22,13 @@ struct VocabularyEditSheet: View {
     var isEditing: Bool {
       if case .edit = self { return true }
       return false
+    }
+
+    var initialTerm: String? {
+      if case .add(let term) = self, !term.isEmpty {
+        return term
+      }
+      return nil
     }
   }
 
@@ -198,7 +205,13 @@ struct VocabularyEditSheet: View {
   // MARK: - Actions
 
   private func loadInitialValues() {
-    if case .edit(let item) = mode {
+    switch mode {
+    case .add(let initialTerm):
+      if !initialTerm.isEmpty {
+        term = initialTerm
+      }
+
+    case .edit(let item):
       term = item.term
       meaning = item.meaning ?? ""
       partOfSpeech = item.partOfSpeech
