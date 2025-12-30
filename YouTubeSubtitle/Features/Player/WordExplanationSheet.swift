@@ -340,10 +340,6 @@ struct WordExplanationSheetContent: View {
             } label: {
               Image(systemName: "info.circle")
             }
-
-            if serviceState == .loading || isStreaming {
-              ProgressView()
-            }
           }
         }
       }
