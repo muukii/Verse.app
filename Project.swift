@@ -57,9 +57,6 @@ let project = Project(
         .external(name: "AsyncMultiplexImage"),
         .external(name: "AsyncMultiplexImage-Nuke"),
         .external(name: "StateGraph"),
-
-        // Local package
-        .external(name: "AnyLanguageModelMLX"),
       ],
       settings: .settings(
         base: .appTarget,
