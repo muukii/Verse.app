@@ -9,7 +9,11 @@ import CoreMedia
 import Speech
 import SwiftUI
 import Translation
-import UIKit
+#if os(iOS)
+  import UIKit
+#elseif os(macOS)
+  import AppKit
+#endif
 
 // MARK: - Subtitle List View Container
 

@@ -367,7 +367,12 @@ private struct ExplainSheet: View {
         }
         ToolbarItem(placement: .primaryAction) {
           Button {
-            UIPasteboard.general.string = text
+            #if os(iOS)
+              UIPasteboard.general.string = text
+            #else
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString(text, forType: .string)
+            #endif
           } label: {
             Image(systemName: "doc.on.doc")
           }
