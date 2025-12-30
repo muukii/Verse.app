@@ -319,5 +319,5 @@ struct VocabularyEditSheet: View {
 // MARK: - Preview
 
 #Preview("Add") {
-  VocabularyEditSheet(mode: .add)
+  VocabularyEditSheet(mode: .add())
 }
