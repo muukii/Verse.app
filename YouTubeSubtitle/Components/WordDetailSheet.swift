@@ -7,6 +7,9 @@
 
 import SwiftUI
 import Translation
+#if os(macOS)
+  import AppKit
+#endif
 
 /// A sheet displaying word details with translate, explain, and copy actions.
 struct WordDetailSheet: View {
@@ -61,7 +64,12 @@ struct WordDetailSheet: View {
 
           // Copy button
           Button {
-            UIPasteboard.general.string = word
+            #if os(iOS)
+              UIPasteboard.general.string = word
+            #else
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString(word, forType: .string)
+            #endif
           } label: {
             Label("Copy to Clipboard", systemImage: "doc.on.doc")
               .frame(maxWidth: .infinity)

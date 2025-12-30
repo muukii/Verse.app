@@ -30,16 +30,24 @@ struct TranscriptionBubbleView<Item: TranscriptionDisplayable>: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      SelectableSubtitleTextView(
-        text: item.displayText,
-        wordTimings: item.displayWordTimings,
-        highlightTime: highlightTime,
-        onWordTap: { word, _ in
-          onWordTap?(word)
-        },
-        onExplain: onExplain
-      )
-      .fixedSize(horizontal: false, vertical: true)
+      #if os(iOS)
+        SelectableSubtitleTextView(
+          text: item.displayText,
+          wordTimings: item.displayWordTimings,
+          highlightTime: highlightTime,
+          onWordTap: { word, _ in
+            onWordTap?(word)
+          },
+          onExplain: onExplain
+        )
+        .fixedSize(horizontal: false, vertical: true)
+      #else
+        // macOS: Use simple Text for now
+        // TODO: Implement NSTextView-based selectable text for macOS
+        Text(item.displayText)
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+      #endif
 
       Text(item.displayFormattedTime)
         .font(.caption2)

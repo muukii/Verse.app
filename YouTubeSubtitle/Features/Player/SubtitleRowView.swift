@@ -7,7 +7,11 @@
 
 import CoreMedia
 import SwiftUI
-import UIKit
+#if os(iOS)
+  import UIKit
+#elseif os(macOS)
+  import AppKit
+#endif
 
 // MARK: - Subtitle Row View
 
@@ -67,25 +71,36 @@ struct SubtitleRowView: View {
       HStack(alignment: .top, spacing: 8) {
 
         // Text content with selection and word tap support
-        SelectableSubtitleTextView(
-          text: cue.decodedText,
-          wordTimings: cue.wordTimings,
-          highlightTime: highlightTime,
-          highlightColor: .tintColor.withAlphaComponent(0.2),
-          font: .preferredFont(forTextStyle: .subheadline),
-          textColor: .tintColor,
-          onWordTap: { word, _ in
-            onAction(.wordTap(word))
-          },
-          onExplain: { selectedText in
-            onAction(.explainSelection(selectedText))
-          },
-          onSelectionChanged: { hasSelection in
-            onAction(.selectionChanged(hasSelection))
-          }
-        )
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        #if os(iOS)
+          SelectableSubtitleTextView(
+            text: cue.decodedText,
+            wordTimings: cue.wordTimings,
+            highlightTime: highlightTime,
+            highlightColor: .tintColor.withAlphaComponent(0.2),
+            font: .preferredFont(forTextStyle: .subheadline),
+            textColor: .tintColor,
+            onWordTap: { word, _ in
+              onAction(.wordTap(word))
+            },
+            onExplain: { selectedText in
+              onAction(.explainSelection(selectedText))
+            },
+            onSelectionChanged: { hasSelection in
+              onAction(.selectionChanged(hasSelection))
+            }
+          )
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+        #else
+          // macOS: Use simple Text for now
+          // TODO: Implement NSTextView-based selectable text for macOS
+          Text(cue.decodedText)
+            .font(.subheadline)
+            .foregroundColor(.primary)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        #endif
 
         menu
       }

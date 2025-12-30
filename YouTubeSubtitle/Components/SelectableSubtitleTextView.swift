@@ -5,9 +5,11 @@
 //  Created by Claude on 2025/12/10.
 //
 
-import CoreMedia
-import SwiftUI
-import UIKit
+#if os(iOS)
+
+  import CoreMedia
+  import SwiftUI
+  import UIKit
 
 // MARK: - RoundedBackgroundLayoutManager
 
@@ -451,3 +453,5 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
   }
   .padding()
 }
+
+#endif
