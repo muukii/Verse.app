@@ -76,18 +76,17 @@ extension URL: @retroactive Identifiable {
 
 // MARK: - Word Explanation Sheet (Stateful Container)
 
-/// Sheet view for displaying LLM-generated word/phrase explanations.
+/// Sheet view for displaying Apple Intelligence-generated word/phrase explanations.
 /// This is the stateful container that manages async operations and state.
 struct WordExplanationSheet: View {
   let text: String
   let context: String
 
   @Environment(\.dismiss) private var dismiss
-  @State private var service = LLMService()
+  @State private var service = ExplanationService()
   @State private var streamedContent: String = ""
   @State private var isStreaming: Bool = false
   @State private var streamTask: Task<Void, Never>?
-  @State private var showsInstructionViewer: Bool = false
   @State private var followUpQuestion: String = ""
   @State private var conversationHistory: [(question: String, answer: String)] = []
   @State private var geminiURL: URL?
@@ -101,8 +100,6 @@ struct WordExplanationSheet: View {
       isStreaming: isStreaming,
       conversationHistory: conversationHistory,
       followUpQuestion: $followUpQuestion,
-      showsInstructionViewer: $showsInstructionViewer,
-      service: service,
       onClose: { dismiss() },
       onRetry: { retryExplanation() },
       onSendFollowUp: { sendFollowUpQuestion() },
@@ -165,16 +162,16 @@ struct WordExplanationSheet: View {
 
     // Check availability first
     let availability = service.checkAvailability()
-    print("[LLM] Availability: \(availability), preferredBackend: \(service.preferredBackend)")
+    print("[LLM] Availability: \(availability)")
 
-    guard case .available(let backend) = availability else {
+    guard case .available = availability else {
       if case .unavailable(let reason) = availability {
         service.state = .error(reason.localizedDescription)
       }
       return
     }
 
-    print("[LLM] Using backend: \(backend)")
+    print("[LLM] Apple Intelligence is available")
 
     // Use streaming for better UX
     isStreaming = true
@@ -279,17 +276,13 @@ struct WordExplanationSheetContent: View {
   let context: String
 
   // Display state
-  let serviceState: LLMService.State
+  let serviceState: ExplanationService.State
   let streamedContent: String
   let isStreaming: Bool
   let conversationHistory: [(question: String, answer: String)]
 
   // Bindings
   @Binding var followUpQuestion: String
-  @Binding var showsInstructionViewer: Bool
-
-  // For InstructionViewerSheet
-  let service: LLMService
 
   // Actions
   let onClose: () -> Void
@@ -335,16 +328,11 @@ struct WordExplanationSheetContent: View {
               Image(systemName: "sparkle.magnifyingglass")
             }
 
-            Button {
-              showsInstructionViewer = true
-            } label: {
-              Image(systemName: "info.circle")
+            if serviceState == .loading || isStreaming {
+              ProgressView()
             }
           }
         }
-      }
-      .sheet(isPresented: $showsInstructionViewer) {
-        InstructionViewerSheet(service: service, text: text, context: context)
       }
     }
     .presentationDetents([.medium, .large])
@@ -394,15 +382,6 @@ struct WordExplanationSheetContent: View {
           } else {
             explanationText(streamedContent)
           }
-
-        case .downloadingModel(let progress):
-          VStack(spacing: 8) {
-            ProgressView(value: progress)
-            Text("Downloading model... \(Int(progress * 100))%")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-          .padding()
 
         case .success(let explanation):
           explanationText(explanation)
@@ -546,93 +525,6 @@ struct WordExplanationSheetContent: View {
   }
 }
 
-// MARK: - Instruction Viewer Sheet
-
-/// Sheet view for displaying the composed prompt used in explanation.
-private struct InstructionViewerSheet: View {
-  let service: LLMService
-  let text: String
-  let context: String
-
-  @Environment(\.dismiss) private var dismiss
-
-  /// The full composed prompt that will be sent to the LLM
-  private var composedPrompt: String {
-    ExplanationPrompt.buildFullPrompt(
-      text: text,
-      context: context,
-      customSystemInstruction: service.customSystemInstruction,
-      customUserPromptTemplate: service.customUserPromptTemplate
-    )
-  }
-
-  var body: some View {
-    NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-          // MARK: - Composed Prompt
-          VStack(alignment: .leading, spacing: 8) {
-            HStack {
-              Label("Composed Prompt", systemImage: "text.alignleft")
-                .font(.headline)
-              Spacer()
-              // Show if using custom settings
-              if !service.customSystemInstruction.isEmpty || !service.customUserPromptTemplate.isEmpty {
-                Text("Custom")
-                  .font(.caption2)
-                  .padding(.horizontal, 6)
-                  .padding(.vertical, 2)
-                  .background(Color.blue.opacity(0.2))
-                  .clipShape(Capsule())
-                  .foregroundStyle(.blue)
-              }
-            }
-
-            Text(composedPrompt)
-              .font(.system(.caption, design: .monospaced))
-              .padding()
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .background(Color(.secondarySystemBackground))
-              .clipShape(RoundedRectangle(cornerRadius: 8))
-              .textSelection(.enabled)
-          }
-
-          Divider()
-
-          // MARK: - Backend Info
-          VStack(alignment: .leading, spacing: 8) {
-            Label("Configuration", systemImage: "gearshape")
-              .font(.headline)
-
-            VStack(alignment: .leading, spacing: 4) {
-              LabeledContent("Backend", value: service.preferredBackend.displayName)
-              if service.preferredBackend == .mlx {
-                if let model = LLMService.availableMLXModels.first(where: { $0.id == service.selectedMLXModelId }) {
-                  LabeledContent("Model", value: model.name)
-                }
-              }
-              LabeledContent("Language", value: ExplanationPrompt.deviceLanguage)
-            }
-            .font(.callout)
-          }
-        }
-        .padding()
-      }
-      .navigationTitle("Prompt Details")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Done") {
-            dismiss()
-          }
-        }
-      }
-    }
-    .presentationDetents([.medium, .large])
-    .presentationDragIndicator(.visible)
-  }
-}
-
 // MARK: - Preview
 
 #Preview("Loading") {
@@ -644,8 +536,6 @@ private struct InstructionViewerSheet: View {
     isStreaming: true,
     conversationHistory: [],
     followUpQuestion: .constant(""),
-    showsInstructionViewer: .constant(false),
-    service: LLMService(),
     onClose: {},
     onRetry: {},
     onSendFollowUp: {},
@@ -662,8 +552,6 @@ private struct InstructionViewerSheet: View {
     isStreaming: false,
     conversationHistory: [],
     followUpQuestion: .constant(""),
-    showsInstructionViewer: .constant(false),
-    service: LLMService(),
     onClose: {},
     onRetry: {},
     onSendFollowUp: {},
@@ -680,8 +568,6 @@ private struct InstructionViewerSheet: View {
     isStreaming: false,
     conversationHistory: [],
     followUpQuestion: .constant(""),
-    showsInstructionViewer: .constant(false),
-    service: LLMService(),
     onClose: {},
     onRetry: {},
     onSendFollowUp: {},
@@ -701,8 +587,6 @@ private struct InstructionViewerSheet: View {
       (question: "What's the origin of this word?", answer: "The word comes from Latin 'ubique' meaning 'everywhere'.")
     ],
     followUpQuestion: .constant(""),
-    showsInstructionViewer: .constant(false),
-    service: LLMService(),
     onClose: {},
     onRetry: {},
     onSendFollowUp: {},
@@ -748,8 +632,6 @@ private struct InstructionViewerSheet: View {
     isStreaming: false,
     conversationHistory: [],
     followUpQuestion: .constant(""),
-    showsInstructionViewer: .constant(false),
-    service: LLMService(),
     onClose: {},
     onRetry: {},
     onSendFollowUp: {},

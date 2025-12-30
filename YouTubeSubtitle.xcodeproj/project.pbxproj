@@ -12,7 +12,6 @@
 		B00C03192EE47DEF00FA7361 /* AsyncMultiplexImage in Frameworks */ = {isa = PBXBuildFile; productRef = B00C03182EE47DEF00FA7361 /* AsyncMultiplexImage */; };
 		B00C031B2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = B00C031A2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke */; };
 		B00CF0B12EE43A3700FA7361 /* TypedIdentifier in Frameworks */ = {isa = PBXBuildFile; productRef = B00CF0B02EE43A3700FA7361 /* TypedIdentifier */; };
-		B046D4AE2EE324FC00367936 /* AnyLanguageModelMLX in Frameworks */ = {isa = PBXBuildFile; productRef = B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */; };
 		B07A2DA52EE42AE800E05A39 /* SwiftUIRingSlider in Frameworks */ = {isa = PBXBuildFile; productRef = B07A2DA42EE42AE800E05A39 /* SwiftUIRingSlider */; };
 		B09F54462EFA74EA005C59D3 /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = B09F54452EFA74EA005C59D3 /* Algorithms */; };
 		B0FAE6862EDC2500008493F1 /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = B0FAE6852EDC2500008493F1 /* YouTubeKit */; };
@@ -83,7 +82,6 @@
 				B0FAE68A2EDC2600008493F1 /* YouTubePlayerKit in Frameworks */,
 				B0FAE68C2EDC3000008493F1 /* YoutubeTranscript in Frameworks */,
 				B0FAE6912EDC5000008493F1 /* ObjectEdge in Frameworks */,
-				B046D4AE2EE324FC00367936 /* AnyLanguageModelMLX in Frameworks */,
 				B07A2DA52EE42AE800E05A39 /* SwiftUIRingSlider in Frameworks */,
 				B00C031B2EE47DEF00FA7361 /* AsyncMultiplexImage-Nuke in Frameworks */,
 			);
@@ -176,7 +174,6 @@
 				B0FAE6892EDC2600008493F1 /* YouTubePlayerKit */,
 				B0FAE68B2EDC3000008493F1 /* YoutubeTranscript */,
 				B0FAE6922EDC5000008493F1 /* ObjectEdge */,
-				B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */,
 				B07A2DA42EE42AE800E05A39 /* SwiftUIRingSlider */,
 				B00CF0B02EE43A3700FA7361 /* TypedIdentifier */,
 				B00C03182EE47DEF00FA7361 /* AsyncMultiplexImage */,
@@ -220,7 +217,6 @@
 				B0FAE6882EDC2600008493F1 /* XCRemoteSwiftPackageReference "YouTubePlayerKit" */,
 				B0FAE68D2EDC3000008493F1 /* XCRemoteSwiftPackageReference "swift-youtube-transcript" */,
 				B0FAE6932EDC5000008493F1 /* XCRemoteSwiftPackageReference "swiftui-object-edge" */,
-				B046D4AC2EE324FC00367936 /* XCLocalSwiftPackageReference "Packages/AnyLanguageModelMLX" */,
 				B07A2DA32EE42AE800E05A39 /* XCRemoteSwiftPackageReference "swiftui-ring-slider" */,
 				B00CF0AF2EE43A3700FA7361 /* XCRemoteSwiftPackageReference "swift-typed-identifier" */,
 				B00C03172EE47DEF00FA7361 /* XCRemoteSwiftPackageReference "swiftui-async-multiplex-image" */,
@@ -635,13 +631,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		B046D4AC2EE324FC00367936 /* XCLocalSwiftPackageReference "Packages/AnyLanguageModelMLX" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = Packages/AnyLanguageModelMLX;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
 		B0091B482EE825DF0077B368 /* XCRemoteSwiftPackageReference "swift-state-graph" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -737,10 +726,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B00CF0AF2EE43A3700FA7361 /* XCRemoteSwiftPackageReference "swift-typed-identifier" */;
 			productName = TypedIdentifier;
-		};
-		B046D4AD2EE324FC00367936 /* AnyLanguageModelMLX */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = AnyLanguageModelMLX;
 		};
 		B07A2DA42EE42AE800E05A39 /* SwiftUIRingSlider */ = {
 			isa = XCSwiftPackageProductDependency;

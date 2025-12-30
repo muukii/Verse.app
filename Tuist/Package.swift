@@ -27,8 +27,5 @@ let package = Package(
     // State management and utilities
     .package(url: "https://github.com/VergeGroup/swift-typed-identifier", from: "2.0.4"),
     .package(url: "https://github.com/VergeGroup/swift-state-graph", from: "0.16.0"),
-
-    // Local package
-    .package(path: "../Packages/AnyLanguageModelMLX"),
   ]
 )

@@ -11,60 +11,29 @@ import SwiftUI
 struct SettingsView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(VideoItemService.self) private var historyService
-  @State private var llmService = LLMService()
+  @State private var explanationService = ExplanationService()
+  @State private var foundationModelService = FoundationModelService()
   @State private var showClearHistoryConfirmation = false
 
   var body: some View {
     NavigationStack {
       List {
-        // MARK: - AI Backend Selection
+        // MARK: - Apple Intelligence for Word Explanations
         Section {
-          BackendPicker(service: llmService)
+          ExplanationAppleIntelligenceRow(service: explanationService)
         } header: {
-          Text("AI Backend")
+          Text("Word Explanations")
         } footer: {
-          Text("Choose which AI engine to use for word explanations.")
+          ExplanationAppleIntelligenceFooter(service: explanationService)
         }
 
-        // MARK: - Apple Intelligence Status
+        // MARK: - Apple Intelligence for Vocabulary Auto-Fill
         Section {
-          AppleIntelligenceRow(service: llmService)
+          VocabularyAppleIntelligenceRow(service: foundationModelService)
         } header: {
-          Text("Apple Intelligence")
+          Text("Vocabulary Auto-Fill")
         } footer: {
-          AppleIntelligenceFooter(service: llmService)
-        }
-
-        // MARK: - Local Model (MLX)
-        Section {
-          MLXModelRow(service: llmService)
-        } header: {
-          Text("Local Model")
-        } footer: {
-          Text("Uses Qwen 2.5 1.5B model (~800MB). Downloads automatically on first use.")
-        }
-
-        // MARK: - Explain Instructions
-        Section {
-          NavigationLink {
-            ExplainInstructionSettingsView()
-          } label: {
-            Label {
-              VStack(alignment: .leading, spacing: 2) {
-                Text("Explain Instructions")
-                Text("Customize AI prompts for word explanations")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-              }
-            } icon: {
-              Image(systemName: "text.bubble")
-                .foregroundStyle(.blue)
-            }
-          }
-        } header: {
-          Text("AI Prompts")
-        } footer: {
-          Text("Customize the system instruction and prompt template used for explanations.")
+          VocabularyAppleIntelligenceFooter(service: foundationModelService)
         }
 
         // MARK: - Siri & Shortcuts
@@ -192,32 +161,15 @@ struct SettingsView: View {
   }
 }
 
-// MARK: - Backend Picker
+// MARK: - Explanation Apple Intelligence Row
 
-private struct BackendPicker: View {
-  @Bindable var service: LLMService
-
-  var body: some View {
-    Picker("Preferred Engine", selection: Binding(
-      get: { service.preferredBackend },
-      set: { service.preferredBackend = $0 }
-    )) {
-      ForEach(LLMService.Backend.allCases) { backend in
-        Text(backend.displayName).tag(backend)
-      }
-    }
-  }
-}
-
-// MARK: - Apple Intelligence Row
-
-private struct AppleIntelligenceRow: View {
-  let service: LLMService
+private struct ExplanationAppleIntelligenceRow: View {
+  let service: ExplanationService
 
   var body: some View {
     HStack {
       Label {
-        Text("Status")
+        Text("Apple Intelligence")
       } icon: {
         Image(systemName: "apple.logo")
           .foregroundStyle(.primary)
@@ -231,7 +183,7 @@ private struct AppleIntelligenceRow: View {
 
   @ViewBuilder
   private var statusBadge: some View {
-    let availability = service.checkAppleIntelligenceAvailability()
+    let availability = service.checkAvailability()
 
     switch availability {
     case .available:
@@ -254,7 +206,7 @@ private struct AppleIntelligenceRow: View {
     }
   }
 
-  private func statusText(for reason: LLMService.Availability.UnavailabilityReason) -> String {
+  private func statusText(for reason: ExplanationService.Availability.UnavailabilityReason) -> String {
     switch reason {
     case .deviceNotEligible:
       return "Not Supported"
@@ -262,63 +214,100 @@ private struct AppleIntelligenceRow: View {
       return "Enable in Settings"
     case .modelNotReady:
       return "Downloading..."
-    case .mlxModelNotLoaded:
-      return "N/A"
     case .unknown:
       return "Unavailable"
     }
   }
 }
 
-// MARK: - Apple Intelligence Footer
+// MARK: - Explanation Apple Intelligence Footer
 
-private struct AppleIntelligenceFooter: View {
-  let service: LLMService
+private struct ExplanationAppleIntelligenceFooter: View {
+  let service: ExplanationService
 
   var body: some View {
-    let availability = service.checkAppleIntelligenceAvailability()
+    let availability = service.checkAvailability()
 
     switch availability {
     case .available:
-      Text("Apple Intelligence is ready to use.")
+      Text("Apple Intelligence is ready to use for word explanations.")
 
     case .unavailable(let reason):
       switch reason {
       case .deviceNotEligible:
-        Text("This device does not support Apple Intelligence.")
+        Text("This device does not support Apple Intelligence. Word explanations require a compatible device.")
       case .appleIntelligenceNotEnabled:
-        Text("Enable Apple Intelligence in System Settings > Apple Intelligence & Siri.")
+        Text("Enable Apple Intelligence in System Settings > Apple Intelligence & Siri to use word explanations.")
       case .modelNotReady:
-        Text("Apple Intelligence model is being downloaded by the system.")
-      default:
-        Text("Apple Intelligence is not available.")
+        Text("Apple Intelligence model is being downloaded by the system. Word explanations will be available when ready.")
+      case .unknown:
+        Text("Apple Intelligence is not available for word explanations.")
       }
     }
   }
 }
 
-// MARK: - MLX Model Row
+// MARK: - Vocabulary Apple Intelligence Row
 
-private struct MLXModelRow: View {
-  @Bindable var service: LLMService
+private struct VocabularyAppleIntelligenceRow: View {
+  let service: FoundationModelService
 
   var body: some View {
-    Picker("Model", selection: Binding(
-      get: { service.selectedMLXModelId },
-      set: { service.selectedMLXModelId = $0 }
-    )) {
-      ForEach(LLMService.availableMLXModels) { model in
-        HStack {
-          Text(model.name)
-          Spacer()
-          Text(model.size)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        .tag(model.id)
+    HStack {
+      Label {
+        Text("Apple Intelligence")
+      } icon: {
+        Image(systemName: "apple.logo")
+          .foregroundStyle(.primary)
       }
+
+      Spacer()
+
+      statusBadge
     }
-    .pickerStyle(.navigationLink)
+  }
+
+  @ViewBuilder
+  private var statusBadge: some View {
+    let availability = service.checkAvailability()
+
+    switch availability {
+    case .available:
+      HStack(spacing: 4) {
+        Image(systemName: "checkmark.circle.fill")
+          .foregroundStyle(.green)
+        Text("Available")
+          .foregroundStyle(.secondary)
+      }
+      .font(.caption)
+
+    case .unavailable:
+      HStack(spacing: 4) {
+        Image(systemName: "xmark.circle.fill")
+          .foregroundStyle(.orange)
+        Text("Unavailable")
+          .foregroundStyle(.secondary)
+      }
+      .font(.caption)
+    }
+  }
+}
+
+// MARK: - Vocabulary Apple Intelligence Footer
+
+private struct VocabularyAppleIntelligenceFooter: View {
+  let service: FoundationModelService
+
+  var body: some View {
+    let availability = service.checkAvailability()
+
+    switch availability {
+    case .available:
+      Text("Apple Intelligence is ready to use for vocabulary auto-fill.")
+
+    case .unavailable(let reason):
+      Text("Apple Intelligence is not available: \(reason)")
+    }
   }
 }
 
