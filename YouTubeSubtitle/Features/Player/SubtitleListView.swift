@@ -153,7 +153,7 @@ enum SubtitleAction {
   case setRepeatRange(startTime: Double, endTime: Double)
   case explain(cue: Subtitle.Cue)
   case translate(cue: Subtitle.Cue)
-  case wordTap(word: String)
+  case wordTap(word: String, context: String)
   case explainSelection(text: String, context: String)
 }
 
@@ -193,7 +193,7 @@ private struct SubtitleScrollContent: View {
             case .translate:
               onAction(.translate(cue: cue))
             case .wordTap(let word):
-              onAction(.wordTap(word: word))
+              onAction(.wordTap(word: word, context: cue.decodedText))
             case .explainSelection(let selectedText):
               onAction(.explainSelection(text: selectedText, context: cue.decodedText))
             case .selectionChanged(let hasSelection):

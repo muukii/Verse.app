@@ -15,6 +15,12 @@ import YouTubePlayerKit
 import YoutubeTranscript
 import Translation
 
+/// Represents a selected text with its surrounding context for explanation
+struct TextSelection: Equatable {
+  let text: String
+  let context: String
+}
+
 struct PlayerView: View {
   let videoItem: VideoItem
 
@@ -44,8 +50,8 @@ struct PlayerView: View {
   // Subtitle interaction state
   @State private var selectedCueForExplanation: Subtitle.Cue?
   @State private var selectedCueForTranslation: Subtitle.Cue?
-  @State private var selectedWord: Identified<String>?
-  @State private var selectedTextForExplanation: (text: String, context: String)?
+  @State private var selectedWordWithContext: TextSelection?
+  @State private var selectedTextForExplanation: TextSelection?
 
   // On-device transcribe state
   @State private var onDeviceTranscribeViewModel = OnDeviceTranscribeViewModel()
@@ -166,8 +172,15 @@ struct PlayerView: View {
         ),
         text: selectedCueForTranslation?.decodedText ?? ""
       )
-      .sheet(item: $selectedWord) { word in
-        WordDetailSheet(word: word.value)
+      .sheet(
+        isPresented: Binding(
+          get: { selectedWordWithContext != nil },
+          set: { if !$0 { selectedWordWithContext = nil } }
+        )
+      ) {
+        if let selection = selectedWordWithContext {
+          WordDetailSheet(word: selection.text, context: selection.context)
+        }
       }
       .sheet(
         isPresented: Binding(
@@ -292,10 +305,10 @@ struct PlayerView: View {
             selectedCueForExplanation = cue
           case .translate(let cue):
             selectedCueForTranslation = cue
-          case .wordTap(let word):
-            selectedWord = Identified(word)
+          case .wordTap(let word, let context):
+            selectedWordWithContext = TextSelection(text: word, context: context)
           case .explainSelection(let text, let context):
-            selectedTextForExplanation = (text, context)
+            selectedTextForExplanation = TextSelection(text: text, context: context)
           }
         }
       )
