@@ -84,36 +84,40 @@ struct WordExplanationSheet: View {
 
   @Environment(\.dismiss) private var dismiss
   @State private var service = LLMService()
-  @State private var explanationResponse: ExplanationResponse?
-  @State private var isLoading: Bool = false
-  @State private var errorMessage: String?
-  @State private var generationTask: Task<Void, Never>?
+  @State private var streamedContent: String = ""
+  @State private var isStreaming: Bool = false
+  @State private var streamTask: Task<Void, Never>?
   @State private var showsInstructionViewer: Bool = false
+  @State private var followUpQuestion: String = ""
+  @State private var conversationHistory: [(question: String, answer: String)] = []
   @State private var geminiURL: URL?
 
   var body: some View {
     WordExplanationSheetContent(
       text: text,
       context: context,
-      explanationResponse: explanationResponse,
-      isLoading: isLoading,
-      errorMessage: errorMessage,
+      serviceState: service.state,
+      streamedContent: streamedContent,
+      isStreaming: isStreaming,
+      conversationHistory: conversationHistory,
+      followUpQuestion: $followUpQuestion,
       showsInstructionViewer: $showsInstructionViewer,
       service: service,
       onClose: { dismiss() },
       onRetry: { retryExplanation() },
+      onSendFollowUp: { sendFollowUpQuestion() },
       onOpenGemini: { openInGemini() }
     )
     .onAppear {
-      // Start generating explanation when sheet appears
-      generationTask = Task {
+      // Start streaming explanation when sheet appears
+      streamTask = Task {
         await generateExplanation()
       }
     }
     .onDisappear {
-      // Cancel generation when sheet is dismissed
-      generationTask?.cancel()
-      generationTask = nil
+      // Cancel streaming when sheet is dismissed
+      streamTask?.cancel()
+      streamTask = nil
       // Also cancel any ongoing generation in the service
       service.cancelCurrentGeneration()
     }
@@ -128,8 +132,8 @@ struct WordExplanationSheet: View {
   // MARK: - Actions
 
   private func retryExplanation() {
-    generationTask?.cancel()
-    generationTask = Task {
+    streamTask?.cancel()
+    streamTask = Task {
       await generateExplanation()
     }
   }
@@ -165,36 +169,103 @@ struct WordExplanationSheet: View {
 
     guard case .available(let backend) = availability else {
       if case .unavailable(let reason) = availability {
-        errorMessage = reason.localizedDescription
+        service.state = .error(reason.localizedDescription)
       }
       return
     }
 
     print("[LLM] Using backend: \(backend)")
 
-    isLoading = true
-    errorMessage = nil
-    explanationResponse = nil
+    // Use streaming for better UX
+    isStreaming = true
+    streamedContent = ""
 
     do {
-      let response = try await service.generateExplanation(text: text, context: context)
-
-      // Check for cancellation after receiving response
-      guard !Task.isCancelled else {
-        isLoading = false
-        return
+      for try await content in service.streamExplanation(text: text, context: context) {
+        // Check for cancellation in the stream loop
+        guard !Task.isCancelled else {
+          isStreaming = false
+          return
+        }
+        streamedContent = content
+        print("[LLM] Received content chunk: \(content.prefix(50))...")
       }
-
-      explanationResponse = response
-      print("[LLM] Explanation generated successfully")
+      print("[LLM] Stream completed successfully")
     } catch {
-      print("[LLM] Explanation error: \(error)")
+      print("[LLM] Stream error: \(error)")
+      // Error is already handled by the service
       // Don't update state if task was cancelled
       guard !Task.isCancelled else { return }
-      errorMessage = error.localizedDescription
     }
 
-    isLoading = false
+    isStreaming = false
+  }
+
+  private func sendFollowUpQuestion() {
+    let question = followUpQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !question.isEmpty else { return }
+
+    // Clear the input field
+    followUpQuestion = ""
+
+    // Start streaming follow-up answer
+    streamTask = Task {
+      await generateFollowUpAnswer(question: question)
+    }
+  }
+
+  private func generateFollowUpAnswer(question: String) async {
+    guard !Task.isCancelled else { return }
+
+    let availability = service.checkAvailability()
+    guard case .available = availability else { return }
+
+    isStreaming = true
+    var followUpAnswer = ""
+
+    do {
+      // Create a follow-up context that includes the original text and previous conversation
+      let followUpContext = buildFollowUpContext(question: question)
+
+      for try await content in service.streamExplanation(text: question, context: followUpContext) {
+        guard !Task.isCancelled else {
+          isStreaming = false
+          return
+        }
+        followUpAnswer = content
+      }
+
+      // Add the exchange to conversation history
+      conversationHistory.append((question: question, answer: followUpAnswer))
+
+    } catch {
+      print("[LLM] Follow-up stream error: \(error)")
+    }
+
+    isStreaming = false
+  }
+
+  private func buildFollowUpContext(question: String) -> String {
+    var context = "Original word/phrase: \"\(text)\"\n"
+    context += "Original context: \"\(self.context)\"\n\n"
+
+    // Include the initial explanation if available
+    if case .success(let explanation) = service.state {
+      context += "Previous explanation:\n\(explanation)\n\n"
+    } else if !streamedContent.isEmpty {
+      context += "Previous explanation:\n\(streamedContent)\n\n"
+    }
+
+    // Include conversation history
+    if !conversationHistory.isEmpty {
+      context += "Previous questions and answers:\n"
+      for (index, exchange) in conversationHistory.enumerated() {
+        context += "\nQ\(index + 1): \(exchange.question)\n"
+        context += "A\(index + 1): \(exchange.answer)\n"
+      }
+    }
+
+    return context
   }
 }
 
@@ -208,11 +279,13 @@ struct WordExplanationSheetContent: View {
   let context: String
 
   // Display state
-  let explanationResponse: ExplanationResponse?
-  let isLoading: Bool
-  let errorMessage: String?
+  let serviceState: LLMService.State
+  let streamedContent: String
+  let isStreaming: Bool
+  let conversationHistory: [(question: String, answer: String)]
 
   // Bindings
+  @Binding var followUpQuestion: String
   @Binding var showsInstructionViewer: Bool
 
   // For InstructionViewerSheet
@@ -221,21 +294,28 @@ struct WordExplanationSheetContent: View {
   // Actions
   let onClose: () -> Void
   let onRetry: () -> Void
+  let onSendFollowUp: () -> Void
   let onOpenGemini: () -> Void
 
   var body: some View {
     NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-          // Selected text display
-          selectedTextSection
+      VStack(spacing: 0) {
+        // Main content with explanation and original text
+        ScrollView {
+          VStack(alignment: .leading, spacing: 16) {
+            // Explanation section (moved to top)
+            explanationSection
 
-          Divider()
+            Divider()
 
-          // Explanation section
-          explanationSection
+            // Selected text display (moved to bottom)
+            selectedTextSection
+          }
+          .padding()
         }
-        .padding()
+
+        // Follow-up input section
+        followUpInputSection
       }
       .navigationTitle("Explanation")
       .navigationBarTitleDisplayMode(.inline)
@@ -298,51 +378,98 @@ struct WordExplanationSheetContent: View {
 
   @ViewBuilder
   private var explanationSection: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      if isLoading {
-        loadingView
-      } else if let error = errorMessage {
-        errorView(message: error)
-      } else if let response = explanationResponse {
-        structuredExplanationView(response)
-      } else {
-        placeholderView
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Explanation", systemImage: "sparkles")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      Group {
+        switch serviceState {
+        case .idle:
+          placeholderView
+
+        case .loading:
+          if streamedContent.isEmpty {
+            loadingView
+          } else {
+            explanationText(streamedContent)
+          }
+
+        case .downloadingModel(let progress):
+          VStack(spacing: 8) {
+            ProgressView(value: progress)
+            Text("Downloading model... \(Int(progress * 100))%")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          .padding()
+
+        case .success(let explanation):
+          explanationText(explanation)
+
+        case .error(let message):
+          errorView(message: message)
+        }
+      }
+
+      // Show conversation history if there are follow-up exchanges
+      if !conversationHistory.isEmpty {
+        Divider()
+          .padding(.vertical, 8)
+
+        ForEach(Array(conversationHistory.enumerated()), id: \.offset) { index, exchange in
+          VStack(alignment: .leading, spacing: 8) {
+            // Follow-up question
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: "person.circle.fill")
+                .foregroundStyle(.blue)
+              Text(exchange.question)
+                .font(.body)
+            }
+
+            // Follow-up answer
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: "sparkles")
+                .foregroundStyle(.purple)
+              Text(markdownAttributedString(from: exchange.answer))
+                .font(.body)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Color(.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .textSelection(.enabled)
+            }
+          }
+          .padding(.vertical, 4)
+        }
       }
     }
   }
 
-  private func structuredExplanationView(_ response: ExplanationResponse) -> some View {
-    VStack(alignment: .leading, spacing: 16) {
-      // Translation section
-      VStack(alignment: .leading, spacing: 4) {
-        Label("Translation", systemImage: "character.book.closed")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+  private var followUpInputSection: some View {
+    VStack(spacing: 0) {
+      Divider()
 
-        Text(response.translation)
-          .font(.title3)
-          .fontWeight(.medium)
-          .padding()
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .background(Color.blue.opacity(0.1))
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-          .textSelection(.enabled)
-      }
-
-      // Explanation section
-      VStack(alignment: .leading, spacing: 4) {
-        Label("Explanation", systemImage: "sparkles")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-
-        Text(response.explanation)
-          .font(.body)
-          .padding()
-          .frame(maxWidth: .infinity, alignment: .leading)
+      HStack(alignment: .bottom, spacing: 8) {
+        TextField("Follow-up question...", text: $followUpQuestion, axis: .vertical)
+          .textFieldStyle(.plain)
+          .padding(8)
           .background(Color(.secondarySystemBackground))
           .clipShape(RoundedRectangle(cornerRadius: 8))
-          .textSelection(.enabled)
+          .lineLimit(1...4)
+          .disabled(isStreaming)
+
+        Button {
+          onSendFollowUp()
+        } label: {
+          Image(systemName: "arrow.up.circle.fill")
+            .font(.title2)
+            .foregroundStyle(followUpQuestion.isEmpty || isStreaming ? .gray : .blue)
+        }
+        .disabled(followUpQuestion.isEmpty || isStreaming)
       }
+      .padding()
+      .background(Color(.systemBackground))
     }
   }
 
@@ -361,6 +488,35 @@ struct WordExplanationSheetContent: View {
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding()
+  }
+
+  private func explanationText(_ text: String) -> some View {
+    Text(markdownAttributedString(from: text))
+      .font(.body)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding()
+      .background(Color(.secondarySystemBackground))
+      .clipShape(RoundedRectangle(cornerRadius: 8))
+      .textSelection(.enabled)
+  }
+
+  /// Convert Markdown string to AttributedString for rendering.
+  /// Falls back to plain text if Markdown parsing fails.
+  private func markdownAttributedString(from text: String) -> AttributedString {
+    // Preprocess: Convert single newlines to double newlines for proper line breaks
+    // In Markdown, single \n is ignored; \n\n creates a paragraph break
+    let preprocessed = text
+
+    do {
+      let attributed = try AttributedString(
+        markdown: preprocessed,
+        options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+      )
+      return attributed
+    } catch {
+      // Fallback to plain text if markdown parsing fails
+      return AttributedString(text)
+    }
   }
 
   private func errorView(message: String) -> some View {
@@ -483,13 +639,16 @@ private struct InstructionViewerSheet: View {
   WordExplanationSheetContent(
     text: "nevertheless",
     context: "Nevertheless, we decided to proceed with the plan.",
-    explanationResponse: nil,
-    isLoading: true,
-    errorMessage: nil,
+    serviceState: .loading,
+    streamedContent: "",
+    isStreaming: true,
+    conversationHistory: [],
+    followUpQuestion: .constant(""),
     showsInstructionViewer: .constant(false),
     service: LLMService(),
     onClose: {},
     onRetry: {},
+    onSendFollowUp: {},
     onOpenGemini: {}
   )
 }
@@ -498,16 +657,16 @@ private struct InstructionViewerSheet: View {
   WordExplanationSheetContent(
     text: "serendipity",
     context: "It was pure serendipity that we met.",
-    explanationResponse: ExplanationResponse(
-      translation: "偶然の幸運、思いがけない発見",
-      explanation: "Serendipity（セレンディピティ）は、偶然の幸運や思いがけない発見を意味する名詞です。何かを探しているときに、予期せず別の価値あるものを見つけることを表します。この言葉は1754年にホレス・ウォルポールがペルシャの童話「セレンディップの三人の王子」にちなんで作った造語です。"
-    ),
-    isLoading: false,
-    errorMessage: nil,
+    serviceState: .success("**Serendipity** means the occurrence of events by chance in a happy or beneficial way.\n\n## Translation\n偶然の幸運、思いがけない発見\n\n## Explanation\nThis word describes finding something good without specifically looking for it."),
+    streamedContent: "",
+    isStreaming: false,
+    conversationHistory: [],
+    followUpQuestion: .constant(""),
     showsInstructionViewer: .constant(false),
     service: LLMService(),
     onClose: {},
     onRetry: {},
+    onSendFollowUp: {},
     onOpenGemini: {}
   )
 }
@@ -516,31 +675,84 @@ private struct InstructionViewerSheet: View {
   WordExplanationSheetContent(
     text: "ephemeral",
     context: "The beauty of cherry blossoms is ephemeral.",
-    explanationResponse: nil,
-    isLoading: false,
-    errorMessage: "Model not available. Please try again later.",
+    serviceState: .error("Model not available. Please try again later."),
+    streamedContent: "",
+    isStreaming: false,
+    conversationHistory: [],
+    followUpQuestion: .constant(""),
     showsInstructionViewer: .constant(false),
     service: LLMService(),
     onClose: {},
     onRetry: {},
+    onSendFollowUp: {},
     onOpenGemini: {}
   )
 }
 
-#Preview("Nevertheless") {
+#Preview("With Conversation History") {
   WordExplanationSheetContent(
-    text: "nevertheless",
-    context: "Nevertheless, we decided to proceed with the plan.",
-    explanationResponse: ExplanationResponse(
-      translation: "それにもかかわらず、しかしながら",
-      explanation: "Nevertheless（ネバーザレス）は、前述の内容と対照的または矛盾するような文を導入するために使われる副詞です。反対の状況があるにもかかわらず、何かが真実であることを強調します。フォーマルな文章や学術的な文脈でよく使われます。類義語には however、nonetheless、even so、still、yet などがあります。"
-    ),
-    isLoading: false,
-    errorMessage: nil,
+    text: "ubiquitous",
+    context: "Smartphones have become ubiquitous in modern society.",
+    serviceState: .success("**Ubiquitous** means present, appearing, or found everywhere."),
+    streamedContent: "",
+    isStreaming: false,
+    conversationHistory: [
+      (question: "Can you give me more examples?", answer: "Sure! Here are more examples:\n- Coffee shops are ubiquitous in urban areas.\n- Wi-Fi has become ubiquitous in public spaces."),
+      (question: "What's the origin of this word?", answer: "The word comes from Latin 'ubique' meaning 'everywhere'.")
+    ],
+    followUpQuestion: .constant(""),
     showsInstructionViewer: .constant(false),
     service: LLMService(),
     onClose: {},
     onRetry: {},
+    onSendFollowUp: {},
+    onOpenGemini: {}
+  )
+}
+
+#Preview("Rich Markdown") {
+  WordExplanationSheetContent(
+    text: "nevertheless",
+    context: "Nevertheless, we decided to proceed with the plan.",
+    serviceState: .success("""
+      ## Input
+
+      nevertheless
+
+      ## Translation
+
+      それにもかかわらず、しかしながら
+
+      ## Explanation
+
+      **Nevertheless** is an adverb used to introduce a statement that contrasts with or seems to contradict something that has been said previously.
+
+      ### Usage Examples
+
+      - The weather was terrible. *Nevertheless*, we enjoyed our trip.
+      - He was tired; *nevertheless*, he continued working.
+
+      ### Synonyms
+
+      - however
+      - nonetheless
+      - even so
+      - still
+      - yet
+
+      ### Register
+
+      This word is considered **formal** and is commonly used in *written English* and *academic contexts*.
+      """),
+    streamedContent: "",
+    isStreaming: false,
+    conversationHistory: [],
+    followUpQuestion: .constant(""),
+    showsInstructionViewer: .constant(false),
+    service: LLMService(),
+    onClose: {},
+    onRetry: {},
+    onSendFollowUp: {},
     onOpenGemini: {}
   )
 }
