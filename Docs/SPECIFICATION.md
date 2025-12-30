@@ -82,8 +82,7 @@ Verse (project name: YouTubeSubtitle) is a SwiftUI app for iOS and macOS that le
 
 ### 3. AI and Language Tools
 - Word/phrase explanations using Apple Intelligence
-  - On-device processing with streaming output
-  - Follow-up questions for deeper understanding
+  - On-device processing with structured generation for translation and explanation
   - "Open in Gemini" shortcut (in-app browser on iOS)
 - Vocabulary auto-fill using Apple Intelligence
   - Structured generation for meaning, examples, and notes
