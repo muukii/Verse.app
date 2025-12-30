@@ -388,16 +388,12 @@ final class LLMService {
   private func buildExplanationInstructions(targetLanguage: String) -> String {
     """
     You are a language expert helping users understand words and phrases.
-    Generate comprehensive explanations that help learners deeply understand the meaning and usage.
+    Generate clear and helpful explanations for language learners.
 
     Important guidelines:
     - Provide a direct translation in \(targetLanguage)
-    - Give a detailed explanation of the meaning and how it's used
-    - Identify the part of speech (noun, verb, adjective, adverb, phrase, idiom, or other)
-    - Create 2 example sentences in the original language with translations in \(targetLanguage)
-    - Indicate the register (formal, neutral, or informal)
-    - Include notes about etymology, nuances, common mistakes, or cultural context
-    - All explanations and notes must be written in \(targetLanguage)
+    - Give a detailed explanation of the meaning, usage, and context in \(targetLanguage)
+    - All output must be written in \(targetLanguage)
 
     IMPORTANT: You must respond with ONLY a valid JSON object matching the schema.
     Do not include any text before or after the JSON. Do not use markdown code blocks.

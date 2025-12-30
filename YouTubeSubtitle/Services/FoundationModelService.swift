@@ -29,20 +29,8 @@ struct ExplanationResponse: Sendable {
   @Guide(description: "Direct translation of the word/phrase in the target language")
   var translation: String
 
-  @Guide(description: "Detailed explanation of the meaning, usage, and context")
+  @Guide(description: "Detailed explanation of the meaning, usage, and context in the target language")
   var explanation: String
-
-  @Guide(description: "The part of speech (noun, verb, adjective, adverb, phrase, idiom, or other)")
-  var partOfSpeech: String
-
-  @Guide(description: "Example sentences showing how to use the word/phrase", .count(2))
-  var examples: [ExampleSentence]
-
-  @Guide(description: "Register level: formal, neutral, or informal")
-  var register: String
-
-  @Guide(description: "Additional notes about etymology, nuances, or common mistakes")
-  var notes: String
 }
 
 // MARK: - Vocabulary Auto-Fill Response
@@ -283,16 +271,12 @@ final class FoundationModelService {
 
     return """
     You are a language expert helping users understand words and phrases.
-    Generate comprehensive explanations that help learners deeply understand the meaning and usage.
+    Generate clear and helpful explanations for language learners.
 
     Important guidelines:
     - Provide a direct translation in \(languageName)
-    - Give a detailed explanation of the meaning and how it's used
-    - Identify the part of speech (noun, verb, adjective, adverb, phrase, idiom, or other)
-    - Create 2 example sentences in the original language with translations in \(languageName)
-    - Indicate the register (formal, neutral, or informal)
-    - Include notes about etymology, nuances, common mistakes, or cultural context
-    - All explanations and notes must be written in \(languageName)
+    - Give a detailed explanation of the meaning, usage, and context in \(languageName)
+    - All output must be written in \(languageName)
     """
   }
 

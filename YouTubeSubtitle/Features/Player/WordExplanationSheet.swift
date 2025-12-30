@@ -329,25 +329,6 @@ struct WordExplanationSheetContent: View {
           .textSelection(.enabled)
       }
 
-      // Part of speech & Register
-      HStack(spacing: 12) {
-        Label(response.partOfSpeech.capitalized, systemImage: "tag")
-          .font(.caption)
-          .padding(.horizontal, 8)
-          .padding(.vertical, 4)
-          .background(Color.purple.opacity(0.1))
-          .foregroundStyle(.purple)
-          .clipShape(Capsule())
-
-        Label(response.register.capitalized, systemImage: "person.wave.2")
-          .font(.caption)
-          .padding(.horizontal, 8)
-          .padding(.vertical, 4)
-          .background(Color.green.opacity(0.1))
-          .foregroundStyle(.green)
-          .clipShape(Capsule())
-      }
-
       // Explanation section
       VStack(alignment: .leading, spacing: 4) {
         Label("Explanation", systemImage: "sparkles")
@@ -361,50 +342,6 @@ struct WordExplanationSheetContent: View {
           .background(Color(.secondarySystemBackground))
           .clipShape(RoundedRectangle(cornerRadius: 8))
           .textSelection(.enabled)
-      }
-
-      // Examples section
-      if !response.examples.isEmpty {
-        VStack(alignment: .leading, spacing: 8) {
-          Label("Examples", systemImage: "text.quote")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-          ForEach(Array(response.examples.enumerated()), id: \.offset) { index, example in
-            VStack(alignment: .leading, spacing: 4) {
-              Text(example.originalSentence)
-                .font(.body)
-                .italic()
-
-              Text(example.translatedSentence)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.tertiarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .textSelection(.enabled)
-          }
-        }
-      }
-
-      // Notes section
-      if !response.notes.isEmpty {
-        VStack(alignment: .leading, spacing: 4) {
-          Label("Notes", systemImage: "note.text")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-          Text(response.notes)
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.orange.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .textSelection(.enabled)
-        }
       }
     }
   }
@@ -563,20 +500,7 @@ private struct InstructionViewerSheet: View {
     context: "It was pure serendipity that we met.",
     explanationResponse: ExplanationResponse(
       translation: "偶然の幸運、思いがけない発見",
-      explanation: "Serendipity means the occurrence of events by chance in a happy or beneficial way. This word describes finding something good without specifically looking for it.",
-      partOfSpeech: "noun",
-      examples: [
-        ExampleSentence(
-          originalSentence: "It was pure serendipity that we met at the café.",
-          translatedSentence: "カフェで出会ったのは純粋な偶然の幸運でした。"
-        ),
-        ExampleSentence(
-          originalSentence: "The discovery of penicillin was a case of serendipity.",
-          translatedSentence: "ペニシリンの発見は偶然の発見の事例でした。"
-        )
-      ],
-      register: "formal",
-      notes: "This word was coined by Horace Walpole in 1754, inspired by a Persian fairy tale 'The Three Princes of Serendip'."
+      explanation: "Serendipity（セレンディピティ）は、偶然の幸運や思いがけない発見を意味する名詞です。何かを探しているときに、予期せず別の価値あるものを見つけることを表します。この言葉は1754年にホレス・ウォルポールがペルシャの童話「セレンディップの三人の王子」にちなんで作った造語です。"
     ),
     isLoading: false,
     errorMessage: nil,
@@ -609,20 +533,7 @@ private struct InstructionViewerSheet: View {
     context: "Nevertheless, we decided to proceed with the plan.",
     explanationResponse: ExplanationResponse(
       translation: "それにもかかわらず、しかしながら",
-      explanation: "Nevertheless is an adverb used to introduce a statement that contrasts with or seems to contradict something that has been said previously. It emphasizes that something is true despite an opposing circumstance.",
-      partOfSpeech: "adverb",
-      examples: [
-        ExampleSentence(
-          originalSentence: "The weather was terrible. Nevertheless, we enjoyed our trip.",
-          translatedSentence: "天気はひどかった。それにもかかわらず、私たちは旅行を楽しんだ。"
-        ),
-        ExampleSentence(
-          originalSentence: "He was tired; nevertheless, he continued working.",
-          translatedSentence: "彼は疲れていた。しかしながら、仕事を続けた。"
-        )
-      ],
-      register: "formal",
-      notes: "This word is commonly used in written English and academic contexts. Synonyms include: however, nonetheless, even so, still, yet."
+      explanation: "Nevertheless（ネバーザレス）は、前述の内容と対照的または矛盾するような文を導入するために使われる副詞です。反対の状況があるにもかかわらず、何かが真実であることを強調します。フォーマルな文章や学術的な文脈でよく使われます。類義語には however、nonetheless、even so、still、yet などがあります。"
     ),
     isLoading: false,
     errorMessage: nil,
