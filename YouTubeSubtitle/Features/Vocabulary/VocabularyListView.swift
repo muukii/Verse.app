@@ -46,7 +46,7 @@ struct VocabularyListView: View {
         }
       }
       .sheet(isPresented: $showAddSheet) {
-        VocabularyEditSheet(mode: .add)
+        VocabularyEditSheet(mode: .add())
       }
       .sheet(item: $selectedItem) { item in
         VocabularyEditSheet(mode: .edit(item))

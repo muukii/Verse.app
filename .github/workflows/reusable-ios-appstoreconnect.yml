@@ -138,7 +138,7 @@ jobs:
           set -e
           set -o pipefail
 
-          xcodebuild -exportArchive \
+          set -o pipefail && xcodebuild -exportArchive \
             -archivePath "./build/${{ inputs.scheme }}.xcarchive" \
             -exportPath "./build" \
             -exportOptionsPlist ./build/ExportOptions.plist \
@@ -146,7 +146,7 @@ jobs:
             -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            | xcbeautify
+            | xcbeautify --renderer github-actions
 
       - name: Upload build artifacts
         if: always()

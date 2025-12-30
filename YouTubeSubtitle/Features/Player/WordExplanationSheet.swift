@@ -162,16 +162,16 @@ struct WordExplanationSheet: View {
 
     // Check availability first
     let availability = service.checkAvailability()
-    print("[LLM] Availability: \(availability), preferredBackend: \(service.preferredBackend)")
+    print("[LLM] Availability: \(availability)")
 
-    guard case .available(let backend) = availability else {
+    guard case .available = availability else {
       if case .unavailable(let reason) = availability {
         service.state = .error(reason.localizedDescription)
       }
       return
     }
 
-    print("[LLM] Using backend: \(backend)")
+    print("[LLM] Apple Intelligence is available")
 
     // Use streaming for better UX
     isStreaming = true
@@ -382,15 +382,6 @@ struct WordExplanationSheetContent: View {
           } else {
             explanationText(streamedContent)
           }
-
-        case .downloadingModel(let progress):
-          VStack(spacing: 8) {
-            ProgressView(value: progress)
-            Text("Downloading model... \(Int(progress * 100))%")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-          .padding()
 
         case .success(let explanation):
           explanationText(explanation)
