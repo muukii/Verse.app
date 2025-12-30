@@ -307,6 +307,113 @@ final class LLMService {
     anyLMSession = nil
   }
 
+  // MARK: - Structured Explanation Generation
+
+  /// Generate a structured explanation for a word or phrase.
+  /// Uses @Generable for structured output.
+  func generateExplanation(
+    text: String,
+    context: String,
+    targetLanguage: String? = nil
+  ) async throws -> ExplanationResponse {
+    let resolvedLanguage = targetLanguage ?? Self.deviceLanguage
+    let availability = checkAvailability()
+
+    switch availability {
+    case .available(let backend):
+      let model = makeModel(for: backend)
+      return try await generateStructuredExplanation(
+        model: model,
+        backend: backend,
+        text: text,
+        context: context,
+        targetLanguage: resolvedLanguage
+      )
+
+    case .unavailable(let reason):
+      state = .error(reason.localizedDescription)
+      throw LLMError.notAvailable(reason)
+    }
+  }
+
+  /// Generate structured explanation using @Generable.
+  private func generateStructuredExplanation(
+    model: any AnyLanguageModel.LanguageModel,
+    backend: Backend,
+    text: String,
+    context: String,
+    targetLanguage: String
+  ) async throws -> ExplanationResponse {
+    state = .loading
+    currentBackend = backend
+
+    do {
+      let instructions = buildExplanationInstructions(targetLanguage: targetLanguage)
+      let session = AnyLanguageModel.LanguageModelSession(
+        model: model,
+        instructions: instructions
+      )
+      self.anyLMSession = session
+
+      let prompt = buildExplanationPrompt(text: text, context: context)
+
+      // Use structured generation with @Generable
+      let response = try await session.respond(
+        to: prompt,
+        generating: ExplanationResponse.self,
+        includeSchemaInPrompt: true
+      )
+
+      print("[LLMService] Explanation response: \(response.content)")
+
+      state = .idle
+      return response.content
+
+    } catch let error as AnyLanguageModel.LanguageModelSession.GenerationError {
+      print("[LLMService] Explanation GenerationError: \(error)")
+      let errorMessage = handleGenerationError(error)
+      state = .error(errorMessage)
+      throw LLMError.generationFailed(errorMessage)
+
+    } catch {
+      print("[LLMService] Explanation Unknown error: \(error)")
+      print("[LLMService] Error type: \(type(of: error))")
+      let errorMessage = String(describing: error)
+      state = .error(errorMessage)
+      throw LLMError.unknown(error)
+    }
+  }
+
+  /// Build system instructions for explanation generation.
+  private func buildExplanationInstructions(targetLanguage: String) -> String {
+    """
+    You are a language expert helping users understand words and phrases.
+    Generate comprehensive explanations that help learners deeply understand the meaning and usage.
+
+    Important guidelines:
+    - Provide a direct translation in \(targetLanguage)
+    - Give a detailed explanation of the meaning and how it's used
+    - Identify the part of speech (noun, verb, adjective, adverb, phrase, idiom, or other)
+    - Create 2 example sentences in the original language with translations in \(targetLanguage)
+    - Indicate the register (formal, neutral, or informal)
+    - Include notes about etymology, nuances, common mistakes, or cultural context
+    - All explanations and notes must be written in \(targetLanguage)
+
+    IMPORTANT: You must respond with ONLY a valid JSON object matching the schema.
+    Do not include any text before or after the JSON. Do not use markdown code blocks.
+    """
+  }
+
+  /// Build prompt for explanation generation.
+  private func buildExplanationPrompt(text: String, context: String) -> String {
+    var prompt = "Word/Phrase: \(text)"
+    if !context.isEmpty && context != text {
+      prompt += "\nContext: \(context)"
+    }
+    prompt += "\n\nRespond with JSON only."
+    return prompt
+  }
+
   // MARK: - Vocabulary Auto-Fill
 
   /// Generate vocabulary fields (meaning, example sentence, notes) for a given term.

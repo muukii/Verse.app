@@ -8,9 +8,9 @@
 import FoundationModels
 import SwiftUI
 
-// MARK: - Vocabulary Auto-Fill Response
+// MARK: - Common Generable Structures
 
-/// Example sentence structure for auto-fill.
+/// Example sentence structure for vocabulary and explanation.
 @Generable
 struct ExampleSentence: Sendable {
   @Guide(description: "The example sentence in the original language of the term")
@@ -19,6 +19,33 @@ struct ExampleSentence: Sendable {
   @Guide(description: "Translation of the example sentence")
   var translatedSentence: String
 }
+
+// MARK: - Explanation Response
+
+/// Structured response for word/phrase explanation.
+/// Uses FoundationModels' native @Generable for constrained sampling.
+@Generable
+struct ExplanationResponse: Sendable {
+  @Guide(description: "Direct translation of the word/phrase in the target language")
+  var translation: String
+
+  @Guide(description: "Detailed explanation of the meaning, usage, and context")
+  var explanation: String
+
+  @Guide(description: "The part of speech (noun, verb, adjective, adverb, phrase, idiom, or other)")
+  var partOfSpeech: String
+
+  @Guide(description: "Example sentences showing how to use the word/phrase", .count(2))
+  var examples: [ExampleSentence]
+
+  @Guide(description: "Register level: formal, neutral, or informal")
+  var register: String
+
+  @Guide(description: "Additional notes about etymology, nuances, or common mistakes")
+  var notes: String
+}
+
+// MARK: - Vocabulary Auto-Fill Response
 
 /// Structured response for vocabulary term auto-fill feature.
 /// Uses FoundationModels' native @Generable for constrained sampling.
@@ -142,6 +169,53 @@ final class FoundationModelService {
     }
   }
 
+  // MARK: - Explanation Generation
+
+  /// Generate a structured explanation for a word or phrase.
+  func generateExplanation(
+    text: String,
+    context: String,
+    targetLanguage: String? = nil
+  ) async throws -> ExplanationResponse {
+    let resolvedLanguage = targetLanguage ?? Self.preferredLanguageCode
+
+    state = .loading
+
+    do {
+      let languageName = Self.languageName(for: resolvedLanguage)
+      let instructions = buildExplanationInstructions(targetLanguageCode: resolvedLanguage)
+      let prompt = buildExplanationPrompt(text: text, context: context, languageName: languageName)
+
+      let session = LanguageModelSession(
+        model: SystemLanguageModel.default,
+        instructions: instructions
+      )
+
+      // Use native structured generation with constrained sampling
+      let response = try await session.respond(
+        to: prompt,
+        generating: ExplanationResponse.self
+      )
+
+      print("[FoundationModelService] Explanation response: \(response.content)")
+
+      state = .success
+      return response.content
+
+    } catch let error as LanguageModelSession.GenerationError {
+      print("[FoundationModelService] GenerationError: \(error)")
+      let errorMessage = handleGenerationError(error)
+      state = .error(errorMessage)
+      throw FoundationModelError.generationFailed(errorMessage)
+
+    } catch {
+      print("[FoundationModelService] Unknown error: \(error)")
+      let errorMessage = error.localizedDescription
+      state = .error(errorMessage)
+      throw FoundationModelError.unknown(error)
+    }
+  }
+
   // MARK: - Text Generation (String output)
 
   /// Generate a simple text response.
@@ -201,6 +275,33 @@ final class FoundationModelService {
       prompt += "\nContext: \(context)"
     }
     prompt += "\n\nIMPORTANT: You MUST write the meaning and notes in \(languageName). Do not use any other language."
+    return prompt
+  }
+
+  private func buildExplanationInstructions(targetLanguageCode: String) -> String {
+    let languageName = Self.languageName(for: targetLanguageCode)
+
+    return """
+    You are a language expert helping users understand words and phrases.
+    Generate comprehensive explanations that help learners deeply understand the meaning and usage.
+
+    Important guidelines:
+    - Provide a direct translation in \(languageName)
+    - Give a detailed explanation of the meaning and how it's used
+    - Identify the part of speech (noun, verb, adjective, adverb, phrase, idiom, or other)
+    - Create 2 example sentences in the original language with translations in \(languageName)
+    - Indicate the register (formal, neutral, or informal)
+    - Include notes about etymology, nuances, common mistakes, or cultural context
+    - All explanations and notes must be written in \(languageName)
+    """
+  }
+
+  private func buildExplanationPrompt(text: String, context: String, languageName: String) -> String {
+    var prompt = "Word/Phrase: \(text)"
+    if !context.isEmpty && context != text {
+      prompt += "\nContext: \(context)"
+    }
+    prompt += "\n\nIMPORTANT: You MUST write all explanations and notes in \(languageName). Do not use any other language for explanations."
     return prompt
   }
 
