@@ -12,6 +12,12 @@ import Translation
 struct WordDetailSheet: View {
   @Environment(\.dismiss) private var dismiss
   let word: String
+  var context: String = ""
+
+  /// Computed context that falls back to the word if no context is provided
+  private var effectiveContext: String {
+    context.isEmpty ? word : context
+  }
 
   @State private var showTranslation = false
   @State private var showExplanation = false
@@ -91,7 +97,7 @@ struct WordDetailSheet: View {
     .sheet(isPresented: $showExplanation) {
       WordExplanationSheet(
         text: word,
-        context: word
+        context: effectiveContext
       )
     }
     .sheet(isPresented: $showVocabularyEdit) {
@@ -101,5 +107,5 @@ struct WordDetailSheet: View {
 }
 
 #Preview {
-  WordDetailSheet(word: "Hello")
+  WordDetailSheet(word: "Hello", context: "Hello, how are you today?")
 }
