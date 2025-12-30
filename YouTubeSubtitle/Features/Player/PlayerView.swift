@@ -15,6 +15,12 @@ import YouTubePlayerKit
 import YoutubeTranscript
 import Translation
 
+/// Represents a selected text with its surrounding context for explanation
+struct TextSelection: Equatable {
+  let text: String
+  let context: String
+}
+
 struct PlayerView: View {
   let videoItem: VideoItem
 
@@ -44,8 +50,8 @@ struct PlayerView: View {
   // Subtitle interaction state
   @State private var selectedCueForExplanation: Subtitle.Cue?
   @State private var selectedCueForTranslation: Subtitle.Cue?
-  @State private var selectedWordWithContext: (word: String, context: String)?
-  @State private var selectedTextForExplanation: (text: String, context: String)?
+  @State private var selectedWordWithContext: TextSelection?
+  @State private var selectedTextForExplanation: TextSelection?
 
   // On-device transcribe state
   @State private var onDeviceTranscribeViewModel = OnDeviceTranscribeViewModel()
@@ -173,7 +179,7 @@ struct PlayerView: View {
         )
       ) {
         if let selection = selectedWordWithContext {
-          WordDetailSheet(word: selection.word, context: selection.context)
+          WordDetailSheet(word: selection.text, context: selection.context)
         }
       }
       .sheet(
@@ -300,9 +306,9 @@ struct PlayerView: View {
           case .translate(let cue):
             selectedCueForTranslation = cue
           case .wordTap(let word, let context):
-            selectedWordWithContext = (word: word, context: context)
+            selectedWordWithContext = TextSelection(text: word, context: context)
           case .explainSelection(let text, let context):
-            selectedTextForExplanation = (text, context)
+            selectedTextForExplanation = TextSelection(text: text, context: context)
           }
         }
       )
