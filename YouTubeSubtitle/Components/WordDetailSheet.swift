@@ -7,6 +7,9 @@
 
 import SwiftUI
 import Translation
+#if os(macOS)
+  import AppKit
+#endif
 
 /// A sheet displaying word details with translate, explain, and copy actions.
 struct WordDetailSheet: View {
