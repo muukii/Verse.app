@@ -51,6 +51,7 @@ struct SubtitleListView: View {
     Group {
       if isLoading {
         ProgressView()
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else if let error {
         errorView(error: error)
       } else if cues.isEmpty {
@@ -153,8 +154,8 @@ enum SubtitleAction {
   case setRepeatRange(startTime: Double, endTime: Double)
   case explain(cue: Subtitle.Cue)
   case translate(cue: Subtitle.Cue)
-  case wordTap(word: String)
   case explainSelection(text: String, context: String)
+  case showSelectionActions(text: String, context: String)
 }
 
 // MARK: - Subtitle Scroll Content
@@ -192,12 +193,11 @@ private struct SubtitleScrollContent: View {
               onAction(.explain(cue: cue))
             case .translate:
               onAction(.translate(cue: cue))
-            case .wordTap(let word):
-              onAction(.wordTap(word: word))
             case .explainSelection(let selectedText):
               onAction(.explainSelection(text: selectedText, context: cue.decodedText))
-            case .selectionChanged(let hasSelection):
-              onSelectionChanged?(hasSelection)
+            case .showSelectionActions(let selectedText):
+              onSelectionChanged?(true)
+              onAction(.showSelectionActions(text: selectedText, context: cue.decodedText))
             }
           }
         )

@@ -167,8 +167,8 @@ struct TranscriptionSessionDetailView: View {
   let session: TranscriptionSession
   @State private var editedTitle: String = ""
   @State private var isEditing = false
-  @State private var selectedWord: Identified<String>?
   @State private var explainText: Identified<String>?
+  @State private var selectionForActionSheet: String?
 
   var body: some View {
     NavigationStack {
@@ -204,11 +204,22 @@ struct TranscriptionSessionDetailView: View {
       .onAppear {
         editedTitle = session.title ?? ""
       }
-      .sheet(item: $selectedWord) { item in
-        WordDetailSheet(word: item.value)
-      }
       .sheet(item: $explainText) { item in
         WordExplanationSheet(text: item.value, context: item.value)
+      }
+      .sheet(
+        isPresented: Binding(
+          get: { selectionForActionSheet != nil },
+          set: { if !$0 { selectionForActionSheet = nil } }
+        )
+      ) {
+        if let text = selectionForActionSheet {
+          SelectionActionSheet(
+            selectedText: text,
+            onCopy: { selectionForActionSheet = nil },
+            onDismiss: { selectionForActionSheet = nil }
+          )
+        }
       }
     }
   }
@@ -268,11 +279,11 @@ struct TranscriptionSessionDetailView: View {
       ForEach(sortedEntries) { entry in
         TranscriptionBubbleView(
           item: entry,
-          onWordTap: { word in
-            selectedWord = Identified(word)
-          },
           onExplain: { text in
             explainText = Identified(text)
+          },
+          onShowActions: { text in
+            selectionForActionSheet = text
           }
         )
       }

@@ -14,9 +14,9 @@ import Translation
 struct RealtimeTranscriptionView: View {
   @Environment(\.modelContext) private var modelContext
   @State private var viewModel: RealtimeTranscriptionViewModel?
-  @State private var selectedWord: Identified<String>?
   @State private var explainText: Identified<String>?
   @State private var showSessionHistory = false
+  @State private var selectionForActionSheet: String?
 
   var body: some View {
     Group {
@@ -60,14 +60,25 @@ struct RealtimeTranscriptionView: View {
       // Prevent screen sleep during recording
       UIApplication.shared.isIdleTimerDisabled = isRecording ?? false
     }
-    .sheet(item: $selectedWord) { item in
-      WordDetailSheet(word: item.value)
-    }
     .sheet(item: $explainText) { item in
       ExplainSheet(text: item.value)
     }
     .sheet(isPresented: $showSessionHistory) {
       TranscriptionSessionHistoryView()
+    }
+    .sheet(
+      isPresented: Binding(
+        get: { selectionForActionSheet != nil },
+        set: { if !$0 { selectionForActionSheet = nil } }
+      )
+    ) {
+      if let text = selectionForActionSheet {
+        SelectionActionSheet(
+          selectedText: text,
+          onCopy: { selectionForActionSheet = nil },
+          onDismiss: { selectionForActionSheet = nil }
+        )
+      }
     }
   }
 
@@ -137,11 +148,11 @@ struct RealtimeTranscriptionView: View {
           ForEach(viewModel.transcriptions) { item in
             TranscriptionBubbleView(
               item: item,
-              onWordTap: { word in
-                selectedWord = Identified(word)
-              },
               onExplain: { text in
                 explainText = Identified(text)
+              },
+              onShowActions: { text in
+                selectionForActionSheet = text
               }
             )
             .id(item.id)

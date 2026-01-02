@@ -20,9 +20,8 @@ struct SubtitleRowView: View {
     case setRepeatRange
     case explain
     case translate
-    case wordTap(String)
     case explainSelection(String)
-    case selectionChanged(Bool)
+    case showSelectionActions(String)
   }
 
   let cue: Subtitle.Cue
@@ -67,14 +66,11 @@ struct SubtitleRowView: View {
           unplayedTextColor: .tintColor.withAlphaComponent(0.4),
           lineSpacing: 10,
           playbackTime: currentTime.value,
-          onWordTap: { word, _ in
-            onAction(.wordTap(word))
-          },
           onExplain: { selectedText in
             onAction(.explainSelection(selectedText))
           },
-          onSelectionChanged: { hasSelection in
-            onAction(.selectionChanged(hasSelection))
+          onShowActions: { selectedText in
+            onAction(.showSelectionActions(selectedText))
           }
         )
         .fixedSize(horizontal: false, vertical: true)
