@@ -50,6 +50,9 @@ struct PlayerView: View {
   // On-device transcribe state
   @State private var onDeviceTranscribeViewModel = OnDeviceTranscribeViewModel()
 
+  // Settings
+  @AppStorage("autoTranscribeEnabled") private var autoTranscribeEnabled: Bool = true
+
   // Playback position auto-save state
   @State private var savePositionTask: Task<Void, Never>?
 
@@ -64,6 +67,22 @@ struct PlayerView: View {
       return true
     case .idle, .completed, .failed:
       return false
+    }
+  }
+
+  /// Determines the phase to display for the OnDeviceTranscribeButton.
+  /// Prioritizes ViewModel's processing state over subtitle existence check.
+  private var transcriptionButtonPhase: OnDeviceTranscribeViewModel.Phase {
+    let vmPhase = onDeviceTranscribeViewModel.phase
+    switch vmPhase {
+    case .fetchingStreams, .downloading, .transcribing, .failed:
+      return vmPhase
+    case .idle, .completed:
+      // Only show completed if subtitles have word timing (from on-device transcription)
+      if let subtitles = currentSubtitles, !needsOnDeviceTranscription(subtitles) {
+        return .completed
+      }
+      return .idle
     }
   }
 
@@ -228,7 +247,7 @@ struct PlayerView: View {
         // On-device transcribe button (only when no local file exists)
         if model.localFileURL == nil {
           OnDeviceTranscribeButton(
-            phase: currentSubtitles != nil ? .completed : onDeviceTranscribeViewModel.phase,
+            phase: transcriptionButtonPhase,
             action: { startBackgroundTranscription() }
           )
           .popoverTip(TranscribeTip())
@@ -347,7 +366,7 @@ struct PlayerView: View {
           isLoadingTranscripts = false
 
           // Auto-start on-device transcription if needed (no word timings yet)
-          if needsOnDeviceTranscription(cached) && model.localFileURL == nil {
+          if autoTranscribeEnabled && needsOnDeviceTranscription(cached) && model.localFileURL == nil {
             startBackgroundTranscription()
           }
         }
@@ -372,7 +391,7 @@ struct PlayerView: View {
           isLoadingTranscripts = false
 
           // Auto-start on-device transcription after YouTube subtitles are loaded
-          if needsOnDeviceTranscription(subtitles) && model.localFileURL == nil {
+          if autoTranscribeEnabled && needsOnDeviceTranscription(subtitles) && model.localFileURL == nil {
             startBackgroundTranscription()
           }
         }
@@ -383,7 +402,7 @@ struct PlayerView: View {
 
           // Auto-start on-device transcription when YouTube captions are not available
           // Only if no local file exists (on-device transcription downloads the video)
-          if model.localFileURL == nil {
+          if autoTranscribeEnabled && model.localFileURL == nil {
             startBackgroundTranscription()
           }
         }

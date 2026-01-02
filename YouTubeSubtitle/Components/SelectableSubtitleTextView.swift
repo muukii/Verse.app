@@ -9,65 +9,6 @@ import CoreMedia
 import SwiftUI
 import UIKit
 
-// MARK: - RoundedBackgroundLayoutManager
-
-/// Custom NSLayoutManager that draws rounded background rectangles
-/// instead of the default rectangular backgrounds.
-nonisolated final class RoundedBackgroundLayoutManager: NSLayoutManager {
-
-  /// Corner radius for background highlights
-  var cornerRadius: CGFloat = 4
-
-  /// Horizontal padding for the background
-  var horizontalPadding: CGFloat = 2
-
-  /// Top padding for the background
-  var topPadding: CGFloat = 1
-
-  /// Bottom padding for the background
-  var bottomPadding: CGFloat = 0
-  
-  override func fillBackgroundRectArray(
-    _ rectArray: UnsafePointer<CGRect>,
-    count rectCount: Int,
-    forCharacterRange charRange: NSRange,
-    color: UIColor
-  ) {
-    guard let context = UIGraphicsGetCurrentContext() else {
-      super.fillBackgroundRectArray(
-        rectArray,
-        count: rectCount,
-        forCharacterRange: charRange,
-        color: color
-      )
-      return
-    }
-
-    // Enable anti-aliasing for smooth rounded corners
-    context.setShouldAntialias(true)
-    context.setAllowsAntialiasing(true)
-
-    context.setFillColor(color.cgColor)
-
-    for i in 0..<rectCount {
-      var rect = rectArray[i]
-
-      // Add padding around the text (asymmetric top/bottom)
-      rect = CGRect(
-        x: rect.origin.x - horizontalPadding,
-        y: rect.origin.y - topPadding,
-        width: rect.width + horizontalPadding * 2,
-        height: rect.height + topPadding + bottomPadding
-      )
-
-      // Draw rounded rectangle
-      let path = UIBezierPath(roundedRect: rect, cornerRadius: cornerRadius)
-      context.addPath(path.cgPath)
-      context.fillPath()
-    }
-  }
-}
-
 // MARK: - SelectableSubtitleTextView
 
 /// A UITextView-backed SwiftUI view that supports:
@@ -79,30 +20,61 @@ nonisolated final class RoundedBackgroundLayoutManager: NSLayoutManager {
 /// to avoid AttributedString conversion overhead on every update.
 struct SelectableSubtitleTextView: UIViewRepresentable {
 
+  // MARK: - Content Enum
+
+  /// Represents the content to display, either plain text or timed words.
+  enum Content {
+    /// Plain text with cell-level timing for highlight calculation.
+    case plainText(text: String, startTime: Double, endTime: Double)
+    /// Timed words with per-word timing embedded in WordTiming.
+    case timedWords([Subtitle.WordTiming])
+
+    /// Convenience initializer for automatic selection based on wordTimings availability.
+    init(text: String, wordTimings: [Subtitle.WordTiming]?, startTime: Double = 0, endTime: Double = 0) {
+      if let wordTimings, !wordTimings.isEmpty {
+        self = .timedWords(wordTimings)
+      } else {
+        self = .plainText(text: text, startTime: startTime, endTime: endTime)
+      }
+    }
+
+    /// The text to display, derived from the content.
+    var displayText: String {
+      switch self {
+      case .plainText(let text, _, _):
+        return text
+      case .timedWords(let timings):
+        return timings.map(\.text).joined(separator: " ")
+      }
+    }
+  }
+
   // MARK: - Properties
 
-  /// The plain text to display.
-  let text: String
-
-  /// Word-level timing information for highlighting.
-  /// If provided, enables time-based word highlighting.
-  let wordTimings: [Subtitle.WordTiming]?
+  /// The content to display (plain text or timed words).
+  let content: Content
 
   /// Current playback time for highlighting.
   /// The word containing this time will be highlighted.
   var highlightTime: CMTime?
-
-  /// Background color for highlighted text.
-  var highlightColor: UIColor
-
-  /// Corner radius for the highlight background. Set to 0 for sharp corners.
-  var highlightCornerRadius: CGFloat
 
   /// Font to apply to the text.
   var font: UIFont
 
   /// Text color.
   var textColor: UIColor
+
+  /// Color for played (past) text in karaoke-style highlighting.
+  var playedTextColor: UIColor
+
+  /// Color for unplayed (future) text in karaoke-style highlighting.
+  var unplayedTextColor: UIColor
+
+  /// Line spacing between lines of text.
+  var lineSpacing: CGFloat
+
+  /// Current playback time in seconds. Used to determine past/future when highlightTime is nil.
+  var playbackTime: Double?
 
   /// Callback when a word is tapped.
   var onWordTap: ((String, CGRect) -> Void)?
@@ -115,37 +87,39 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
 
   // MARK: - Initializer
 
+  /// Primary initializer using Content enum.
   init(
-    text: String,
-    wordTimings: [Subtitle.WordTiming]? = nil,
+    content: Content,
     highlightTime: CMTime? = nil,
-    highlightColor: UIColor = UIColor.systemYellow.withAlphaComponent(0.4),
-    highlightCornerRadius: CGFloat = 4,
     font: UIFont = .preferredFont(forTextStyle: .body),
     textColor: UIColor = .label,
+    playedTextColor: UIColor = .label,
+    unplayedTextColor: UIColor = .secondaryLabel,
+    lineSpacing: CGFloat = 0,
+    playbackTime: Double? = nil,
     onWordTap: ((String, CGRect) -> Void)? = nil,
     onExplain: ((String) -> Void)? = nil,
     onSelectionChanged: ((Bool) -> Void)? = nil
   ) {
-    self.text = text
-    self.wordTimings = wordTimings
+    self.content = content
     self.highlightTime = highlightTime
-    self.highlightColor = highlightColor
-    self.highlightCornerRadius = highlightCornerRadius
     self.font = font
     self.textColor = textColor
+    self.playedTextColor = playedTextColor
+    self.unplayedTextColor = unplayedTextColor
+    self.lineSpacing = lineSpacing
+    self.playbackTime = playbackTime
     self.onWordTap = onWordTap
     self.onExplain = onExplain
     self.onSelectionChanged = onSelectionChanged
   }
 
+
   // MARK: - UIViewRepresentable
 
   func makeUIView(context: Context) -> UITextView {
-    // Create custom text system with rounded background support
     let textStorage = NSTextStorage()
-    let layoutManager = RoundedBackgroundLayoutManager()
-    layoutManager.cornerRadius = highlightCornerRadius
+    let layoutManager = NSLayoutManager()
 
     let textContainer = NSTextContainer(size: .zero)
     textContainer.widthTracksTextView = true
@@ -154,20 +128,11 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     layoutManager.addTextContainer(textContainer)
     textStorage.addLayoutManager(layoutManager)
 
-    // Store layout manager reference in coordinator
-    context.coordinator.layoutManager = layoutManager
-
     let textView = UITextView(frame: .zero, textContainer: textContainer)
     textView.isEditable = false
     textView.isScrollEnabled = false
     textView.backgroundColor = .clear
-    // Add inset to prevent highlight background from being clipped
-    textView.textContainerInset = UIEdgeInsets(
-      top: layoutManager.topPadding,
-      left: layoutManager.horizontalPadding,
-      bottom: layoutManager.bottomPadding,
-      right: layoutManager.horizontalPadding
-    )
+    textView.textContainerInset = UIEdgeInsets(top: 1, left: 2, bottom: 0, right: 2)
     textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     textView.delegate = context.coordinator
 
@@ -196,64 +161,94 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     coordinator.onExplain = self.onExplain
     coordinator.onSelectionChanged = self.onSelectionChanged
 
-    // Update corner radius if changed
-    coordinator.layoutManager?.cornerRadius = highlightCornerRadius
+    // Build word ranges
+    let wordRanges = buildWordRanges()
 
-    // Check if we need to rebuild the base attributed string
-    let needsRebuild = coordinator.cachedText != text
-      || coordinator.cachedFont != font
-      || coordinator.cachedTextColor != textColor
+    // Build and apply attributed string
+    let displayString = buildAttributedString(wordRanges: wordRanges)
 
-    if needsRebuild {
-      // Build new base attributed string
-      let baseString = buildBaseAttributedString()
-      coordinator.baseAttributedString = baseString
-      coordinator.cachedText = text
-      coordinator.cachedFont = font
-      coordinator.cachedTextColor = textColor
-      coordinator.wordRanges = buildWordRanges()
-    }
-
-    // Apply highlight (always, since time changes frequently)
-    let displayString: NSAttributedString
-    if let baseString = coordinator.baseAttributedString {
-      let mutableString = NSMutableAttributedString(attributedString: baseString)
-      applyHighlight(to: mutableString, coordinator: coordinator)
-      displayString = mutableString
-    } else {
-      displayString = NSAttributedString(string: text)
-    }
-
-    // Only update if content changed
-    if textView.attributedText != displayString {
-      textView.attributedText = displayString
-      textView.invalidateIntrinsicContentSize()
-    }
+    textView.attributedText = displayString
+    textView.invalidateIntrinsicContentSize()
   }
 
   // MARK: - Private Methods
 
-  /// Builds the base NSAttributedString with font and color (no highlight)
-  private func buildBaseAttributedString() -> NSAttributedString {
-    let displayText: String
-    if let wordTimings, !wordTimings.isEmpty {
-      // Reconstruct text from word timings with spaces
-      displayText = wordTimings.map(\.text).joined(separator: " ")
-    } else {
-      displayText = text
-    }
+  /// Builds the complete attributed string with karaoke-style coloring
+  private func buildAttributedString(wordRanges: [WordRange]) -> NSAttributedString {
+    let displayText = content.displayText
+
+    let paragraphStyle = NSMutableParagraphStyle()
+    paragraphStyle.lineSpacing = lineSpacing
 
     let attributes: [NSAttributedString.Key: Any] = [
       .font: font,
-      .foregroundColor: textColor
+      .foregroundColor: textColor,
+      .paragraphStyle: paragraphStyle
     ]
 
-    return NSAttributedString(string: displayText, attributes: attributes)
+    let string = NSMutableAttributedString(string: displayText, attributes: attributes)
+
+    // If no word timings (plain text), apply whole-text coloring based on playbackTime vs startTime
+    if wordRanges.isEmpty {
+      if let playbackTime, case .plainText(_, let startTime, _) = content {
+        let isPastOrCurrentCell = playbackTime >= startTime
+        let fullRange = NSRange(location: 0, length: string.length)
+        let color = isPastOrCurrentCell ? playedTextColor : unplayedTextColor
+        string.addAttribute(.foregroundColor, value: color, range: fullRange)
+      }
+      return string
+    }
+
+    // Find current word index based on highlightTime
+    let currentIndex: Int?
+    if let highlightTime, highlightTime.isValid {
+      let time = highlightTime.seconds
+      // Explicitly check if we're before the first word
+      if let firstStartTime = wordRanges.first?.startTime, time < firstStartTime {
+        currentIndex = nil
+      } else {
+        currentIndex = binarySearchWord(in: wordRanges, for: time)
+      }
+    } else {
+      currentIndex = nil
+    }
+
+    // Find the last word that has been completely played (for gap handling)
+    let lastPlayedWordIndex: Int?
+    if let playbackTime {
+      lastPlayedWordIndex = wordRanges.lastIndex { playbackTime >= $0.endTime }
+    } else {
+      lastPlayedWordIndex = nil
+    }
+
+    // Apply colors to all words based on current position
+    for (index, wordRange) in wordRanges.enumerated() {
+      guard wordRange.nsRange.location + wordRange.nsRange.length <= string.length else { continue }
+
+      if let current = currentIndex {
+        // Current cell with word-level highlighting (within a word's time range)
+        if index <= current {
+          // Played (past or current word)
+          string.addAttribute(.foregroundColor, value: playedTextColor, range: wordRange.nsRange)
+        } else {
+          // Unplayed (future word)
+          string.addAttribute(.foregroundColor, value: unplayedTextColor, range: wordRange.nsRange)
+        }
+      } else if let lastPlayed = lastPlayedWordIndex, index <= lastPlayed {
+        // In a gap between words, but this word has already been played
+        string.addAttribute(.foregroundColor, value: playedTextColor, range: wordRange.nsRange)
+      } else {
+        // Future cell, before first word, or in gap but word not yet played
+        string.addAttribute(.foregroundColor, value: unplayedTextColor, range: wordRange.nsRange)
+      }
+    }
+
+    return string
   }
 
   /// Builds word ranges for efficient highlight lookup
   private func buildWordRanges() -> [WordRange] {
-    guard let wordTimings, !wordTimings.isEmpty else { return [] }
+    guard case .timedWords(let wordTimings) = content else { return [] }
 
     var ranges: [WordRange] = []
     var currentLocation = 0
@@ -271,32 +266,6 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     }
 
     return ranges
-  }
-
-  /// Apply highlight to the word at the current time using binary search
-  private func applyHighlight(to string: NSMutableAttributedString, coordinator: Coordinator) {
-    guard let highlightTime, highlightTime.isValid else { return }
-
-    let time = highlightTime.seconds
-    let wordRanges = coordinator.wordRanges
-
-    // Clear previous highlight if exists
-    if let previousRange = coordinator.highlightedRange {
-      string.removeAttribute(.backgroundColor, range: previousRange)
-      coordinator.highlightedRange = nil
-    }
-
-    // Binary search for the word containing the current time
-    guard let index = binarySearchWord(in: wordRanges, for: time) else { return }
-
-    let wordRange = wordRanges[index]
-
-    // Verify range is valid
-    guard wordRange.nsRange.location + wordRange.nsRange.length <= string.length else { return }
-
-    // Apply highlight
-    string.addAttribute(.backgroundColor, value: highlightColor, range: wordRange.nsRange)
-    coordinator.highlightedRange = wordRange.nsRange
   }
 
   /// Binary search to find the word containing the given time
@@ -351,17 +320,6 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     var onWordTap: ((String, CGRect) -> Void)?
     var onExplain: ((String) -> Void)?
     var onSelectionChanged: ((Bool) -> Void)?
-
-    // Reference to custom layout manager for updating corner radius
-    weak var layoutManager: RoundedBackgroundLayoutManager?
-
-    // Cache for avoiding unnecessary rebuilds
-    var cachedText: String?
-    var cachedFont: UIFont?
-    var cachedTextColor: UIColor?
-    var baseAttributedString: NSAttributedString?
-    var wordRanges: [WordRange] = []
-    var highlightedRange: NSRange?
 
     // Track previous selection state to avoid redundant callbacks
     private var hadSelection = false
@@ -440,7 +398,7 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
 #Preview {
   VStack(spacing: 20) {
     SelectableSubtitleTextView(
-      text: "Hello world, this is a test sentence.",
+      content: .plainText(text: "Hello world, this is a test sentence.", startTime: 0, endTime: 5),
       onWordTap: { word, _ in
         print("Tapped: \(word)")
       }

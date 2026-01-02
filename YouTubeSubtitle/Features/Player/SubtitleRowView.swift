@@ -40,40 +40,33 @@ struct SubtitleRowView: View {
   var body: some View {
     VStack(spacing: 4) {
 
-      HStack {
+      HStack(alignment: .top, spacing: 8) {
+        
         Button {
           onAction(.tap)
         } label: {
-          Text(formatTime(cue.startTime))
-            .font(.system(.caption2, design: .default).monospacedDigit())
-            .foregroundStyle(isCurrent ? .white : .secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-              ConcentricRectangle(
-                corners: .concentric,
-                isUniform: true
-              )
-              .foregroundStyle(isCurrent ? .primary : .quinary)
-            )
+          RoundedRectangle(cornerRadius: 8)
+            .frame(minHeight: 0)
+            .frame(width: 30)
+            .foregroundStyle(.quinary)          
         }
         .buttonStyle(.plain)
 
-        Spacer()
-
-      }
-      .padding(6)
-
-      HStack(alignment: .top, spacing: 8) {
-
         // Text content with selection and word tap support
         SelectableSubtitleTextView(
-          text: cue.decodedText,
-          wordTimings: cue.wordTimings,
+          content: .init(
+            text: cue.decodedText,
+            wordTimings: cue.wordTimings,
+            startTime: cue.startTime,
+            endTime: cue.endTime
+          ),
           highlightTime: highlightTime,
-          highlightColor: .tintColor.withAlphaComponent(0.2),
-          font: .preferredFont(forTextStyle: .subheadline),
+          font: .systemFont(ofSize: 18, weight: .bold, width: .standard),
           textColor: .tintColor,
+          playedTextColor: .tintColor,
+          unplayedTextColor: .tintColor.withAlphaComponent(0.4),
+          lineSpacing: 10,
+          playbackTime: currentTime.value,
           onWordTap: { word, _ in
             onAction(.wordTap(word))
           },
@@ -89,14 +82,9 @@ struct SubtitleRowView: View {
 
         menu
       }
-      .padding(.horizontal, 12)
       .padding(.bottom, 10)
+      .padding(.horizontal, 8)
     }
-    .background(
-      ConcentricRectangle()
-        .fill(.quaternary.opacity(isCurrent ? 1 : 0))
-    )
-    .containerShape(.rect(cornerRadius: 12))
     .id(cue.id)
     .animation(.snappy, value: isCurrent)
     .foregroundStyle(.tint)
