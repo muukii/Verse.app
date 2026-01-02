@@ -44,8 +44,8 @@ struct PlayerView: View {
   // Subtitle interaction state
   @State private var selectedCueForExplanation: Subtitle.Cue?
   @State private var selectedCueForTranslation: Subtitle.Cue?
-  @State private var selectedWord: Identified<String>?
   @State private var selectedTextForExplanation: (text: String, context: String)?
+  @State private var selectionForActionSheet: (text: String, context: String)?
 
   // On-device transcribe state
   @State private var onDeviceTranscribeViewModel = OnDeviceTranscribeViewModel()
@@ -185,9 +185,6 @@ struct PlayerView: View {
         ),
         text: selectedCueForTranslation?.decodedText ?? ""
       )
-      .sheet(item: $selectedWord) { word in
-        WordDetailSheet(word: word.value)
-      }
       .sheet(
         isPresented: Binding(
           get: { selectedTextForExplanation != nil },
@@ -198,6 +195,21 @@ struct PlayerView: View {
           WordExplanationSheet(
             text: selection.text,
             context: selection.context
+          )
+        }
+      }
+      .sheet(
+        isPresented: Binding(
+          get: { selectionForActionSheet != nil },
+          set: { if !$0 { selectionForActionSheet = nil } }
+        )
+      ) {
+        if let selection = selectionForActionSheet {
+          SelectionActionSheet(
+            selectedText: selection.text,
+            context: selection.context,
+            onCopy: { selectionForActionSheet = nil },
+            onDismiss: { selectionForActionSheet = nil }
           )
         }
       }
@@ -311,10 +323,10 @@ struct PlayerView: View {
             selectedCueForExplanation = cue
           case .translate(let cue):
             selectedCueForTranslation = cue
-          case .wordTap(let word):
-            selectedWord = Identified(word)
           case .explainSelection(let text, let context):
             selectedTextForExplanation = (text, context)
+          case .showSelectionActions(let text, let context):
+            selectionForActionSheet = (text, context)
           }
         }
       )

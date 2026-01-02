@@ -6,6 +6,7 @@
 //
 
 import CoreMedia
+import NaturalLanguage
 import SwiftUI
 import UIKit
 
@@ -76,14 +77,14 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
   /// Current playback time in seconds. Used to determine past/future when highlightTime is nil.
   var playbackTime: Double?
 
-  /// Callback when a word is tapped.
-  var onWordTap: ((String, CGRect) -> Void)?
-
   /// Callback when "Explain" is selected from the context menu.
   var onExplain: ((String) -> Void)?
 
-  /// Callback when text selection changes. Returns true if text is selected.
-  var onSelectionChanged: ((Bool) -> Void)?
+  /// Callback when text selection changes. Returns selected text or nil if no selection.
+  var onSelectionChanged: ((String?) -> Void)?
+
+  /// Callback when "Actions..." is selected from the context menu.
+  var onShowActions: ((String) -> Void)?
 
   // MARK: - Initializer
 
@@ -97,9 +98,9 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     unplayedTextColor: UIColor = .secondaryLabel,
     lineSpacing: CGFloat = 0,
     playbackTime: Double? = nil,
-    onWordTap: ((String, CGRect) -> Void)? = nil,
     onExplain: ((String) -> Void)? = nil,
-    onSelectionChanged: ((Bool) -> Void)? = nil
+    onSelectionChanged: ((String?) -> Void)? = nil,
+    onShowActions: ((String) -> Void)? = nil
   ) {
     self.content = content
     self.highlightTime = highlightTime
@@ -109,9 +110,9 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     self.unplayedTextColor = unplayedTextColor
     self.lineSpacing = lineSpacing
     self.playbackTime = playbackTime
-    self.onWordTap = onWordTap
     self.onExplain = onExplain
     self.onSelectionChanged = onSelectionChanged
+    self.onShowActions = onShowActions
   }
 
 
@@ -160,6 +161,7 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
 
     coordinator.onExplain = self.onExplain
     coordinator.onSelectionChanged = self.onSelectionChanged
+    coordinator.onShowActions = self.onShowActions
 
     // Build word ranges
     let wordRanges = buildWordRanges()
@@ -303,7 +305,7 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
   }
 
   public func makeCoordinator() -> Coordinator {
-    Coordinator(onWordTap: onWordTap, onExplain: onExplain)
+    Coordinator(onExplain: onExplain)
   }
 
   // MARK: - WordRange
@@ -317,15 +319,14 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
   // MARK: - Coordinator
 
   public class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
-    var onWordTap: ((String, CGRect) -> Void)?
     var onExplain: ((String) -> Void)?
-    var onSelectionChanged: ((Bool) -> Void)?
+    var onSelectionChanged: ((String?) -> Void)?
+    var onShowActions: ((String) -> Void)?
 
-    // Track previous selection state to avoid redundant callbacks
-    private var hadSelection = false
+    // Track previous selected text to avoid redundant callbacks
+    private var lastSelectedText: String?
 
-    init(onWordTap: ((String, CGRect) -> Void)?, onExplain: ((String) -> Void)?) {
-      self.onWordTap = onWordTap
+    init(onExplain: ((String) -> Void)?) {
       self.onExplain = onExplain
     }
 
@@ -340,8 +341,10 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
       {
         let word = textView.text(in: range) ?? ""
         if !word.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-          let rect = textView.firstRect(for: range)
-          onWordTap?(word, rect)
+          // Set selection range instead of showing popup
+          let start = textView.offset(from: textView.beginningOfDocument, to: range.start)
+          let end = textView.offset(from: textView.beginningOfDocument, to: range.end)
+          textView.selectedRange = NSRange(location: start, length: end - start)
         }
       }
     }
@@ -356,11 +359,48 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
     // MARK: - UITextViewDelegate
 
     public func textViewDidChangeSelection(_ textView: UITextView) {
-      let hasSelection = textView.selectedRange.length > 0
-      // Only notify when selection state actually changes
-      if hasSelection != hadSelection {
-        hadSelection = hasSelection
-        onSelectionChanged?(hasSelection)
+      let selectedRange = textView.selectedRange
+      let hasSelection = selectedRange.length > 0
+
+      // Snap selection to word boundaries
+      if hasSelection, !isAdjustingSelection {
+        snapSelectionToWordBoundaries(textView)
+      }
+
+      // Extract selected text
+      let selectedText: String?
+      if hasSelection,
+         let text = textView.text,
+         let swiftRange = Range(textView.selectedRange, in: text) {
+        let extracted = String(text[swiftRange])
+        selectedText = extracted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : extracted
+      } else {
+        selectedText = nil
+      }
+
+      // Only notify when selection actually changes
+      if selectedText != lastSelectedText {
+        lastSelectedText = selectedText
+        onSelectionChanged?(selectedText)
+      }
+    }
+
+    /// Flag to prevent recursive selection adjustment
+    private var isAdjustingSelection = false
+
+    /// Snaps the current selection to word boundaries
+    private func snapSelectionToWordBoundaries(_ textView: UITextView) {
+      let selectedRange = textView.selectedRange
+      guard selectedRange.length > 0,
+            let text = textView.text else { return }
+
+      let newRange = WordBoundary.snapToWordBoundaries(in: text, range: selectedRange)
+
+      // Only adjust if the range actually changed
+      if newRange != selectedRange && newRange.length > 0 {
+        isAdjustingSelection = true
+        textView.selectedRange = newRange
+        isAdjustingSelection = false
       }
     }
 
@@ -370,26 +410,77 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
       editMenuForTextIn range: NSRange,
       suggestedActions: [UIMenuElement]
     ) -> UIMenu? {
-      guard let onExplain,
+      // Extract selected text
+      guard range.length > 0,
             let text = textView.text,
             let swiftRange = Range(range, in: text) else {
         return UIMenu(children: suggestedActions)
       }
 
       let selectedText = String(text[swiftRange])
-      guard !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+      guard !selectedText.isEmpty else {
         return UIMenu(children: suggestedActions)
       }
 
-      let explainAction = UIAction(
-        title: "Explain",
-        image: UIImage(systemName: "lightbulb")
-      ) { _ in
-        onExplain(selectedText)
+      // Create custom action to show SelectionActionSheet
+      let actionsItem = UIAction(
+        title: "Actions...",
+        image: UIImage(systemName: "ellipsis.circle")
+      ) { [weak self] _ in
+        self?.onShowActions?(selectedText)
       }
 
-      return UIMenu(children: [explainAction] + suggestedActions)
+      // Add custom action before system actions
+      var allActions: [UIMenuElement] = [actionsItem]
+      allActions.append(contentsOf: suggestedActions)
+
+      return UIMenu(children: allActions)
     }
+  }
+}
+
+// MARK: - WordBoundary
+
+/// Pure utility for word boundary calculations using NLTokenizer.
+///
+/// Thread Safety: Each method creates its own NLTokenizer instance locally,
+/// making all operations thread-safe. Apple's documentation notes that
+/// NLTokenizer instances should not be shared across threads, but since
+/// we create a fresh instance per call with no shared state, this is safe
+/// for concurrent use from any thread or dispatch queue.
+enum WordBoundary {
+  /// Snaps an NSRange to word boundaries within the given text.
+  /// Uses NLTokenizer for intelligent word detection with language awareness.
+  /// - Parameters:
+  ///   - text: The text containing the selection
+  ///   - range: The current selection range
+  /// - Returns: A new NSRange adjusted to word boundaries
+  /// - Note: Creates a local NLTokenizer instance per call (thread-safe).
+  static func snapToWordBoundaries(in text: String, range: NSRange) -> NSRange {
+    guard range.length > 0,
+          let swiftRange = Range(range, in: text) else { return range }
+
+    let tokenizer = NLTokenizer(unit: .word)
+    tokenizer.string = text
+
+    // Find word containing selection start
+    let startTokenRange = tokenizer.tokenRange(at: swiftRange.lowerBound)
+
+    // Find word containing selection end (use index before upperBound to get the last word)
+    let endIndex = swiftRange.upperBound > text.startIndex
+      ? text.index(before: swiftRange.upperBound)
+      : swiftRange.upperBound
+    let endTokenRange = tokenizer.tokenRange(at: endIndex)
+
+    // If either token range is empty, fall back to original range
+    guard !startTokenRange.isEmpty, !endTokenRange.isEmpty else { return range }
+
+    let newStart = startTokenRange.lowerBound
+    let newEnd = endTokenRange.upperBound
+
+    return NSRange(newStart..<newEnd, in: text)
   }
 }
 
@@ -398,10 +489,7 @@ struct SelectableSubtitleTextView: UIViewRepresentable {
 #Preview {
   VStack(spacing: 20) {
     SelectableSubtitleTextView(
-      content: .plainText(text: "Hello world, this is a test sentence.", startTime: 0, endTime: 5),
-      onWordTap: { word, _ in
-        print("Tapped: \(word)")
-      }
+      content: .plainText(text: "Hello world, this is a test sentence.", startTime: 0, endTime: 5)
     )
     .padding()
     .background(Color(.secondarySystemBackground))
