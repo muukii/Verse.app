@@ -31,8 +31,7 @@ struct TranscriptionBubbleView<Item: TranscriptionDisplayable>: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
       SelectableSubtitleTextView(
-        text: item.displayText,
-        wordTimings: item.displayWordTimings,
+        content: .init(text: item.displayText, wordTimings: item.displayWordTimings),
         highlightTime: highlightTime,
         onWordTap: { word, _ in
           onWordTap?(word)

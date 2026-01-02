@@ -36,6 +36,15 @@ struct SettingsView: View {
           VocabularyAppleIntelligenceFooter(service: foundationModelService)
         }
 
+        // MARK: - Transcription
+        Section {
+          AutoTranscribeToggle()
+        } header: {
+          Text("Transcription")
+        } footer: {
+          Text("Automatically transcribe videos when YouTube subtitles don't have word timing.")
+        }
+
         // MARK: - Siri & Shortcuts
         Section {
           SiriTipView(intent: OpenYouTubeVideoIntent())
@@ -307,6 +316,23 @@ private struct VocabularyAppleIntelligenceFooter: View {
 
     case .unavailable(let reason):
       Text("Apple Intelligence is not available: \(reason)")
+    }
+  }
+}
+
+// MARK: - Auto Transcribe Toggle
+
+private struct AutoTranscribeToggle: View {
+  @AppStorage("autoTranscribeEnabled") private var autoTranscribeEnabled: Bool = true
+
+  var body: some View {
+    Toggle(isOn: $autoTranscribeEnabled) {
+      Label {
+        Text("Auto-Transcribe")
+      } icon: {
+        Image(systemName: "waveform")
+          .foregroundStyle(.blue)
+      }
     }
   }
 }
