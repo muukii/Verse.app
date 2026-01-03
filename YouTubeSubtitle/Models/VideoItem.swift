@@ -49,6 +49,9 @@ final class VideoItem: TypedIdentifiable {
   /// Total duration of the video in seconds (for progress display)
   var duration: Double?
 
+  /// Last time this video was played (updated when playback position is saved)
+  var lastPlayedTime: Date?
+
   // MARK: - Download State Relationship
 
   /// Active download state (exists only during download).

@@ -9,12 +9,28 @@ import SwiftUI
 import SwiftData
 import AppIntents
 
+enum HistorySortOption: String, CaseIterable, Identifiable {
+  case manual = "Manual"
+  case lastPlayed = "Last Played"
+  case dateAdded = "Date Added"
+
+  var id: String { rawValue }
+
+  var systemImage: String {
+    switch self {
+    case .manual: return "line.3.horizontal"
+    case .lastPlayed: return "clock.fill"
+    case .dateAdded: return "calendar"
+    }
+  }
+}
+
 struct HomeView: View {
   @Environment(\.modelContext) private var modelContext
   @Environment(VideoItemService.self) private var historyService
   @Environment(VocabularyService.self) private var vocabularyService
   @Environment(DownloadManager.self) private var downloadManager
-  @Query(sort: \VideoItem.sortOrder) private var history: [VideoItem]
+  @Query(sort: \VideoItem.sortOrder) private var allHistory: [VideoItem]
 
   @State private var selectedVideoItem: VideoItem?
   @State private var showWebView: Bool = false
@@ -22,8 +38,33 @@ struct HomeView: View {
   @State private var showURLInput: Bool = false
   @State private var videoToAddToPlaylist: VideoItem?
   @ObservedObject private var deepLinkManager = DeepLinkManager.shared
+  @AppStorage("historySortOption") private var sortOption: HistorySortOption = .manual
 
   @Namespace private var heroNamespace
+
+  private var history: [VideoItem] {
+    switch sortOption {
+    case .manual:
+      return allHistory
+    case .lastPlayed:
+      return allHistory.sorted { (item1, item2) in
+        // Items with lastPlayedTime come first, sorted by most recent
+        switch (item1.lastPlayedTime, item2.lastPlayedTime) {
+        case (.some(let date1), .some(let date2)):
+          return date1 > date2
+        case (.some, .none):
+          return true
+        case (.none, .some):
+          return false
+        case (.none, .none):
+          // Fall back to timestamp if neither has lastPlayedTime
+          return item1.timestamp > item2.timestamp
+        }
+      }
+    case .dateAdded:
+      return allHistory.sorted { $0.timestamp > $1.timestamp }
+    }
+  }
 
   var body: some View {
     NavigationStack {
@@ -73,6 +114,8 @@ struct HomeView: View {
               }
             }
             .onMove { source, destination in
+              // Only allow manual reordering in manual sort mode
+              guard sortOption == .manual else { return }
               guard let sourceIndex = source.first else { return }
               try? historyService.moveHistoryItem(from: sourceIndex, to: destination)
             }
@@ -82,10 +125,27 @@ struct HomeView: View {
       }
       .navigationTitle("")
       .toolbar {
-        // Top toolbar - Edit mode for reordering
+        // Top toolbar - Edit mode for reordering (only in manual mode)
+        ToolbarItem(placement: .topBarLeading) {
+          if !history.isEmpty && sortOption == .manual {
+            EditButton()
+          }
+        }
+
+        // Top toolbar - Sort menu
         ToolbarItem(placement: .topBarLeading) {
           if !history.isEmpty {
-            EditButton()
+            Menu {
+              Picker("Sort by", selection: $sortOption) {
+                ForEach(HistorySortOption.allCases) { option in
+                  Label(option.rawValue, systemImage: option.systemImage)
+                    .tag(option)
+                }
+              }
+              .pickerStyle(.inline)
+            } label: {
+              Label("Sort", systemImage: sortOption.systemImage)
+            }
           }
         }
 

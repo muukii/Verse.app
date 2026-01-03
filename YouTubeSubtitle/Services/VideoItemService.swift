@@ -151,6 +151,7 @@ final class VideoItemService {
   // MARK: - Update Playback Position
 
   /// Update playback position and duration for a video to enable resume functionality.
+  /// Also records the last played time.
   /// - Parameters:
   ///   - videoID: The video ID to update
   ///   - position: Current playback position in seconds. Pass nil to clear the position.
@@ -169,6 +170,7 @@ final class VideoItemService {
     if let duration {
       item.duration = duration
     }
+    item.lastPlayedTime = Date()
 
     try modelContext.save()
   }
