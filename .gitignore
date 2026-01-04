@@ -94,6 +94,5 @@ vendor
 
 # Tuist
 Derived/
-*.xcodeproj/
-*.xcworkspace/
-
+Verse-tuist.xcodeproj/
+Verse-tuist.xcworkspace/

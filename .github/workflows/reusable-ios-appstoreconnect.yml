@@ -57,11 +57,11 @@ jobs:
         with:
           xcode-version: ${{ inputs.xcode-version }}
 
-      - name: Install dependencies with Tuist
-        run: tuist install
+      # - name: Install dependencies with Tuist
+      #   run: tuist install
 
-      - name: Generate Xcode project with Tuist
-        run: tuist generate
+      # - name: Generate Xcode project with Tuist
+      #   run: tuist generate
 
       - name: Setup App Store Connect API Key
         env:
@@ -78,7 +78,7 @@ jobs:
           set -o pipefail
 
           xcodebuild archive \
-            -workspace Verse.xcworkspace \
+            -project Verse.xcodeproj \
             -scheme "${{ inputs.scheme }}" \
             -configuration "${{ inputs.configuration }}" \
             -destination "generic/platform=iOS" \
@@ -93,10 +93,10 @@ jobs:
       - name: Embed entitlements
         run: |
           set -e
-          
+
           # Find the app in the archive
           APP_PATH="./build/${{ inputs.scheme }}.xcarchive/Products/Applications/${{ inputs.scheme }}.app"
-          
+
           # Use provided path or auto-detect
           if [ -n "${{ inputs.entitlements-path }}" ]; then
             ENTITLEMENTS_FILE="${{ inputs.entitlements-path }}"
@@ -105,7 +105,7 @@ jobs:
             ENTITLEMENTS_FILE=$(find . -name "*.entitlements" -type f | head -n 1)
             echo "Auto-detected entitlements file: $ENTITLEMENTS_FILE"
           fi
-          
+
           if [ -n "$ENTITLEMENTS_FILE" ] && [ -f "$ENTITLEMENTS_FILE" ]; then
             # Apply ad-hoc signature with entitlements
             codesign --entitlements "$ENTITLEMENTS_FILE" --force --sign "-" "$APP_PATH"

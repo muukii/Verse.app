@@ -7,7 +7,7 @@
 
 import Foundation
 import SwiftUI
-import YouTubePlayerKit
+@preconcurrency import YouTubePlayerKit
 
 // MARK: - YouTubeVideoPlayer
 
@@ -27,11 +27,11 @@ struct YouTubeVideoPlayer: View {
 /// Conforms to VideoPlayerController protocol for unified playback control.
 @Observable
 @MainActor
-final class YouTubeVideoPlayerController: VideoPlayerController, Sendable {
+final class YouTubeVideoPlayerController: VideoPlayerController {
 
   // MARK: - Properties
 
-  nonisolated(unsafe) let player: YouTubePlayer
+  let player: YouTubePlayer
   private var _playbackRate: Double = 1.0
 
   // MARK: - Initialization
