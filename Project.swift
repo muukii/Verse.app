@@ -4,6 +4,8 @@ import ProjectDescriptionHelpers
 // MARK: - Info.plist
 
 let appInfoPlist: InfoPlist = .extendingDefault(with: [
+  "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+  "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
   "ITSAppUsesNonExemptEncryption": false,
   "CFBundleDisplayName": "Verse",
   "LSApplicationCategoryType": "public.app-category.education",
