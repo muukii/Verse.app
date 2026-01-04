@@ -178,7 +178,7 @@ final class PlayerModel {
   let currentTime = CurrentTime()
 
   /// Whether the video is currently playing
-  var isPlaying: Bool = false
+  private(set) var isPlaying: Bool = false
 
   // MARK: - Video Info
 
@@ -550,10 +550,8 @@ final class PlayerModel {
     Task {
       if controller.isPlaying {
         await controller.pause()
-        isPlaying = false
       } else {
         await controller.play()
-        isPlaying = true
       }
     }
   }
