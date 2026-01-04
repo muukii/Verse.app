@@ -7,7 +7,7 @@
 
 import Foundation
 import SwiftUI
-import YouTubePlayerKit
+@preconcurrency import YouTubePlayerKit
 
 // MARK: - YouTubeVideoPlayer
 
