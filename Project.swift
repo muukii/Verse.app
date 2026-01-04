@@ -5,6 +5,8 @@ import ProjectDescriptionHelpers
 
 let appInfoPlist: InfoPlist = .extendingDefault(with: [
   "ITSAppUsesNonExemptEncryption": false,
+  "CFBundleDisplayName": "Verse",
+  "LSApplicationCategoryType": "public.app-category.education",
   "BGTaskSchedulerPermittedIdentifiers": .array([
     "app.muukii.verse.download",
     "app.muukii.verse.download.*",
@@ -14,12 +16,13 @@ let appInfoPlist: InfoPlist = .extendingDefault(with: [
   "NSSpeechRecognitionUsageDescription":
     "This app uses speech recognition to convert your voice to text.",
   "UIBackgroundModes": .array(["processing", "fetch"]),
+  "UILaunchScreen": .dictionary([:]),
 ])
 
 // MARK: - Project
 
 let project = Project(
-  name: "YouTubeSubtitle",
+  name: "Verse",
   organizationName: AppConstants.organizationName,
   settings: .settings(
     base: .base,
@@ -31,17 +34,13 @@ let project = Project(
   targets: [
     // MARK: - Main App Target
     .target(
-      name: "YouTubeSubtitle",
+      name: "Verse",
       destinations: .app,
       product: .app,
       bundleId: AppConstants.appBundleId,
       deploymentTargets: .app,
       infoPlist: appInfoPlist,
-      sources: ["YouTubeSubtitle/**/*.swift"],
-      resources: [
-        "YouTubeSubtitle/Assets.xcassets",
-        "YouTubeSubtitle/Verse.icon/**",
-      ],
+      buildableFolders: ["YouTubeSubtitle"],
       entitlements: .file(path: "YouTubeSubtitle/YouTubeSubtitle.entitlements"),
       dependencies: [
         // Internal target
@@ -57,6 +56,7 @@ let project = Project(
         .external(name: "AsyncMultiplexImage"),
         .external(name: "AsyncMultiplexImage-Nuke"),
         .external(name: "StateGraph"),
+        .external(name: "Algorithms"),
       ],
       settings: .settings(
         base: .appTarget,
@@ -70,12 +70,12 @@ let project = Project(
     // MARK: - Components Framework Target
     .target(
       name: "Components",
-      destinations: .framework,
+      destinations: .app,
       product: .staticFramework,
       bundleId: "app.muukii.Components",
       deploymentTargets: .app,
       infoPlist: .default,
-      sources: ["Components/**/*.swift"],
+      buildableFolders: ["Components"],
       dependencies: [],
       settings: .settings(
         base: .frameworkTarget,

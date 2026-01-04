@@ -13,17 +13,14 @@ public enum AppConstants {
 
 public extension DeploymentTargets {
   static let app: DeploymentTargets = .multiplatform(
-    iOS: "26.1",
-    macOS: "26.1",
-    visionOS: "26.1"
+    iOS: "26.1"
   )
 }
 
 // MARK: - Destinations
 
 public extension Destinations {
-  static let app: Destinations = [.iPhone, .mac]
-  static let framework: Destinations = [.iPhone, .iPad, .mac, .appleVision]
+  static let app: Destinations = [.iPhone]
 }
 
 // MARK: - Base Settings
@@ -42,6 +39,7 @@ public extension SettingsDictionary {
     "SWIFT_DEFAULT_ACTOR_ISOLATION": "MainActor",
     "ASSETCATALOG_COMPILER_APPICON_NAME": "Verse",
     "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME": "AccentColor",
+    "ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS": "YES",
     "ENABLE_APP_SANDBOX": "YES",
     "ENABLE_HARDENED_RUNTIME": "YES",
     "ENABLE_OUTGOING_NETWORK_CONNECTIONS": "YES",
@@ -52,8 +50,6 @@ public extension SettingsDictionary {
     "SUPPORTS_MACCATALYST": "NO",
     "MARKETING_VERSION": .string(AppConstants.marketingVersion),
     "CURRENT_PROJECT_VERSION": "1",
-    "INFOPLIST_KEY_CFBundleDisplayName": "Verse",
-    "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.education",
     "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/Frameworks",
     "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": "$(inherited) @executable_path/../Frameworks",
   ])
@@ -80,7 +76,7 @@ public extension Target {
   ) -> Target {
     .target(
       name: "Feature\(name)",
-      destinations: .framework,
+      destinations: .app,
       product: .staticFramework,
       bundleId: "\(AppConstants.appBundleId).feature.\(name.lowercased())",
       deploymentTargets: .app,

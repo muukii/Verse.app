@@ -8,44 +8,84 @@
 import AppIntents
 import SwiftUI
 
-struct SettingsView: View {
-  @Environment(\.dismiss) private var dismiss
-  @Environment(VideoItemService.self) private var historyService
-  @State private var explanationService = ExplanationService()
-  @State private var foundationModelService = FoundationModelService()
-  @State private var showClearHistoryConfirmation = false
+enum Settings {
+  // MARK: - Main View
 
-  var body: some View {
-    NavigationStack {
-      List {
-        // MARK: - Apple Intelligence for Word Explanations
-        Section {
-          ExplanationAppleIntelligenceRow(service: explanationService)
-        } header: {
-          Text("Word Explanations")
-        } footer: {
-          ExplanationAppleIntelligenceFooter(service: explanationService)
+  struct View: SwiftUI.View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(VideoItemService.self) private var historyService
+    @State private var explanationService = ExplanationService()
+    @State private var foundationModelService = FoundationModelService()
+    @State private var showClearHistoryConfirmation = false
+
+    var body: some SwiftUI.View {
+      NavigationStack {
+        List {
+          appleIntelligenceSection
+          transcriptionSection
+          siriAndShortcutsSection
+          dataManagementSection
+          debugSection
+          experimentalFeaturesSection
         }
-
-        // MARK: - Apple Intelligence for Vocabulary Auto-Fill
-        Section {
-          VocabularyAppleIntelligenceRow(service: foundationModelService)
-        } header: {
-          Text("Vocabulary Auto-Fill")
-        } footer: {
-          VocabularyAppleIntelligenceFooter(service: foundationModelService)
+        .navigationTitle("Settings")
+        #if os(iOS)
+          .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .toolbar {
+          ToolbarItem(placement: .confirmationAction) {
+            Button("Done") {
+              dismiss()
+            }
+          }
         }
-
-        // MARK: - Transcription
-        Section {
-          AutoTranscribeToggle()
-        } header: {
-          Text("Transcription")
-        } footer: {
-          Text("Automatically transcribe videos when YouTube subtitles don't have word timing.")
+        .confirmationDialog(
+          "Clear History",
+          isPresented: $showClearHistoryConfirmation,
+          titleVisibility: .visible
+        ) {
+          Button("Clear All History", role: .destructive) {
+            Task {
+              try? await historyService.clearAllHistory()
+            }
+          }
+          Button("Cancel", role: .cancel) {}
+        } message: {
+          Text("Are you sure you want to clear all history? This will remove all watched videos and cannot be undone.")
         }
+      }
+    }
 
-        // MARK: - Siri & Shortcuts
+    // MARK: - Sections
+
+    private var appleIntelligenceSection: some SwiftUI.View {
+      Section {
+        AppleIntelligenceStatusRow(
+          explanationService: explanationService,
+          foundationModelService: foundationModelService
+        )
+      } header: {
+        Text("Apple Intelligence")
+      } footer: {
+        AppleIntelligenceFooter(
+          explanationService: explanationService,
+          foundationModelService: foundationModelService
+        )
+      }
+    }
+
+    private var transcriptionSection: some SwiftUI.View {
+      Section {
+        AutoTranscribeToggle()
+      } header: {
+        Text("Transcription")
+      } footer: {
+        Text("Automatically transcribe videos when YouTube subtitles don't have word timing.")
+      }
+    }
+
+    private var siriAndShortcutsSection: some SwiftUI.View {
+      Group {
         Section {
           SiriTipView(intent: OpenYouTubeVideoIntent())
         } header: {
@@ -62,280 +102,284 @@ struct SettingsView: View {
         } footer: {
           Text("Create custom shortcuts with the Shortcuts app.")
         }
+      }
+    }
 
-        // MARK: - Data Management
-        Section {
-          Button(role: .destructive) {
-            showClearHistoryConfirmation = true
-          } label: {
-            Label {
-              Text("Clear History")
-            } icon: {
-              Image(systemName: "trash")
-                .foregroundStyle(.red)
-            }
-          }
-        } header: {
-          Text("Data")
-        } footer: {
-          Text("Remove all watched videos from history. This cannot be undone.")
-        }
+    @ViewBuilder
+    private var dataManagementSection: some SwiftUI.View {
+      DataManagementSection(showClearHistoryConfirmation: $showClearHistoryConfirmation)
+    }
 
-        // MARK: - Feature Flags (DEBUG only)
-        #if DEBUG
+    @ViewBuilder
+    private var debugSection: some SwiftUI.View {
+      #if DEBUG
         FeatureFlagsSettingsView()
-        #endif
-
-        // MARK: - Developer / Experimental
-        Section {
-          NavigationLink {
-            VocabularyListView()
-          } label: {
-            Label {
-              VStack(alignment: .leading, spacing: 2) {
-                Text("Vocabulary")
-                Text("Save and review words from subtitles")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-              }
-            } icon: {
-              Image(systemName: "text.book.closed")
-                .foregroundStyle(.blue)
-            }
-          }
-
-          NavigationLink {
-            PlaylistListView()
-          } label: {
-            Label {
-              VStack(alignment: .leading, spacing: 2) {
-                Text("Playlists")
-                Text("Organize videos into collections")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-              }
-            } icon: {
-              Image(systemName: "list.bullet.rectangle")
-                .foregroundStyle(.orange)
-            }
-          }
-
-          NavigationLink {
-            RealtimeTranscriptionView()
-          } label: {
-            Label {
-              VStack(alignment: .leading, spacing: 2) {
-                Text("Live Transcription")
-                Text("Real-time speech-to-text from microphone")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-              }
-            } icon: {
-              Image(systemName: "waveform.badge.mic")
-                .foregroundStyle(.purple)
-            }
-          }
-        } header: {
-          Text("Experimental")
-        } footer: {
-          Text("Features under development. Live Transcription requires iOS 26+ and physical device.")
-        }
-      }
-      .navigationTitle("Settings")
-      #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
       #endif
-      .toolbar {
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Done") {
-            dismiss()
+    }
+
+    @ViewBuilder
+    private var experimentalFeaturesSection: some SwiftUI.View {
+      ExperimentalFeaturesSection()
+    }
+  }
+
+  // MARK: - Apple Intelligence Components
+
+  struct AppleIntelligenceStatusRow: SwiftUI.View {
+    let explanationService: ExplanationService
+    let foundationModelService: FoundationModelService
+
+    var body: some SwiftUI.View {
+      VStack(alignment: .leading, spacing: 12) {
+        // Word Explanations
+        HStack {
+          Label {
+            Text("Word Explanations")
+          } icon: {
+            Image(systemName: "text.bubble")
+              .foregroundStyle(.blue)
           }
+
+          Spacer()
+
+          statusBadge(for: explanationService)
+        }
+
+        // Vocabulary Auto-Fill
+        HStack {
+          Label {
+            Text("Vocabulary Auto-Fill")
+          } icon: {
+            Image(systemName: "text.book.closed")
+              .foregroundStyle(.purple)
+          }
+
+          Spacer()
+
+          statusBadge(for: foundationModelService)
         }
       }
-      .confirmationDialog(
-        "Clear History",
-        isPresented: $showClearHistoryConfirmation,
-        titleVisibility: .visible
-      ) {
-        Button("Clear All History", role: .destructive) {
-          Task {
-            try? await historyService.clearAllHistory()
-          }
+      .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func statusBadge(for service: ExplanationService) -> some SwiftUI.View {
+      let availability = service.checkAvailability()
+
+      switch availability {
+      case .available:
+        HStack(spacing: 4) {
+          Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+          Text("Available")
+            .foregroundStyle(.secondary)
         }
-        Button("Cancel", role: .cancel) {}
-      } message: {
-        Text("Are you sure you want to clear all history? This will remove all watched videos and cannot be undone.")
+        .font(.caption)
+
+      case .unavailable(let reason):
+        HStack(spacing: 4) {
+          Image(systemName: "xmark.circle.fill")
+            .foregroundStyle(.orange)
+          Text(statusText(for: reason))
+            .foregroundStyle(.secondary)
+        }
+        .font(.caption)
       }
     }
-  }
-}
 
-// MARK: - Explanation Apple Intelligence Row
+    @ViewBuilder
+    private func statusBadge(for service: FoundationModelService) -> some SwiftUI.View {
+      let availability = service.checkAvailability()
 
-private struct ExplanationAppleIntelligenceRow: View {
-  let service: ExplanationService
+      switch availability {
+      case .available:
+        HStack(spacing: 4) {
+          Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+          Text("Available")
+            .foregroundStyle(.secondary)
+        }
+        .font(.caption)
 
-  var body: some View {
-    HStack {
-      Label {
-        Text("Apple Intelligence")
-      } icon: {
-        Image(systemName: "apple.logo")
-          .foregroundStyle(.primary)
+      case .unavailable:
+        HStack(spacing: 4) {
+          Image(systemName: "xmark.circle.fill")
+            .foregroundStyle(.orange)
+          Text("Unavailable")
+            .foregroundStyle(.secondary)
+        }
+        .font(.caption)
       }
-
-      Spacer()
-
-      statusBadge
     }
-  }
 
-  @ViewBuilder
-  private var statusBadge: some View {
-    let availability = service.checkAvailability()
-
-    switch availability {
-    case .available:
-      HStack(spacing: 4) {
-        Image(systemName: "checkmark.circle.fill")
-          .foregroundStyle(.green)
-        Text("Available")
-          .foregroundStyle(.secondary)
-      }
-      .font(.caption)
-
-    case .unavailable(let reason):
-      HStack(spacing: 4) {
-        Image(systemName: "xmark.circle.fill")
-          .foregroundStyle(.orange)
-        Text(statusText(for: reason))
-          .foregroundStyle(.secondary)
-      }
-      .font(.caption)
-    }
-  }
-
-  private func statusText(for reason: ExplanationService.Availability.UnavailabilityReason) -> String {
-    switch reason {
-    case .deviceNotEligible:
-      return "Not Supported"
-    case .appleIntelligenceNotEnabled:
-      return "Enable in Settings"
-    case .modelNotReady:
-      return "Downloading..."
-    case .unknown:
-      return "Unavailable"
-    }
-  }
-}
-
-// MARK: - Explanation Apple Intelligence Footer
-
-private struct ExplanationAppleIntelligenceFooter: View {
-  let service: ExplanationService
-
-  var body: some View {
-    let availability = service.checkAvailability()
-
-    switch availability {
-    case .available:
-      Text("Apple Intelligence is ready to use for word explanations.")
-
-    case .unavailable(let reason):
+    private func statusText(for reason: ExplanationService.Availability.UnavailabilityReason) -> String {
       switch reason {
       case .deviceNotEligible:
-        Text("This device does not support Apple Intelligence. Word explanations require a compatible device.")
+        return "Not Supported"
       case .appleIntelligenceNotEnabled:
-        Text("Enable Apple Intelligence in System Settings > Apple Intelligence & Siri to use word explanations.")
+        return "Enable in Settings"
       case .modelNotReady:
-        Text("Apple Intelligence model is being downloaded by the system. Word explanations will be available when ready.")
+        return "Downloading..."
       case .unknown:
-        Text("Apple Intelligence is not available for word explanations.")
+        return "Unavailable"
       }
     }
   }
-}
 
-// MARK: - Vocabulary Apple Intelligence Row
+  struct AppleIntelligenceFooter: SwiftUI.View {
+    let explanationService: ExplanationService
+    let foundationModelService: FoundationModelService
 
-private struct VocabularyAppleIntelligenceRow: View {
-  let service: FoundationModelService
+    var body: some SwiftUI.View {
+      let explanationAvailability = explanationService.checkAvailability()
+      let vocabularyAvailability = foundationModelService.checkAvailability()
 
-  var body: some View {
-    HStack {
+      VStack(alignment: .leading, spacing: 8) {
+        // Overall status
+        switch (explanationAvailability, vocabularyAvailability) {
+        case (.available, .available):
+          Text("Apple Intelligence is ready to use for word explanations and vocabulary auto-fill.")
+
+        case (.available, .unavailable):
+          Text("Apple Intelligence is ready for word explanations. Vocabulary auto-fill is not available.")
+
+        case (.unavailable, .available):
+          Text("Apple Intelligence is ready for vocabulary auto-fill. Word explanations are not available.")
+
+        case (.unavailable(let reason), .unavailable):
+          detailedUnavailableMessage(for: reason)
+        }
+      }
+    }
+
+    @ViewBuilder
+    private func detailedUnavailableMessage(for reason: ExplanationService.Availability.UnavailabilityReason) -> some SwiftUI.View {
+      switch reason {
+      case .deviceNotEligible:
+        Text("This device does not support Apple Intelligence. These features require a compatible device.")
+      case .appleIntelligenceNotEnabled:
+        Text("Enable Apple Intelligence in System Settings > Apple Intelligence & Siri to use these features.")
+      case .modelNotReady:
+        Text("Apple Intelligence model is being downloaded by the system. Features will be available when ready.")
+      case .unknown:
+        Text("Apple Intelligence is not available for these features.")
+      }
+    }
+  }
+
+  // MARK: - Section Components
+
+  struct AutoTranscribeToggle: SwiftUI.View {
+    @AppStorage("autoTranscribeEnabled") private var autoTranscribeEnabled: Bool = true
+
+    var body: some SwiftUI.View {
+      Toggle(isOn: $autoTranscribeEnabled) {
+        Label {
+          Text("Auto-Transcribe")
+        } icon: {
+          Image(systemName: "waveform")
+            .foregroundStyle(.blue)
+        }
+      }
+    }
+  }
+
+  struct DataManagementSection: SwiftUI.View {
+    @Environment(VideoItemService.self) private var historyService
+    @Binding var showClearHistoryConfirmation: Bool
+
+    var body: some SwiftUI.View {
+      Section {
+        Button(role: .destructive) {
+          showClearHistoryConfirmation = true
+        } label: {
+          Label {
+            Text("Clear History")
+          } icon: {
+            Image(systemName: "trash")
+              .foregroundStyle(.red)
+          }
+        }
+      } header: {
+        Text("Data")
+      } footer: {
+        Text("Remove all watched videos from history. This cannot be undone.")
+      }
+    }
+  }
+
+  struct ExperimentalFeaturesSection: SwiftUI.View {
+    var body: some SwiftUI.View {
+      Section {
+        NavigationLink {
+          VocabularyListView()
+        } label: {
+          FeatureLabel(
+            title: "Vocabulary",
+            description: "Save and review words from subtitles",
+            systemImage: "text.book.closed",
+            color: .blue
+          )
+        }
+
+        NavigationLink {
+          PlaylistListView()
+        } label: {
+          FeatureLabel(
+            title: "Playlists",
+            description: "Organize videos into collections",
+            systemImage: "list.bullet.rectangle",
+            color: .orange
+          )
+        }
+
+        NavigationLink {
+          RealtimeTranscriptionView()
+        } label: {
+          FeatureLabel(
+            title: "Live Transcription",
+            description: "Real-time speech-to-text from microphone",
+            systemImage: "waveform.badge.mic",
+            color: .purple
+          )
+        }
+      } header: {
+        Text("Experimental")
+      } footer: {
+        Text("Features under development. Live Transcription requires iOS 26+ and physical device.")
+      }
+    }
+  }
+
+  // MARK: - Private Helpers
+
+  private struct FeatureLabel: SwiftUI.View {
+    let title: String
+    let description: String
+    let systemImage: String
+    let color: Color
+
+    var body: some SwiftUI.View {
       Label {
-        Text("Apple Intelligence")
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+          Text(description)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
       } icon: {
-        Image(systemName: "apple.logo")
-          .foregroundStyle(.primary)
-      }
-
-      Spacer()
-
-      statusBadge
-    }
-  }
-
-  @ViewBuilder
-  private var statusBadge: some View {
-    let availability = service.checkAvailability()
-
-    switch availability {
-    case .available:
-      HStack(spacing: 4) {
-        Image(systemName: "checkmark.circle.fill")
-          .foregroundStyle(.green)
-        Text("Available")
-          .foregroundStyle(.secondary)
-      }
-      .font(.caption)
-
-    case .unavailable:
-      HStack(spacing: 4) {
-        Image(systemName: "xmark.circle.fill")
-          .foregroundStyle(.orange)
-        Text("Unavailable")
-          .foregroundStyle(.secondary)
-      }
-      .font(.caption)
-    }
-  }
-}
-
-// MARK: - Vocabulary Apple Intelligence Footer
-
-private struct VocabularyAppleIntelligenceFooter: View {
-  let service: FoundationModelService
-
-  var body: some View {
-    let availability = service.checkAvailability()
-
-    switch availability {
-    case .available:
-      Text("Apple Intelligence is ready to use for vocabulary auto-fill.")
-
-    case .unavailable(let reason):
-      Text("Apple Intelligence is not available: \(reason)")
-    }
-  }
-}
-
-// MARK: - Auto Transcribe Toggle
-
-private struct AutoTranscribeToggle: View {
-  @AppStorage("autoTranscribeEnabled") private var autoTranscribeEnabled: Bool = true
-
-  var body: some View {
-    Toggle(isOn: $autoTranscribeEnabled) {
-      Label {
-        Text("Auto-Transcribe")
-      } icon: {
-        Image(systemName: "waveform")
-          .foregroundStyle(.blue)
+        Image(systemName: systemImage)
+          .foregroundStyle(color)
       }
     }
   }
 }
+
+// MARK: - Type Alias
+
+typealias SettingsView = Settings.View
+
+// MARK: - Preview
 
 #Preview {
   SettingsView()

@@ -24,7 +24,7 @@ jobs:
   deploy:
     uses: ./.github/workflows/reusable-ios-appstoreconnect.yml
     with:
-      scheme: YouTubeSubtitle
+      scheme: Verse
       xcode-version: '26.2'
       macos-runner: macos-26
     secrets:
