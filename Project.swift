@@ -24,7 +24,7 @@ let appInfoPlist: InfoPlist = .extendingDefault(with: [
 // MARK: - Project
 
 let project = Project(
-  name: "Verse",
+  name: "Verse-tuist",
   organizationName: AppConstants.organizationName,
   settings: .settings(
     base: .base,
