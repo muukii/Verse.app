@@ -4,23 +4,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-YouTubeSubtitle is a SwiftUI-based multi-platform application targeting iOS and macOS. This is a standard Xcode project (not using Tuist or SPM packages).
+YouTubeSubtitle is a SwiftUI-based multi-platform application targeting iOS and macOS. This project uses Tuist for project generation and dependency management.
 
 ## Build Commands
 
+### Installing dependencies
+```bash
+tuist install
+```
+
+### Generating Xcode project
+```bash
+tuist generate
+```
+
 ### Building the project
 ```bash
-xcodebuild -project YouTubeSubtitle.xcodeproj -scheme YouTubeSubtitle -configuration Debug build
+tuist build
+```
+
+### Generating and opening in Xcode
+```bash
+tuist generate
+```
+
+### Generating without opening Xcode
+```bash
+tuist generate --no-open
 ```
 
 ### Running tests
 ```bash
-xcodebuild -project YouTubeSubtitle.xcodeproj -scheme YouTubeSubtitle test
-```
-
-### Opening in Xcode
-```bash
-open YouTubeSubtitle.xcodeproj
+tuist test
 ```
 
 ## Project Structure
@@ -31,11 +46,13 @@ open YouTubeSubtitle.xcodeproj
 
 ## Development Notes
 
-- This is a standard Xcode project (not Tuist or SPM-based)
+- This project uses Tuist for project generation and build management
+- Project configuration is defined in `Project.swift` at the repository root
 - Uses SwiftUI as the UI framework
 - Target platforms: iOS and macOS
 - Single scheme: `YouTubeSubtitle`
 - Default build configurations: Debug and Release
+- Module and executable targets are defined in `Project.swift`
 
 ## Documentation Policy
 

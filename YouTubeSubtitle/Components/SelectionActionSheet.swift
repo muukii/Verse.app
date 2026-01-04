@@ -8,102 +8,104 @@
 import SwiftUI
 import UIKit
 
+// MARK: - TextSelection Model
+
+/// Represents a text selection with optional context for explanation
+struct TextSelection: Identifiable {
+  let id = UUID()
+  let text: String
+  let context: String
+
+  init(text: String, context: String? = nil) {
+    self.text = text
+    self.context = context ?? text
+  }
+}
+
+// MARK: - SelectionActionSheet
+
 /// A bottom sheet that provides actions for selected text.
-/// Displays the selected text at the top and offers actions like Explain, Copy, and Add to Vocabulary.
-/// Manages its own child sheet state internally - sheets stack naturally.
+/// Displays the selected text, action buttons, and explanation section using List-based UI.
 struct SelectionActionSheet: View {
-  let selectedText: String
-  /// Optional context for LLM explanation (e.g., surrounding subtitle text). Defaults to selectedText if nil.
-  var context: String? = nil
+  let selection: TextSelection
   let onCopy: () -> Void
   let onDismiss: () -> Void
 
-  // Internal state for child sheets - stacking approach
-  @State private var showExplanation = false
+  // Internal state
   @State private var showVocabulary = false
 
-  /// The context to use for explanation - falls back to selectedText if not provided
-  private var explanationContext: String {
-    context ?? selectedText
+  var body: some View {
+    List {
+      selectedTextSection
+      actionsSection
+      WordExplanationView(
+        text: selection.text,
+        context: selection.context
+      )
+    }
+    .safeAreaPadding(.top, 20)
+    .listStyle(.insetGrouped)
+    .presentationDetents([.medium, .large])
+    .presentationDragIndicator(.automatic)
+    .sheet(isPresented: $showVocabulary) {
+      VocabularyEditSheet(mode: .add(initialTerm: selection.text))
+    }
   }
 
-  var body: some View {
-    VStack(spacing: 16) {
-      // Handle indicator
-      Capsule()
-        .fill(Color(.systemGray4))
-        .frame(width: 36, height: 5)
-        .padding(.top, 8)
+  // MARK: - Sections
 
-      // Selected text display
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Selected Text")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-
-        Text(selectedText)
-          .font(.body)
-          .lineLimit(3)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(12)
-          .background(Color(.secondarySystemBackground))
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-      }
-      .padding(.horizontal)
-
-      // Action buttons
-      VStack(spacing: 12) {
-        // Primary action row
-        HStack(spacing: 12) {
-          Button {
-            showExplanation = true
-          } label: {
-            Label("Explain", systemImage: "sparkles")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.borderedProminent)
-
-          Button {
-            showVocabulary = true
-          } label: {
-            Label("Vocabulary", systemImage: "plus.circle")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.bordered)
-        }
-
-        // Secondary action row
-        Button {
-          UIPasteboard.general.string = selectedText
-          onCopy()
-        } label: {
-          Label("Copy", systemImage: "doc.on.doc")
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.bordered)
-      }
-      .padding(.horizontal)
-
-      Spacer()
+  private var selectedTextSection: some View {
+    Section {
+      Text(selection.text)
+        .font(.body)
+        .textSelection(.enabled)
+    } header: {
+      Text("Selected Text")
+        .textCase(nil)
     }
-    .presentationDetents([.height(260)])
-    .presentationDragIndicator(.hidden)
-    .sheet(isPresented: $showExplanation) {
-      WordExplanationSheet(text: selectedText, context: explanationContext)
-    }
-    .sheet(isPresented: $showVocabulary) {
-      VocabularyEditSheet(mode: .add(initialTerm: selectedText))
+  }
+
+  private var actionsSection: some View {
+    Section {
+      Button {
+        UIPasteboard.general.string = selection.text
+        onCopy()
+      } label: {
+        Label("Copy", systemImage: "doc.on.doc")
+      }
+
+      Button {
+        showVocabulary = true
+      } label: {
+        Label("Add to Vocabulary", systemImage: "plus.circle")
+      }
     }
   }
 }
 
 // MARK: - Preview
 
-#Preview {
+#Preview("Default") {
   Text("Preview")
     .sheet(isPresented: .constant(true)) {
       SelectionActionSheet(
-        selectedText: "This is a sample selected text that might be quite long and wrap to multiple lines.",
+        selection: TextSelection(
+          text: "serendipity",
+          context: "It was pure serendipity that we met at the conference."
+        ),
+        onCopy: { print("Copy tapped") },
+        onDismiss: { print("Dismiss tapped") }
+      )
+    }
+}
+
+#Preview("Long Text") {
+  Text("Preview")
+    .sheet(isPresented: .constant(true)) {
+      SelectionActionSheet(
+        selection: TextSelection(
+          text: "This is a sample selected text that might be quite long and wrap to multiple lines."
+        ),
         onCopy: { print("Copy tapped") },
         onDismiss: { print("Dismiss tapped") }
       )

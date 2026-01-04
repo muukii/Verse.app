@@ -42,10 +42,8 @@ struct PlayerView: View {
   @State private var showTranscriptionSheet: Bool = false
 
   // Subtitle interaction state
-  @State private var selectedCueForExplanation: Subtitle.Cue?
   @State private var selectedCueForTranslation: Subtitle.Cue?
-  @State private var selectedTextForExplanation: (text: String, context: String)?
-  @State private var selectionForActionSheet: (text: String, context: String)?
+  @State private var selectionForActionSheet: TextSelection?
 
   // On-device transcribe state
   @State private var onDeviceTranscribeViewModel = OnDeviceTranscribeViewModel()
@@ -172,12 +170,6 @@ struct PlayerView: View {
         .presentationDragIndicator(isTranscriptionInProgress ? .hidden : .visible)
         .interactiveDismissDisabled(isTranscriptionInProgress)
       }
-      .sheet(item: $selectedCueForExplanation) { cue in
-        WordExplanationSheet(
-          text: cue.decodedText,
-          context: buildContextForCue(cue)
-        )
-      }
       .translationPresentation(
         isPresented: Binding(
           get: { selectedCueForTranslation != nil },
@@ -185,33 +177,12 @@ struct PlayerView: View {
         ),
         text: selectedCueForTranslation?.decodedText ?? ""
       )
-      .sheet(
-        isPresented: Binding(
-          get: { selectedTextForExplanation != nil },
-          set: { if !$0 { selectedTextForExplanation = nil } }
+      .sheet(item: $selectionForActionSheet) { selection in
+        SelectionActionSheet(
+          selection: selection,
+          onCopy: { selectionForActionSheet = nil },
+          onDismiss: { selectionForActionSheet = nil }
         )
-      ) {
-        if let selection = selectedTextForExplanation {
-          WordExplanationSheet(
-            text: selection.text,
-            context: selection.context
-          )
-        }
-      }
-      .sheet(
-        isPresented: Binding(
-          get: { selectionForActionSheet != nil },
-          set: { if !$0 { selectionForActionSheet = nil } }
-        )
-      ) {
-        if let selection = selectionForActionSheet {
-          SelectionActionSheet(
-            selectedText: selection.text,
-            context: selection.context,
-            onCopy: { selectionForActionSheet = nil },
-            onDismiss: { selectionForActionSheet = nil }
-          )
-        }
       }
       .onDisappear {
         // Save playback position before leaving
@@ -320,13 +291,15 @@ struct PlayerView: View {
             model.repeatStartTime = startTime
             model.repeatEndTime = endTime
           case .explain(let cue):
-            selectedCueForExplanation = cue
+            // Redirect to SelectionActionSheet
+            selectionForActionSheet = TextSelection(text: cue.decodedText, context: buildContextForCue(cue))
           case .translate(let cue):
             selectedCueForTranslation = cue
           case .explainSelection(let text, let context):
-            selectedTextForExplanation = (text, context)
+            // Redirect to SelectionActionSheet
+            selectionForActionSheet = TextSelection(text: text, context: context)
           case .showSelectionActions(let text, let context):
-            selectionForActionSheet = (text, context)
+            selectionForActionSheet = TextSelection(text: text, context: context)
           }
         }
       )
