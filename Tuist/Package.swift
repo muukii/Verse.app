@@ -6,18 +6,19 @@ import struct ProjectDescription.PackageSettings
 
 let packageSettings = PackageSettings(
   productTypes: [
-    // Default to static framework for better app launch time
+:
   ]
 )
 #endif
 
 let package = Package(
-  name: "YouTubeSubtitle",
+  name: "Verse",
   dependencies: [
     // YouTube related
     .package(url: "https://github.com/alexeichhorn/YouTubeKit", from: "0.4.0"),
     .package(url: "https://github.com/SvenTiigi/YouTubePlayerKit", from: "1.0.0"),
     .package(url: "https://github.com/spaceman1412/swift-youtube-transcript", from: "1.0.0"),
+    .package(url: "https://github.com/apple/swift-algorithms", from: "1.2.1"),
 
     // UI components
     .package(url: "https://github.com/FluidGroup/swiftui-object-edge", from: "1.0.0"),

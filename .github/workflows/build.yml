@@ -19,6 +19,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install mise
+        uses: jdx/mise-action@v2
+        with:
+          install: true
+
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -27,11 +32,17 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Install dependencies with Tuist
+        run: tuist install
+
+      - name: Generate Xcode project with Tuist
+        run: tuist generate
+
       - name: Build iOS
         run: |
           set -o pipefail && xcodebuild \
-            -project YouTubeSubtitle.xcodeproj \
-            -scheme YouTubeSubtitle \
+            -workspace Verse.xcworkspace \
+            -scheme Verse \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             -skipMacroValidation \
