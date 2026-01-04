@@ -7,7 +7,7 @@
 
 import Foundation
 import SwiftUI
-@preconcurrency import YouTubePlayerKit
+import YouTubePlayerKit
 
 // MARK: - YouTubeVideoPlayer
 
@@ -37,13 +37,13 @@ final class YouTubeVideoPlayerController: VideoPlayerController {
   // MARK: - Initialization
 
   init(videoID: String) {
-    let configuration = YouTubePlayer.Configuration(
-      captionLanguage: "en",
-      language: "en"
+    let parameters = YouTubePlayer.Parameters(
+      language: "en",
+      captionLanguage: "en"
     )
     self.player = YouTubePlayer(
       source: .video(id: videoID),
-      configuration: configuration
+      parameters: parameters
     )
   }
 
@@ -88,6 +88,6 @@ final class YouTubeVideoPlayerController: VideoPlayerController {
 
   func setPlaybackRate(_ rate: Double) async {
     _playbackRate = rate
-    try? await player.set(playbackRate: rate)
+    try? await player.set(playbackRate: .init(value: rate))
   }
 }
