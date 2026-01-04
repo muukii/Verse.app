@@ -33,7 +33,7 @@
 /* Begin PBXFileReference section */
 		B001C6BD2F0AC5D50004A9FE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B0092E872EE873850077B368 /* Components.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Components.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		B0FAE6772EDC249B008493F1 /* YouTubeSubtitle.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YouTubeSubtitle.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B0FAE6772EDC249B008493F1 /* Verse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Verse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -99,7 +99,7 @@
 		B0FAE6782EDC249B008493F1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				B0FAE6772EDC249B008493F1 /* YouTubeSubtitle.app */,
+				B0FAE6772EDC249B008493F1 /* Verse.app */,
 				B0092E872EE873850077B368 /* Components.framework */,
 			);
 			name = Products;
@@ -141,9 +141,9 @@
 			productReference = B0092E872EE873850077B368 /* Components.framework */;
 			productType = "com.apple.product-type.framework";
 		};
-		B0FAE6762EDC249B008493F1 /* YouTubeSubtitle */ = {
+		B0FAE6762EDC249B008493F1 /* Verse */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B0FAE6822EDC249D008493F1 /* Build configuration list for PBXNativeTarget "YouTubeSubtitle" */;
+			buildConfigurationList = B0FAE6822EDC249D008493F1 /* Build configuration list for PBXNativeTarget "Verse" */;
 			buildPhases = (
 				B0FAE6732EDC249B008493F1 /* Sources */,
 				B0FAE6742EDC249B008493F1 /* Frameworks */,
@@ -157,7 +157,7 @@
 			fileSystemSynchronizedGroups = (
 				B0FAE6792EDC249B008493F1 /* YouTubeSubtitle */,
 			);
-			name = YouTubeSubtitle;
+			name = Verse;
 			packageProductDependencies = (
 				B0FAE6852EDC2500008493F1 /* YouTubeKit */,
 				B0FAE6892EDC2600008493F1 /* YouTubePlayerKit */,
@@ -171,7 +171,7 @@
 				B09F54452EFA74EA005C59D3 /* Algorithms */,
 			);
 			productName = YouTubeSubtitle;
-			productReference = B0FAE6772EDC249B008493F1 /* YouTubeSubtitle.app */;
+			productReference = B0FAE6772EDC249B008493F1 /* Verse.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -192,7 +192,7 @@
 					};
 				};
 			};
-			buildConfigurationList = B0FAE6722EDC249B008493F1 /* Build configuration list for PBXProject "_YouTubeSubtitle" */;
+			buildConfigurationList = B0FAE6722EDC249B008493F1 /* Build configuration list for PBXProject "Verse" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -217,7 +217,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				B0FAE6762EDC249B008493F1 /* YouTubeSubtitle */,
+				B0FAE6762EDC249B008493F1 /* Verse */,
 				B0092E862EE873850077B368 /* Components */,
 			);
 		};
@@ -600,7 +600,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		B0FAE6722EDC249B008493F1 /* Build configuration list for PBXProject "_YouTubeSubtitle" */ = {
+		B0FAE6722EDC249B008493F1 /* Build configuration list for PBXProject "Verse" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				B0FAE6802EDC249D008493F1 /* Debug */,
@@ -609,7 +609,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		B0FAE6822EDC249D008493F1 /* Build configuration list for PBXNativeTarget "YouTubeSubtitle" */ = {
+		B0FAE6822EDC249D008493F1 /* Build configuration list for PBXNativeTarget "Verse" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				B0FAE6832EDC249D008493F1 /* Debug */,
