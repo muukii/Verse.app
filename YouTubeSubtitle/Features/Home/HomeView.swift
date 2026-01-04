@@ -128,15 +128,17 @@ struct HomeView: View {
       }
       .navigationTitle("")
       .toolbar {
-        // Top toolbar - Edit mode for reordering (only in manual mode)
+        // Top toolbar - Settings
         ToolbarItem(placement: .topBarLeading) {
-          if !history.isEmpty && sortOption == .manual {
-            EditButton()
+          Button {
+            showSettings = true
+          } label: {
+            Label("Settings", systemImage: "gear")
           }
         }
 
         // Top toolbar - Sort menu
-        ToolbarItem(placement: .topBarLeading) {
+        ToolbarItem(placement: .topBarTrailing) {
           if !history.isEmpty {
             Menu {
               Picker("Sort by", selection: $sortOption) {
@@ -152,12 +154,10 @@ struct HomeView: View {
           }
         }
 
-        // Top toolbar - Settings
+        // Top toolbar - Edit mode for reordering (only in manual mode)
         ToolbarItem(placement: .primaryAction) {
-          Button {
-            showSettings = true
-          } label: {
-            Label("Settings", systemImage: "gear")
+          if !history.isEmpty && sortOption == .manual {
+            EditButton()
           }
         }
         // Bottom toolbar - Main actions

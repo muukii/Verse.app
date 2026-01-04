@@ -16,7 +16,7 @@ struct RealtimeTranscriptionView: View {
   @State private var viewModel: RealtimeTranscriptionViewModel?
   @State private var explainText: Identified<String>?
   @State private var showSessionHistory = false
-  @State private var selectionForActionSheet: String?
+  @State private var selectionForActionSheet: TextSelection?
 
   var body: some View {
     Group {
@@ -66,19 +66,12 @@ struct RealtimeTranscriptionView: View {
     .sheet(isPresented: $showSessionHistory) {
       TranscriptionSessionHistoryView()
     }
-    .sheet(
-      isPresented: Binding(
-        get: { selectionForActionSheet != nil },
-        set: { if !$0 { selectionForActionSheet = nil } }
+    .sheet(item: $selectionForActionSheet) { selection in
+      SelectionActionSheet(
+        selection: selection,
+        onCopy: { selectionForActionSheet = nil },
+        onDismiss: { selectionForActionSheet = nil }
       )
-    ) {
-      if let text = selectionForActionSheet {
-        SelectionActionSheet(
-          selectedText: text,
-          onCopy: { selectionForActionSheet = nil },
-          onDismiss: { selectionForActionSheet = nil }
-        )
-      }
     }
   }
 
@@ -152,7 +145,7 @@ struct RealtimeTranscriptionView: View {
                 explainText = Identified(text)
               },
               onShowActions: { text in
-                selectionForActionSheet = text
+                selectionForActionSheet = TextSelection(text: text)
               }
             )
             .id(item.id)
