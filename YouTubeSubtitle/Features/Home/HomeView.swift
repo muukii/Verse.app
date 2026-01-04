@@ -42,6 +42,9 @@ struct HomeView: View {
 
   @Namespace private var heroNamespace
 
+  // TODO: Consider moving sorting to SwiftData layer for better performance with large datasets.
+  // Current implementation sorts in-memory which may impact performance as history grows.
+  // Options: 1) Multiple @Query properties, 2) Manual FetchDescriptor with dynamic sort
   private var history: [VideoItem] {
     switch sortOption {
     case .manual:
