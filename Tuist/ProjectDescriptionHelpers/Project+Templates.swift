@@ -6,7 +6,6 @@ public enum AppConstants {
   public static let developmentTeam = "KU2QEJ9K3Z"
   public static let organizationName = "muukii"
   public static let appBundleId = "app.muukii.verse"
-  public static let marketingVersion = "3.0.0"
 }
 
 // MARK: - Deployment Targets
@@ -48,8 +47,7 @@ public extension SettingsDictionary {
     "STRING_CATALOG_GENERATE_SYMBOLS": "YES",
     "TARGETED_DEVICE_FAMILY": "1",
     "SUPPORTS_MACCATALYST": "NO",
-    "MARKETING_VERSION": .string(AppConstants.marketingVersion),
-    "CURRENT_PROJECT_VERSION": "1",
+    // MARKETING_VERSION and CURRENT_PROJECT_VERSION are defined in Tuist/xcconfig/Version.xcconfig
     "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/Frameworks",
     "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": "$(inherited) @executable_path/../Frameworks",
   ])

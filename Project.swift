@@ -61,8 +61,8 @@ let project = Project(
       settings: .settings(
         base: .appTarget,
         configurations: [
-          .debug(name: "Debug"),
-          .release(name: "Release"),
+          .debug(name: "Debug", xcconfig: "Tuist/xcconfig/Version.xcconfig"),
+          .release(name: "Release", xcconfig: "Tuist/xcconfig/Version.xcconfig"),
         ]
       )
     ),
