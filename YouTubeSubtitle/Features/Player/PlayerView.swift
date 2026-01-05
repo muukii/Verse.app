@@ -51,8 +51,9 @@ struct PlayerView: View {
   // Settings
   @AppStorage("autoTranscribeEnabled") private var autoTranscribeEnabled: Bool = true
 
-  // Playback position auto-save state
+  // Playback position state
   @State private var savePositionTask: Task<Void, Never>?
+  @State private var hasRestoredPosition: Bool = false
 
   // Computed property to access videoID from the entity
   private var videoID: YouTubeContentID { videoItem.videoID }
@@ -143,8 +144,16 @@ struct PlayerView: View {
             )
             .foregroundStyle(.appPlayerBackground)
           )
-        }        
+        }
 
+      }
+      .onAppear {
+        // Restore playback position and start periodic saving when player is ready
+        if !hasRestoredPosition {
+          hasRestoredPosition = true
+          restorePlaybackPosition()
+          startPeriodicPositionSaving()
+        }
       }
 
       .background(.appPlayerBackground)
@@ -215,10 +224,6 @@ struct PlayerView: View {
         .onAppear {
           model.loadVideo(videoItem: videoItem)
           fetchTranscripts(videoID: videoID)
-          // Restore playback position if available
-          restorePlaybackPosition()
-          // Start periodic playback position saving (every 30 seconds)
-          startPeriodicPositionSaving()
         }
     }
   }
@@ -468,16 +473,10 @@ struct PlayerView: View {
     )
   }
 
-  /// Restore saved playback position when video loads
+  /// Restore saved playback position when video loads (without auto-playing)
   private func restorePlaybackPosition() {
     guard let savedPosition = videoItem.lastPlaybackPosition, savedPosition > 0 else { return }
-    // Delay slightly to ensure player is ready
-    Task {
-      try? await Task.sleep(for: .milliseconds(500))
-      await MainActor.run {
-        model.seek(to: savedPosition)
-      }
-    }
+    model.seek(to: savedPosition)
   }
 
   /// Start periodic playback position saving (every 30 seconds)

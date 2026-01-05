@@ -5,6 +5,7 @@
 //  Created by Claude on 2025/12/05.
 //
 
+import Combine
 import Foundation
 import SwiftUI
 import YouTubePlayerKit
@@ -34,10 +35,15 @@ final class YouTubeVideoPlayerController: VideoPlayerController {
   let player: YouTubePlayer
   private var _playbackRate: Double = 1.0
 
+  /// Tracks if user explicitly initiated playback (to block auto-play on first seek)
+  private var userInitiatedPlay: Bool = false
+  private var playbackStateCancellable: AnyCancellable?
+
   // MARK: - Initialization
 
   init(videoID: String) {
     let parameters = YouTubePlayer.Parameters(
+      autoPlay: false,
       language: "en",
       captionLanguage: "en"
     )
@@ -45,6 +51,15 @@ final class YouTubeVideoPlayerController: VideoPlayerController {
       source: .video(id: videoID),
       parameters: parameters
     )
+
+    // Block auto-play triggered by first seek
+    playbackStateCancellable = player.playbackStatePublisher
+      .sink { [weak self] state in
+        guard let self, state == .playing, !self.userInitiatedPlay else { return }
+        Task { @MainActor in
+          try? await self.player.pause()
+        }
+      }
   }
 
   // MARK: - VideoPlayerController
@@ -72,6 +87,7 @@ final class YouTubeVideoPlayerController: VideoPlayerController {
   }
 
   func play() async {
+    userInitiatedPlay = true
     try? await player.play()
   }
 
