@@ -50,7 +50,7 @@ final class YouTubeVideoPlayerController: VideoPlayerController {
   // MARK: - VideoPlayerController
 
   var isPlaying: Bool {
-    player.playbackState == .playing
+    player.isPlaying
   }
 
   var currentTime: Double {
