@@ -58,7 +58,6 @@ struct SafariView: UIViewControllerRepresentable {
     configuration.entersReaderIfAvailable = false
     configuration.barCollapsingEnabled = true
     let safari = SFSafariViewController(url: url, configuration: configuration)
-    safari.preferredControlTintColor = .systemBlue
     return safari
   }
 
@@ -80,16 +79,17 @@ extension URL: @retroactive Identifiable {
 /// Designed to be hosted inside a List - renders as List sections.
 /// This component manages its own state (ExplanationService, Task management).
 struct WordExplanationView: View {
+  let service: ExplanationService
   let text: String
   let context: String
+  @Binding var geminiURL: URL?
 
-  @State private var service = ExplanationService()
   @State private var translation: String = ""
   @State private var explanation: String = ""
   @State private var generationTask: Task<Void, Never>?
-  @State private var geminiURL: URL?
 
   var body: some View {
+    let _ = Self._printChanges()
     Group {
       geminiSection
       translationSection
@@ -104,12 +104,6 @@ struct WordExplanationView: View {
       generationTask?.cancel()
       generationTask = nil
     }
-    #if os(iOS)
-    .sheet(item: $geminiURL) { url in
-      SafariView(url: url)
-        .ignoresSafeArea()
-    }
-    #endif
   }
 
   // MARK: - Sections
@@ -146,9 +140,7 @@ struct WordExplanationView: View {
   private var geminiSection: some View {
     Section {
       Button {
-        if let url = GeminiURLBuilder.buildURL(text: text, context: context) {
-          geminiURL = url
-        }
+        geminiURL = GeminiURLBuilder.buildURL(text: text, context: context)
       } label: {
         Label("Ask Gemini", systemImage: "sparkle.magnifyingglass")
       }
@@ -253,6 +245,7 @@ struct WordExplanationView: View {
 // MARK: - Preview
 
 #Preview("In List") {
+  @Previewable @State var geminiURL: URL?
   List {
     Section {
       Text("serendipity")
@@ -263,8 +256,10 @@ struct WordExplanationView: View {
     }
 
     WordExplanationView(
+      service: .init(),
       text: "serendipity",
-      context: "It was pure serendipity that we met."
+      context: "It was pure serendipity that we met.",
+      geminiURL: $geminiURL
     )
   }
   .listStyle(.insetGrouped)

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import ObjectEdge
 
 // MARK: - TextSelection Model
 
@@ -27,20 +28,26 @@ struct TextSelection: Identifiable {
 /// A bottom sheet that provides actions for selected text.
 /// Displays the selected text, action buttons, and explanation section using List-based UI.
 struct SelectionActionSheet: View {
+
   let selection: TextSelection
   let onCopy: () -> Void
   let onDismiss: () -> Void
 
+  @ObjectEdge private var service: ExplanationService = .init()
+
   // Internal state
   @State private var showVocabulary = false
+  @State private var geminiURL: URL?
 
   var body: some View {
     List {
       selectedTextSection
       actionsSection
       WordExplanationView(
+        service: service,
         text: selection.text,
-        context: selection.context
+        context: selection.context,
+        geminiURL: $geminiURL
       )
     }
     .safeAreaPadding(.top, 20)
@@ -49,6 +56,10 @@ struct SelectionActionSheet: View {
     .presentationDragIndicator(.automatic)
     .sheet(isPresented: $showVocabulary) {
       VocabularyEditSheet(mode: .add(initialTerm: selection.text))
+    }
+    .sheet(item: $geminiURL) { url in
+      SafariView(url: url)
+        .ignoresSafeArea()
     }
   }
 
@@ -67,13 +78,6 @@ struct SelectionActionSheet: View {
 
   private var actionsSection: some View {
     Section {
-      Button {
-        UIPasteboard.general.string = selection.text
-        onCopy()
-      } label: {
-        Label("Copy", systemImage: "doc.on.doc")
-      }
-
       Button {
         showVocabulary = true
       } label: {
