@@ -24,6 +24,14 @@ enum PlayerController {
     }
   }
 
+  /// Whether the player is ready (priming complete for YouTube, always true for local)
+  var isReady: Bool {
+    switch self {
+    case .youtube(let controller): controller.isReady
+    case .local: true
+    }
+  }
+
   var currentTime: Double {
     get async {
       switch self {
