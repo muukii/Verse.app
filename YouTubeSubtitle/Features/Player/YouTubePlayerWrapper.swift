@@ -8,7 +8,7 @@
 import Combine
 import Foundation
 import SwiftUI
-import YouTubePlayerKit
+@preconcurrency import YouTubePlayerKit
 
 // MARK: - YouTubeVideoPlayer
 
@@ -42,14 +42,23 @@ final class YouTubeVideoPlayerController: VideoPlayerController {
   // MARK: - Initialization
 
   init(videoID: String) {
-    let parameters = YouTubePlayer.Parameters(
-      autoPlay: false,
-      language: "en",
-      captionLanguage: "en"
+//    let parameters = YouTubePlayer.Parameters(
+//      autoPlay: false,
+//      language: "en",
+//      captionLanguage: "en"
+//    )
+//    self.player = YouTubePlayer(
+//      source: .video(id: videoID),
+//      parameters: parameters
+//    )
+        
+    let configuration = YouTubePlayer.Configuration.init(
+      captionLanguage: "en", 
+      language: "en"
     )
     self.player = YouTubePlayer(
       source: .video(id: videoID),
-      parameters: parameters
+      configuration: configuration
     )
 
     // Block auto-play triggered by first seek
@@ -104,6 +113,6 @@ final class YouTubeVideoPlayerController: VideoPlayerController {
 
   func setPlaybackRate(_ rate: Double) async {
     _playbackRate = rate
-    try? await player.set(playbackRate: .init(value: rate))
+    try? await player.set(playbackRate: .init(rate))
   }
 }
