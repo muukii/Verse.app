@@ -11,7 +11,6 @@ import SwiftData
 import SwiftUI
 import TipKit
 import YouTubeKit
-import YouTubePlayerKit
 import YoutubeTranscript
 import Translation
 
@@ -147,9 +146,9 @@ struct PlayerView: View {
         }
 
       }
-      .onAppear {
-        // Restore playback position and start periodic saving when player is ready
-        if !hasRestoredPosition {
+      .onChange(of: model.isControllerReady) { _, isReady in
+        // Restore playback position when player is ready (after priming for YouTube)
+        if isReady && !hasRestoredPosition {
           hasRestoredPosition = true
           restorePlaybackPosition()
           startPeriodicPositionSaving()

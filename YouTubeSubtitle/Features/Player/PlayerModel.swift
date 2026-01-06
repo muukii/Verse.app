@@ -240,9 +240,9 @@ final class PlayerModel {
   /// Local video file URL (when downloaded)
   var localFileURL: URL?
 
-  /// Whether the controller is ready
+  /// Whether the controller is ready (including priming for YouTube)
   var isControllerReady: Bool {
-    controller != nil
+    controller?.isReady ?? false
   }
 
   // MARK: - Computed Properties
@@ -657,8 +657,13 @@ final class PlayerModel {
     trackingTask = Task { [weak self] in
       guard let self else { return }
 
-//      // Initial delay to get duration
-//      try? await Task.sleep(for: .seconds(1))
+      // Wait for controller to be ready (priming complete for YouTube)
+      while !Task.isCancelled {
+        if self.controller?.isReady == true {
+          break
+        }
+        try? await Task.sleep(for: .milliseconds(50))
+      }
 
       guard !Task.isCancelled else { return }
 
