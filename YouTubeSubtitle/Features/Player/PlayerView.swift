@@ -442,6 +442,7 @@ struct PlayerView: View {
           downloadManager: downloadManager
         )
         currentSubtitles = subtitles
+        transcriptError = nil
         try? historyService.updateCachedSubtitles(videoID: videoID, subtitles: subtitles)
       } catch {
         // Error is already captured in viewModel.phase
