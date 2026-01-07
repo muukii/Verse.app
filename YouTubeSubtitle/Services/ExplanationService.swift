@@ -8,6 +8,36 @@
 import FoundationModels
 import SwiftUI
 
+// MARK: - Phrase Analysis
+
+/// Represents a phrase breakdown with its meaning and grammatical role.
+@Generable
+struct PhraseAnalysis: Sendable {
+  @Guide(description: "The phrase from the text")
+  var phrase: String
+
+  @Guide(description: "Meaning of the phrase in user's language")
+  var meaning: String
+
+  @Guide(description: "Grammatical role (e.g., subject, verb phrase, object, adverbial)")
+  var role: String
+}
+
+// MARK: - Idiom Explanation
+
+/// Represents an idiom found in the text with its explanation.
+@Generable
+struct IdiomExplanation: Sendable {
+  @Guide(description: "The idiom or fixed expression found in the text")
+  var idiom: String
+
+  @Guide(description: "Meaning of the idiom in user's language")
+  var meaning: String
+
+  @Guide(description: "Origin or background of the idiom, or usage notes")
+  var origin: String
+}
+
 // MARK: - Explanation Response
 
 /// Structured response for word/phrase explanations.
@@ -19,6 +49,12 @@ struct ExplanationResponse: Sendable {
 
   @Guide(description: "Detailed explanation of the word/phrase including meaning, usage, and nuances")
   var explanation: String
+
+  @Guide(description: "Breakdown of the context sentence into meaningful phrases with their meanings")
+  var phrases: [PhraseAnalysis]
+
+  @Guide(description: "Idioms or fixed expressions found in the text. Empty array if none found.")
+  var idioms: [IdiomExplanation]
 }
 
 // MARK: - Explanation Service
@@ -230,7 +266,7 @@ final class ExplanationService {
       print("[ExplanationService] Structured response: \(response.content)")
 
       // Build display text for state
-      let displayText = """
+      var displayText = """
         ## Translation
 
         \(response.content.translation)
@@ -239,6 +275,20 @@ final class ExplanationService {
 
         \(response.content.explanation)
         """
+
+      if !response.content.phrases.isEmpty {
+        displayText += "\n\n## Phrases\n"
+        for phrase in response.content.phrases {
+          displayText += "\n- **\(phrase.phrase)** (\(phrase.role)): \(phrase.meaning)"
+        }
+      }
+
+      if !response.content.idioms.isEmpty {
+        displayText += "\n\n## Idioms\n"
+        for idiom in response.content.idioms {
+          displayText += "\n- **\(idiom.idiom)**: \(idiom.meaning)\n  _\(idiom.origin)_"
+        }
+      }
 
       state = .success(displayText)
       return response.content
@@ -376,14 +426,23 @@ final class ExplanationService {
 
   private func buildStructuredInstructions(languageName: String) -> String {
     """
-    You are a language expert helping users understand words and phrases.
+    You are a language expert helping users understand words and phrases in English.
 
     Important guidelines:
     - Provide the translation in \(languageName)
     - Provide a detailed explanation in \(languageName)
     - Consider the context when explaining meaning and usage
-    - Include nuances, common collocations, and usage patterns when relevant
-    - Keep responses clear and educational
+
+    For phrase analysis:
+    - Break down the context sentence into meaningful phrases
+    - For each phrase, provide its meaning in \(languageName) and its grammatical role
+    - Grammatical roles include: subject, verb phrase, object, complement, adverbial, prepositional phrase, etc.
+
+    For idiom detection:
+    - Identify any idioms, fixed expressions, or phrasal verbs in the text
+    - Explain their meaning in \(languageName)
+    - Provide origin or usage notes when available
+    - If no idioms are found, return an empty array
     """
   }
 

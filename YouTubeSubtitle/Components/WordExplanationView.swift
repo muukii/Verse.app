@@ -86,6 +86,8 @@ struct WordExplanationView: View {
 
   @State private var translation: String = ""
   @State private var explanation: String = ""
+  @State private var phrases: [PhraseAnalysis] = []
+  @State private var idioms: [IdiomExplanation] = []
   @State private var generationTask: Task<Void, Never>?
 
   var body: some View {
@@ -94,6 +96,8 @@ struct WordExplanationView: View {
       geminiSection
       translationSection
       explanationSection
+      phrasesSection
+      idiomsSection
     }
     .onAppear {
       generationTask = Task {
@@ -137,12 +141,84 @@ struct WordExplanationView: View {
     }
   }
 
+  @ViewBuilder
+  private var phrasesSection: some View {
+    if !phrases.isEmpty {
+      Section {
+        ForEach(phrases, id: \.phrase) { phrase in
+          VStack(alignment: .leading, spacing: 4) {
+            HStack {
+              Text(phrase.phrase)
+                .font(.body.bold())
+              Spacer()
+              Text(phrase.role)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(.secondary.opacity(0.15))
+                .clipShape(Capsule())
+            }
+            Text(phrase.meaning)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+          }
+          .padding(.vertical, 2)
+        }
+      } header: {
+        Text("Phrases")
+          .textCase(nil)
+      }
+    } else if service.state == .loading {
+      Section {
+        HStack(spacing: 8) {
+          ProgressView()
+          Text("Analyzing phrases...")
+            .foregroundStyle(.secondary)
+        }
+      } header: {
+        Text("Phrases")
+          .textCase(nil)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var idiomsSection: some View {
+    if !idioms.isEmpty {
+      Section {
+        ForEach(idioms, id: \.idiom) { idiom in
+          VStack(alignment: .leading, spacing: 4) {
+            Text(idiom.idiom)
+              .font(.body.bold())
+            Text(idiom.meaning)
+              .font(.subheadline)
+            Text(idiom.origin)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .italic()
+          }
+          .padding(.vertical, 2)
+        }
+      } header: {
+        Label("Idioms", systemImage: "text.quote")
+          .textCase(nil)
+      }
+    }
+  }
+
   private var geminiSection: some View {
     Section {
       Button {
         geminiURL = GeminiURLBuilder.buildURL(text: text, context: context)
       } label: {
         Label("Ask Gemini", systemImage: "sparkle.magnifyingglass")
+      }
+
+      ShareLink(
+        item: ExplanationPrompt.buildFullPrompt(text: text, context: context)
+      ) {
+        Label("Share Prompt", systemImage: "square.and.arrow.up")
       }
     }
   }
@@ -208,6 +284,8 @@ struct WordExplanationView: View {
     generationTask?.cancel()
     translation = ""
     explanation = ""
+    phrases = []
+    idioms = []
     generationTask = Task {
       await generateExplanation()
     }
@@ -235,6 +313,8 @@ struct WordExplanationView: View {
 
       translation = response.translation
       explanation = response.explanation
+      phrases = response.phrases
+      idioms = response.idioms
     } catch {
       guard !Task.isCancelled else { return }
       // Error is handled by the service
