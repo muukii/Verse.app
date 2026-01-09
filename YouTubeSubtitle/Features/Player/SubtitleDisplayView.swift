@@ -50,10 +50,13 @@ struct SubtitleDisplayView: View {
       )
 
     case .textKit2:
-      // TODO: Implement TextKit2SubtitleView
-      Text("TextKit2 view not yet implemented")
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      TextKit2SubtitleView(
+        model: model,
+        cues: cues,
+        isLoading: isLoading,
+        error: error,
+        onAction: onAction
+      )
     }
   }
 }
