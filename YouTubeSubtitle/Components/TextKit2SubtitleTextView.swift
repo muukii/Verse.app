@@ -25,14 +25,38 @@ enum CueActionCallback {
   nonisolated(unsafe) static var handler: ((Int, String) -> Void)?
 }
 
-// MARK: - Cue Action View
+// MARK: - Cue Action SwiftUI View
 
-/// Block-level view displayed below each cue for actions
+/// SwiftUI content view for cue actions
+struct CueActionContentView: View {
+  let cueID: Int
+  let cueText: String
+
+  var body: some View {
+    Button {
+      CueActionCallback.handler?(cueID, cueText)
+    } label: {
+      Label("Actions", systemImage: "ellipsis.circle")
+        .foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.leading, 12)
+  }
+}
+
+// MARK: - Cue Action View (UIKit Wrapper)
+
+/// Block-level view displayed below each cue for actions.
+/// Wraps a SwiftUI view using UIHostingController.
 final class CueActionView: UIView {
-  var cueID: Int = 0
-  var cueText: String = ""
+  var cueID: Int = 0 {
+    didSet { updateContent() }
+  }
+  var cueText: String = "" {
+    didSet { updateContent() }
+  }
 
-  private let button = UIButton(type: .system)
+  private var hostingController: UIHostingController<CueActionContentView>?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -45,27 +69,31 @@ final class CueActionView: UIView {
   }
 
   private func setupView() {
-    // Configure button
-    var config = UIButton.Configuration.plain()
-    config.image = UIImage(systemName: "ellipsis.circle")
-    config.imagePadding = 4
-    config.title = "Actions"
-    config.baseForegroundColor = .secondaryLabel
-    button.configuration = config
-    button.addTarget(self, action: #selector(buttonTapped), for: .touchUpInside)
-
-    button.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(button)
-
-    NSLayoutConstraint.activate([
-      button.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-      button.centerYAnchor.constraint(equalTo: centerYAnchor),
-    ])
+    backgroundColor = .clear
+    updateContent()
   }
 
-  @objc private func buttonTapped() {
-    // Use global callback registry
-    CueActionCallback.handler?(cueID, cueText)
+  private func updateContent() {
+    // Remove existing hosting controller
+    hostingController?.view.removeFromSuperview()
+    hostingController?.removeFromParent()
+
+    // Create SwiftUI view
+    let contentView = CueActionContentView(cueID: cueID, cueText: cueText)
+    let controller = UIHostingController(rootView: contentView)
+    controller.view.backgroundColor = .clear
+    controller.view.translatesAutoresizingMaskIntoConstraints = false
+
+    addSubview(controller.view)
+
+    NSLayoutConstraint.activate([
+      controller.view.topAnchor.constraint(equalTo: topAnchor),
+      controller.view.leadingAnchor.constraint(equalTo: leadingAnchor),
+      controller.view.trailingAnchor.constraint(equalTo: trailingAnchor),
+      controller.view.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+
+    hostingController = controller
   }
 }
 
@@ -279,6 +307,7 @@ struct TextKit2SubtitleTextView: UIViewRepresentable {
     textView.isScrollEnabled = false  // Scroll handled by parent UIScrollView
     textView.backgroundColor = .clear
     textView.textContainerInset = UIEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
+    textView.textDragInteraction?.isEnabled = false  // Disable drag for attachments
     textView.delegate = context.coordinator
 
     // Single tap gesture for word/cue detection
@@ -329,17 +358,26 @@ struct TextKit2SubtitleTextView: UIViewRepresentable {
 
       // Add word timing attributes if available
       if let wordTimings = cue.wordTimings, !wordTimings.isEmpty {
-        var location = 0
+        var searchStartIndex = cueText.startIndex
         for timing in wordTimings {
-          let length = timing.text.count
-          let range = NSRange(location: location, length: length)
-          if range.location + range.length <= cueAttr.length {
-            cueAttr.addAttributes([
-              .wordStartTime: timing.startTime,
-              .wordEndTime: timing.endTime,
-            ], range: range)
+          // Find the actual position of the word in the text
+          if let range = cueText.range(
+            of: timing.text,
+            range: searchStartIndex..<cueText.endIndex
+          ) {
+            let location = cueText.distance(from: cueText.startIndex, to: range.lowerBound)
+            let length = cueText.distance(from: range.lowerBound, to: range.upperBound)
+            let nsRange = NSRange(location: location, length: length)
+
+            if nsRange.location + nsRange.length <= cueAttr.length {
+              cueAttr.addAttributes([
+                .wordStartTime: timing.startTime,
+                .wordEndTime: timing.endTime,
+              ], range: nsRange)
+            }
+            // Move search start past this word to avoid matching same word twice
+            searchStartIndex = range.upperBound
           }
-          location += length + 1  // +1 for space
         }
       }
 
@@ -376,21 +414,34 @@ struct TextKit2SubtitleTextView: UIViewRepresentable {
     var ranges: [WordRange] = []
     var globalLocation = 0
 
-    for cue in cues {
+    for (cueIndex, cue) in cues.enumerated() {
+      let cueText = cue.decodedText
+
       if let wordTimings = cue.wordTimings, !wordTimings.isEmpty {
-        var localLocation = 0
+        var searchStartIndex = cueText.startIndex
         for timing in wordTimings {
-          let length = timing.text.count
-          ranges.append(WordRange(
-            nsRange: NSRange(location: globalLocation + localLocation, length: length),
-            startTime: timing.startTime,
-            endTime: timing.endTime,
-            cueID: cue.id
-          ))
-          localLocation += length + 1
+          // Find the actual position of the word in the text
+          if let range = cueText.range(
+            of: timing.text,
+            range: searchStartIndex..<cueText.endIndex
+          ) {
+            let localLocation = cueText.distance(from: cueText.startIndex, to: range.lowerBound)
+            let length = cueText.distance(from: range.lowerBound, to: range.upperBound)
+
+            ranges.append(WordRange(
+              nsRange: NSRange(location: globalLocation + localLocation, length: length),
+              startTime: timing.startTime,
+              endTime: timing.endTime,
+              cueID: cue.id
+            ))
+            searchStartIndex = range.upperBound
+          }
         }
       }
-      globalLocation += cue.decodedText.count + 2  // +2 for "\n\n"
+
+      // Calculate offset: cue text + "\n" + attachment (1 char) + "\n" separator (except last)
+      let separatorLength = cueIndex < cues.count - 1 ? 1 : 0
+      globalLocation += cueText.count + 1 + 1 + separatorLength  // text + \n + attachment + separator
     }
 
     return ranges
@@ -401,7 +452,7 @@ struct TextKit2SubtitleTextView: UIViewRepresentable {
     var ranges: [CueRange] = []
     var globalLocation = 0
 
-    for cue in cues {
+    for (cueIndex, cue) in cues.enumerated() {
       let length = cue.decodedText.count
       ranges.append(CueRange(
         nsRange: NSRange(location: globalLocation, length: length),
@@ -409,7 +460,10 @@ struct TextKit2SubtitleTextView: UIViewRepresentable {
         endTime: cue.endTime,
         cueID: cue.id
       ))
-      globalLocation += length + 2  // +2 for "\n\n"
+
+      // Calculate offset: cue text + "\n" + attachment (1 char) + "\n" separator (except last)
+      let separatorLength = cueIndex < cues.count - 1 ? 1 : 0
+      globalLocation += length + 1 + 1 + separatorLength  // text + \n + attachment + separator
     }
 
     return ranges
