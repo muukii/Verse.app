@@ -17,33 +17,124 @@ extension NSAttributedString.Key {
   static let wordEndTime = NSAttributedString.Key("wordEndTime")
 }
 
+// MARK: - Cue Action Callback Registry
+
+/// Global callback registry for CueActionView button taps.
+/// Uses nonisolated(unsafe) since UIKit operations are main-thread only.
+enum CueActionCallback {
+  nonisolated(unsafe) static var handler: ((Int, String) -> Void)?
+}
+
+// MARK: - Cue Action View
+
+/// Block-level view displayed below each cue for actions
+final class CueActionView: UIView {
+  var cueID: Int = 0
+  var cueText: String = ""
+
+  private let button = UIButton(type: .system)
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    setupView()
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  private func setupView() {
+    // Configure button
+    var config = UIButton.Configuration.plain()
+    config.image = UIImage(systemName: "ellipsis.circle")
+    config.imagePadding = 4
+    config.title = "Actions"
+    config.baseForegroundColor = .secondaryLabel
+    button.configuration = config
+    button.addTarget(self, action: #selector(buttonTapped), for: .touchUpInside)
+
+    button.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(button)
+
+    NSLayoutConstraint.activate([
+      button.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+      button.centerYAnchor.constraint(equalTo: centerYAnchor),
+    ])
+  }
+
+  @objc private func buttonTapped() {
+    // Use global callback registry
+    CueActionCallback.handler?(cueID, cueText)
+  }
+}
+
+// MARK: - Cue Action Attachment View Provider
+
+/// Provides block-level CueActionView for attachments
+final class CueActionAttachmentViewProvider: NSTextAttachmentViewProvider {
+  private nonisolated(unsafe) static let viewHeight: CGFloat = 44
+
+  nonisolated override init(
+    textAttachment: NSTextAttachment,
+    parentView: UIView?,
+    textLayoutManager: NSTextLayoutManager?,
+    location: any NSTextLocation
+  ) {
+    super.init(
+      textAttachment: textAttachment,
+      parentView: parentView,
+      textLayoutManager: textLayoutManager,
+      location: location
+    )
+  }
+
+  nonisolated override func loadView() {
+    // Access attachment properties
+    let attachment = textAttachment as? CueActionAttachment
+    let cueID = attachment?.cueID ?? 0
+    let cueText = attachment?.cueText ?? ""
+
+    // Create view on main thread
+    view = MainActor.assumeIsolated {
+      let actionView = CueActionView()
+      actionView.cueID = cueID
+      actionView.cueText = cueText
+      return actionView
+    }
+  }
+
+  nonisolated override func attachmentBounds(
+    for attributes: [NSAttributedString.Key: Any],
+    location: any NSTextLocation,
+    textContainer: NSTextContainer?,
+    proposedLineFragment: CGRect,
+    position: CGPoint
+  ) -> CGRect {
+    // Full width, fixed height for block-level display
+    CGRect(
+      x: 0,
+      y: 0,
+      width: proposedLineFragment.width,
+      height: Self.viewHeight
+    )
+  }
+}
+
 // MARK: - Cue Action Attachment
 
-/// Custom text attachment that displays an action icon at the end of each cue.
-/// Uses image-based approach for reliability (NSTextAttachmentViewProvider has known issues).
+/// Custom text attachment that embeds a block-level CueActionView below each cue.
+/// Uses viewProvider override approach (not registerViewProviderClass).
 final class CueActionAttachment: NSTextAttachment {
   /// Cue ID for identifying which cue this attachment belongs to
   nonisolated(unsafe) var cueID: Int = 0
   /// Original cue text for action handling
   nonisolated(unsafe) var cueText: String = ""
 
-  convenience init(cueID: Int, cueText: String, font: UIFont) {
+  convenience init(cueID: Int, cueText: String) {
     self.init()
     self.cueID = cueID
     self.cueText = cueText
-
-    // Create image from SF Symbol
-    let iconSize = font.pointSize * 0.9
-    let config = UIImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
-    let image = UIImage(systemName: "ellipsis.circle", withConfiguration: config)?
-      .withTintColor(.secondaryLabel, renderingMode: .alwaysOriginal)
-    self.image = image
-
-    // Adjust bounds to align with text baseline
-    if let image {
-      let yOffset = (font.capHeight - image.size.height) / 2
-      self.bounds = CGRect(x: 0, y: yOffset, width: image.size.width, height: image.size.height)
-    }
   }
 
   @available(*, unavailable)
@@ -53,6 +144,23 @@ final class CueActionAttachment: NSTextAttachment {
 
   nonisolated override init(data contentData: Data?, ofType uti: String?) {
     super.init(data: contentData, ofType: uti)
+  }
+
+  // MARK: - ViewProvider Override (Key for TextKit2!)
+
+  nonisolated override func viewProvider(
+    for parentView: UIView?,
+    location: any NSTextLocation,
+    textContainer: NSTextContainer?
+  ) -> NSTextAttachmentViewProvider? {
+    let provider = CueActionAttachmentViewProvider(
+      textAttachment: self,
+      parentView: parentView,
+      textLayoutManager: textContainer?.textLayoutManager,
+      location: location
+    )
+    provider.tracksTextAttachmentViewBounds = true
+    return provider
   }
 }
 
@@ -81,6 +189,11 @@ struct TextKit2SubtitleTextView: UIViewRepresentable {
   // MARK: - UIViewRepresentable
 
   func makeUIView(context: Context) -> UIScrollView {
+    // Set up global callback for CueActionView button taps
+    CueActionCallback.handler = { [weak coordinator = context.coordinator] cueID, cueText in
+      coordinator?.onAction(.showSelectionActions(text: cueText, context: cueText))
+    }
+
     // Create scroll view container
     let scrollView = UIScrollView()
     scrollView.showsVerticalScrollIndicator = true
@@ -232,15 +345,15 @@ struct TextKit2SubtitleTextView: UIViewRepresentable {
 
       result.append(cueAttr)
 
-      // Add action button attachment after cue text
-      let attachment = CueActionAttachment(cueID: cue.id, cueText: cueText, font: font)
+      // Add block-level action view attachment (on its own line)
+      let attachment = CueActionAttachment(cueID: cue.id, cueText: cueText)
       let attachmentString = NSAttributedString(attachment: attachment)
-      result.append(NSAttributedString(string: " "))  // Space before button
+      result.append(NSAttributedString(string: "\n"))  // New line before attachment
       result.append(attachmentString)
 
       // Add paragraph separator (except for last cue)
       if cueIndex < cues.count - 1 {
-        result.append(NSAttributedString(string: "\n\n", attributes: [
+        result.append(NSAttributedString(string: "\n", attributes: [
           .font: font,
           .paragraphStyle: paragraphStyle,
         ]))
