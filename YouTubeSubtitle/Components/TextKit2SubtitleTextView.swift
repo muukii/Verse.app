@@ -280,7 +280,10 @@ struct TextKit2SubtitleTextView: UIViewRepresentable {
 
     // Auto-scroll if tracking enabled and cue changed
     if isTrackingEnabled, let currentCueID {
-      scrollToCue(cueID: currentCueID, coordinator: coordinator, animated: true)
+      if coordinator.lastScrolledCueID != currentCueID {
+        coordinator.lastScrolledCueID = currentCueID
+        scrollToCue(cueID: currentCueID, coordinator: coordinator, animated: true)
+      }
     }
   }
 
@@ -624,6 +627,7 @@ struct TextKit2SubtitleTextView: UIViewRepresentable {
     var lastCues: [Subtitle.Cue] = []
     var wordRanges: [WordRange] = []
     var cueRanges: [CueRange] = []
+    var lastScrolledCueID: Subtitle.Cue.ID?
 
     private var lastSelectedText: String?
 
