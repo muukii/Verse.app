@@ -1,6 +1,15 @@
 {
-  "originHash" : "3f1a7c53b01587d8d09419b50f894471a20cb3b10c9a6453bc3a0e631cacda1c",
+  "originHash" : "83f1676890ae0c4d4ecdd41e46593532fd103721537f9ffe97ff4ebfe581e3f3",
   "pins" : [
+    {
+      "identity" : "alamofire",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Alamofire/Alamofire.git",
+      "state" : {
+        "revision" : "e938f8c66708e7352fc7e3512647fa54255b267a",
+        "version" : "5.11.2"
+      }
+    },
     {
       "identity" : "avif.swift",
       "kind" : "remoteSourceControl",
@@ -8,6 +17,24 @@
       "state" : {
         "revision" : "82ef6ff1051e25f8944d2ad8aee148ae79e90986",
         "version" : "1.7.0"
+      }
+    },
+    {
+      "identity" : "dsfregex",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dagronf/DSFRegex",
+      "state" : {
+        "revision" : "e0e64805519b23b08dcca9c83ca2d4a2b3de4c33",
+        "version" : "3.4.0"
+      }
+    },
+    {
+      "identity" : "dswaveformimage",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dmrschmidt/DSWaveformImage",
+      "state" : {
+        "revision" : "a7a96cf4478c6fa084e76c175bcf7f4c9a38f80a",
+        "version" : "14.3.0"
       }
     },
     {
@@ -74,6 +101,50 @@
       }
     },
     {
+      "identity" : "swift-collections",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-collections.git",
+      "state" : {
+        "revision" : "6675bc0ff86e61436e615df6fc5174e043e57924",
+        "version" : "1.4.1"
+      }
+    },
+    {
+      "identity" : "swift-concurrency-task-manager",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/VergeGroup/swift-concurrency-task-manager",
+      "state" : {
+        "revision" : "bb1a916298bc45e26577e69a3af173cfa0c0599d",
+        "version" : "2.2.0"
+      }
+    },
+    {
+      "identity" : "swift-dynamic-list",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FluidGroup/swift-dynamic-list",
+      "state" : {
+        "revision" : "0c1fd1dcc0eb7283818166905c5536028edbbe9d"
+      }
+    },
+    {
+      "identity" : "swift-indexed-collection",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FluidGroup/swift-indexed-collection",
+      "state" : {
+        "revision" : "8d183008a8b56001a1e3f85a5ceee3dd5963ba34",
+        "version" : "0.2.2"
+      }
+    },
+    {
+      "identity" : "swift-macro-hex-color",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/muukii/swift-macro-hex-color",
+      "state" : {
+        "revision" : "ae47afeeec73bb83188f7d82000951af5636e05e",
+        "version" : "0.2.2"
+      }
+    },
+    {
       "identity" : "swift-numerics",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-numerics.git",
@@ -87,8 +158,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/VergeGroup/swift-state-graph",
       "state" : {
-        "revision" : "f198f7e209133cd2d24e7efa5565d027692b6a62",
-        "version" : "0.16.0"
+        "revision" : "f6290206f05d4bb13f75518ef7406167331513f6"
       }
     },
     {
@@ -110,6 +180,15 @@
       }
     },
     {
+      "identity" : "swiftsubtitles",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dagronf/SwiftSubtitles",
+      "state" : {
+        "revision" : "9610acc4a62f0b274f4fc62c4d600da098fe5892",
+        "version" : "0.12.0"
+      }
+    },
+    {
       "identity" : "swiftui-async-multiplex-image",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/FluidGroup/swiftui-async-multiplex-image",
@@ -123,8 +202,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/siteline/swiftui-introspect",
       "state" : {
-        "revision" : "a08b87f96b41055577721a6e397562b21ad52454",
-        "version" : "26.0.0"
+        "revision" : "807f73ce09a9b9723f12385e592b4e0aaebd3336",
+        "version" : "1.3.0"
       }
     },
     {
@@ -137,6 +216,14 @@
       }
     },
     {
+      "identity" : "swiftui-persistent-control",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FluidGroup/swiftui-persistent-control.git",
+      "state" : {
+        "revision" : "093554c7a02642acb306b8e8482fd3b8322314f3"
+      }
+    },
+    {
       "identity" : "swiftui-ring-slider",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/FluidGroup/swiftui-ring-slider",
@@ -146,12 +233,39 @@
       }
     },
     {
+      "identity" : "swiftui-scrollview-interoperable-drag-gesture",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FluidGroup/swiftui-scrollview-interoperable-drag-gesture",
+      "state" : {
+        "revision" : "9044de40cbf69d4a7f46e40d7d50ed5aca4d589c",
+        "version" : "0.4.0"
+      }
+    },
+    {
       "identity" : "swiftui-support",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/FluidGroup/swiftui-support.git",
       "state" : {
         "revision" : "fbc3f1770889f74818a56eea3d7099a0d3a9c5e1",
         "version" : "0.13.0"
+      }
+    },
+    {
+      "identity" : "tinycsv",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dagronf/TinyCSV",
+      "state" : {
+        "revision" : "63f30830cd986de84cd844d59926cf1aa2009f0b",
+        "version" : "0.5.3"
+      }
+    },
+    {
+      "identity" : "wrap",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/VergeGroup/Wrap",
+      "state" : {
+        "revision" : "0d13a5b579d3f74d1f3a2bc50ccb4f9f86a711c3",
+        "version" : "4.0.0"
       }
     },
     {

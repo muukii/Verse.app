@@ -1,0 +1,178 @@
+import SwiftUI
+import SwiftUISupport
+
+struct ChunkView<Identifier: Hashable>: View {
+  let text: String
+  let hasMark: Bool
+  let identifier: Identifier
+  let isFocusing: Bool
+  let isInRange: Bool
+  let fontSize: Double
+  let onSelect: () -> Void
+  let onAction: (PlayerChunkAction) -> Void
+
+  init(
+    text: String,
+    hasMark: Bool,
+    identifier: Identifier,
+    isFocusing: Bool,
+    isInRange: Bool,
+    fontSize: Double,
+    onSelect: @escaping () -> Void,
+    onAction: @escaping (PlayerChunkAction) -> Void = { _ in }
+  ) {
+    self.text = text
+    self.hasMark = hasMark
+    self.identifier = identifier
+    self.isFocusing = isFocusing
+    self.isInRange = isInRange
+    self.fontSize = fontSize
+    self.onSelect = onSelect
+    self.onAction = onAction
+  }
+
+  private struct ChunkContentView: View {
+    let text: String
+    let hasMark: Bool
+    let identifier: Identifier
+    let isFocusing: Bool
+    let isInRange: Bool
+    let fontSize: Double
+    
+    var body: some View {
+      VStack(spacing: 4) {
+        HStack {
+          if hasMark {
+            VStack {
+              Circle()
+                .frame(width: 6, height: 6)
+                .foregroundStyle(.secondary)
+              Spacer()
+            }
+          }
+
+          Text(text)
+            .font(.system(size: fontSize, weight: .bold, design: .default))
+            .modifier(
+              condition: isFocusing == false,
+              identity: StyleModifier(scale: .init(width: 1.1, height: 1.1)),
+              active: StyleModifier(opacity: 0.2)
+            )
+            .id(identifier)
+        }
+
+        // Indicator
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+          .fill(
+            { () -> Color in
+              if isInRange {
+                return Color.accentColor
+              }
+
+              if isFocusing {
+                return Color.primary
+              }
+
+              return Color.secondary
+            }()
+          )
+          .frame(height: 4)
+          .padding(.horizontal, isFocusing ? 0 : 2)
+      }
+    }
+  }
+  
+  var body: some View {
+    ChunkContentView(
+      text: text,
+      hasMark: hasMark,
+      identifier: identifier,
+      isFocusing: isFocusing,
+      isInRange: isInRange,
+      fontSize: fontSize
+    )
+    .contentShape(
+      .contextMenuPreview,
+      RoundedRectangle(cornerRadius: 8, style: .continuous)
+    )
+    .contextMenu {
+      Button {
+        onAction(.copy(text: text))
+      } label: {
+        Label("Copy", systemImage: "doc.on.doc")
+      }
+
+      Divider()
+
+      if hasMark {
+        Button {
+          onAction(.removeMark(identifier: String(describing: identifier)))
+        } label: {
+          Label("Remove Mark", systemImage: "bookmark.slash")
+        }
+      } else {
+        Button {
+          onAction(.addMark(identifier: String(describing: identifier)))
+        } label: {
+          Label("Add Mark", systemImage: "bookmark")
+        }
+      }
+
+      //      Divider()
+      //
+      //      Button {
+      //        onAction(.addToFlashcard(identifier: String(describing: identifier)))
+      //      } label: {
+      //        Label("Add to Flashcard", systemImage: "rectangle.stack.badge.plus")
+      //      }
+      //
+      Divider()
+
+      Button {
+        onAction(.insertSeparatorBefore(cueId: String(describing: identifier)))
+      } label: {
+        Label(
+          "Insert Separator Before",
+          systemImage: "square.fill.and.line.vertical.and.square.fill"
+        )
+      }
+    }
+    .animation(.bouncy, value: isFocusing)
+    .transaction(
+      value: identifier,
+      { t in
+        // prevent animation while reusing
+        t.disablesAnimations = true
+      }
+    )
+    .padding(.horizontal, 2)
+    ._onButtonGesture(
+      pressing: { isPressing in },
+      perform: {
+        onSelect()
+      }
+    )
+  }
+}
+
+#Preview("Cell") {
+  HStack {
+    Spacer()
+    ChunkView<String>(
+      text: "Hello",
+      hasMark: true,
+      identifier: "foo",
+      isFocusing: false,
+      isInRange: false,
+      fontSize: 24,
+      onSelect: {
+
+      },
+      onAction: { action in
+        print("Action: \(action)")
+      }
+    )
+    Spacer()
+  }
+  .fixedSize()
+}

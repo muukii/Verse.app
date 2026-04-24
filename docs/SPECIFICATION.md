@@ -294,3 +294,71 @@ PhotosOrganizer is a SwiftUI utility app for iPhone and iPad that scans the user
 - Minimum deployment target: iOS 26.2.
 - Uses PhotoKit for library access and writes.
 - Uses ImageIO for HEIF encoding and `avif.swift` for AVIF encoding.
+
+---
+
+# Tone - Product Specification
+
+## Overview
+
+Tone is a SwiftUI iPhone app for English shadowing practice. Users import audio and subtitles, play subtitle-aligned chunks, record their own voice over the source audio, and review vocabulary-style cards.
+
+## Core Features
+
+### Shadowing Library
+- Stores imported learning items in SwiftData.
+- Supports local audio/subtitle import and YouTube-based import/download flows.
+- Shows a library of audio items with title editing, deletion, and tag-based organization.
+- Includes bundled preview audio and subtitle content for simulator/demo use.
+
+### Player
+- Plays audio with synchronized subtitle chunks.
+- Supports current-chunk tracking, pinning ranges, and reviewing pinned sections.
+- Provides playback controls for play/pause, seeking, speed changes, looping, and A-B style focused practice.
+- Offers configurable subtitle/chunk font size from settings.
+
+### Recording Practice
+- Records the user's microphone while source audio is playing.
+- Replays recordings aligned with the main audio timeline for pronunciation comparison.
+- Uses a dedicated audio session manager to switch between playback and recording modes.
+- Cleans up temporary recording files on app launch.
+
+### Transcription
+- Transcribes imported audio with Apple's on-device SpeechAnalyzer/Speech Recognition APIs.
+- Downloads and prepares Apple speech recognition assets when required by the system.
+- Supports background transcription progress tracking and optional user notifications.
+- Includes an OpenAI transcription service path for API-key-backed workflows.
+- Registers the `app.muukii.tone.transcription` background task identifier.
+
+### Vocabulary and Cards
+- Provides Anki-style vocabulary review screens.
+- Imports Anki JSON data.
+- Shows card stacks, card detail/edit views, tag detail screens, and generated example sentence support through the OpenAI service.
+
+### Live Activity
+- Includes a WidgetKit Live Activity extension for player controls/status.
+- Uses the `group.app.muukii.tone` app group for sharing activity state between the app and extension.
+
+## Screen Layout
+
+### Main Tab View
+- Library tab for imported audio items and transcription progress.
+- Player tab/full-player presentation for active shadowing playback.
+- Anki/vocabulary areas for card review and imported vocabulary content.
+- Settings screen for background transcription notifications and subtitle font size.
+
+### Import Views
+- Audio import supports selecting local audio and subtitle files.
+- Audio and subtitle import flow creates new learning items.
+- YouTube import/download screens provide a URL-based path into the same shadowing library.
+
+## Data and Storage
+- SwiftData stores items, segments, pins, and tags using the current V3 schema.
+- Audio files are stored locally in the app container.
+- CloudKit entitlements and container identifiers are configured, but the current SwiftData configuration uses local storage.
+- Preview content is included as development assets for simulator use.
+
+## Platform and Integrations
+- Target platform: iPhone.
+- Minimum deployment target follows the MuApps shared iOS app target.
+- Uses microphone access, background audio/processing, Live Activities, CloudKit entitlement configuration, and app groups.

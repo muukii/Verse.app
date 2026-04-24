@@ -1,0 +1,247 @@
+import SwiftUI
+
+public struct PlayerControlPanelContent: View {
+
+  public enum Action {
+    case togglePlaying
+    case toggleRepeat
+    case pin
+    case detail
+    case overlapping
+    case setRate(Double)
+    case resetRate
+  }
+
+  let isPlaying: Bool
+  let isRepeating: Bool
+  @Binding var rate: Double
+  private let onAction: @MainActor (Action) -> Void
+
+  public init(
+    isPlaying: Bool,
+    isRepeating: Bool,
+    rate: Binding<Double>,
+    onAction: @escaping @MainActor (Action) -> Void
+  ) {
+    self.isPlaying = isPlaying
+    self.isRepeating = isRepeating
+    self._rate = rate
+    self.onAction = onAction
+  }
+
+  private static func fractionLabel(fraction: CGFloat) -> String {
+    if fraction < 1 {
+      var text = String.init(format: "%0.2f", fraction)
+      text.removeFirst()
+      return text
+    } else {
+      return .init(format: "%.1f", fraction)
+    }
+  }
+
+  public var body: some View {
+
+    VStack(spacing: 8) {
+      slider
+      controls
+    }
+    .padding(.top, 24)
+    .padding(.bottom, 10)
+    .onKeyPress(.space) {
+      onAction(.togglePlaying)
+      return .handled
+    }
+  }
+
+  private var controls: some View {
+    HStack(alignment: .center, spacing: 20) {
+      Group {
+        // pin
+        Button {
+          onAction(.pin)
+        } label: {
+          Image(systemName: "bookmark.fill")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 18)
+            .foregroundColor(Color.primary)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(isRepeating == false)
+
+        // play or pause
+        Button {
+          MainActor.assumeIsolated {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+          }
+          onAction(.togglePlaying)
+        } label: {
+          Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 28, height: 28)
+            .foregroundColor(Color.primary)
+            .contentTransition(.symbolEffect(.replace, options: .speed(2)))
+
+        }
+        .buttonStyle(PlainButtonStyle())
+        
+        // repeat button
+        Button {
+          MainActor.assumeIsolated {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+          }
+          onAction(.toggleRepeat)
+        } label: {
+          ZStack {
+            Image(systemName: "repeat")
+              .resizable()
+              .aspectRatio(contentMode: .fit)
+              .frame(width: 30, height: 30)
+              .foregroundStyle(Color.primary)
+          }
+          .padding(.vertical, 8)
+          .padding(.horizontal, 10)
+          .background(
+            RoundedRectangle(cornerRadius: 8)
+              .fill(Color.accentColor.tertiary)
+              .aspectRatio(1, contentMode: .fill)
+              .opacity(isRepeating ? 1 : 0)
+          )
+        }
+        .buttonStyle(PlainButtonStyle())
+
+        // Overlapping button
+        Button {
+          MainActor.assumeIsolated {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+          }
+          onAction(.overlapping)
+        } label: {
+          Image(systemName: "waveform.circle")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 30, height: 30)
+            .foregroundColor(isRepeating ? Color.primary : Color.secondary)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(!isRepeating)
+
+      }
+      .frame(width: 50, height: 50)
+      
+//      .overlay { 
+//        Color.red.opacity(0.1)          
+//      }
+    }
+
+  }
+
+  private var slider: some View {
+    _Slider(
+      onReset: {
+        onAction(.resetRate)
+      },
+      rate: $rate
+    )
+    .padding(.horizontal, 20)
+  }
+
+}
+
+
+private struct _Slider: View {
+
+  var onReset: () -> Void
+  @Binding var rate: Double
+
+  var body: some View {
+    VStack {
+//      Button(
+//        action: onReset,
+//        label: {
+//          Text("\(String(format: "%.2f", rate))")
+//            .font(.headline.monospacedDigit().bold())
+//            .contentTransition(.numericText(value: 1))
+//        }
+//      )
+//      .buttonStyle(.bordered)
+//      .buttonBorderShape(.roundedRectangle(radius: 8))
+//      .tint(Color.accentColor)
+      
+      HoverSlider(
+        value: $rate,
+        range: 0.3...1,
+        defaultValue: 1,
+        format: FloatingPointFormatStyle<Double>()
+          .precision(.fractionLength(2))
+      )
+      .foregroundStyle(.orange)
+
+      /*
+      SteppedSlider(
+        value: .init(get: {
+          return CGFloat(rate)
+        }, set: { 
+          rate = Double($0)          
+        }),
+        range: 0.3...1,
+        steps: 0.02,
+        horizontalEdgeMask: .hidden,
+        anchorView: {
+          RoundedRectangle(cornerRadius: 1)
+            .frame(width: 2, height: 20)
+            .foregroundStyle(.tint)
+        },
+        segmentView: { _, _ in
+          RoundedRectangle(cornerRadius: 1)
+            .frame(width: 2, height: 20)
+            .foregroundStyle(.tint.tertiary)
+        },
+        segmentOverlayView: { index, _ in
+          EmptyView()
+        },
+        onEditing: {
+
+        }
+      )
+      .frame(height: 40)
+       */
+
+    }
+  }
+
+}
+
+#Preview {
+  PlayerControlPanelContent(
+    isPlaying: true,
+    isRepeating: false,
+    rate: .constant(0.8),
+    onAction: { action in
+      print("Preview action: \(action)")
+    }
+  )
+}
+
+#Preview("Recording State") {
+  PlayerControlPanelContent(
+    isPlaying: false,
+    isRepeating: true,
+    rate: .constant(1.0),
+    onAction: { action in
+      print("Preview action: \(action)")
+    }
+  )
+}
+
+#Preview("Slow Rate") {
+  PlayerControlPanelContent(
+    isPlaying: true,
+    isRepeating: true,
+    rate: .constant(0.3),
+    onAction: { action in
+      print("Preview action: \(action)")
+    }
+  )
+}
