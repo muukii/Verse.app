@@ -42,11 +42,20 @@ enum YouTubeStreamService {
 
   // MARK: - Stream Filtering
 
-  /// Filters streams to only progressive MP4 (AVPlayer/AVAudioFile compatible).
-  /// - Parameter streams: All available streams
-  /// - Returns: Filtered progressive MP4 streams
+  /// Filters streams to only those AVPlayer can natively play.
+  ///
+  /// Requirements:
+  /// - Progressive (audio + video in one file; YouTube only ships these as itag 18/22)
+  /// - MP4 container (excludes MKV / WebM, which AVPlayer cannot demux)
+  /// - `isNativelyPlayable` — YouTubeKit checks codec support including
+  ///   `VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)`, so AV1 streams are
+  ///   only kept on devices with hardware AV1 decoders.
   static func filterProgressiveMP4(_ streams: [YouTubeKit.Stream]) -> [YouTubeKit.Stream] {
-    streams.filter { $0.isProgressive && $0.fileExtension == .mp4 }
+    streams.filter {
+      $0.isProgressive
+      && $0.fileExtension == .mp4
+      && $0.isNativelyPlayable
+    }
   }
 
   // MARK: - Stream Selection
