@@ -8,6 +8,7 @@ let workspace = Workspace(
     "Apps/VoiceRecorder",
     "Apps/HearAugment",
     "Apps/PhotosOrganizer",
+    "Apps/PolyReader",
     "Apps/Tone",
     "Shared",
   ]

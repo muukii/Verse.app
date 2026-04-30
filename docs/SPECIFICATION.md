@@ -2,7 +2,7 @@
 
 ## Ad Hoc OTA Install Page
 - Pushes to the `main` branch run the Ad Hoc workflow automatically; manual runs can still publish all apps or a selected app from `main`.
-- The workflow exports Ad Hoc IPAs for Verse, Tone, PhotosOrganizer, HearAugment, VoiceRecorder, and HelloWorld.
+- The workflow exports Ad Hoc IPAs for Verse, Tone, PhotosOrganizer, HearAugment, PolyReader, VoiceRecorder, and HelloWorld.
 - Builds are published to the single `adhoc-latest` GitHub release so the release list does not grow per branch.
 - GitHub Pages serves `docs/install.html` as the shared install page for the latest `main` Ad Hoc builds.
 - Each app has its own install action backed by an `itms-services` manifest in the `adhoc-latest` GitHub release.
@@ -296,6 +296,41 @@ HearAugment is a SwiftUI iPhone and iPad audio AR prototype inspired by real-tim
 - The chain can contain up to 16 editable nodes in the UI and the C++ engine clamps incoming chains to 24 nodes.
 - Final input/output routing is controlled by iOS and connected hardware.
 - The app is not intended to diagnose, treat, or compensate for hearing loss.
+
+---
+
+# PolyReader - Product Specification
+
+## Overview
+
+PolyReader is a minimal SwiftUI reading app for iPhone and iPad that lets users paste text, save it locally, and read it one sentence at a time with automatic sentence advancement.
+
+## Core Features
+
+### Text Library
+- Users add reading material by pasting or typing text into an in-app editor sheet.
+- Titles are optional; when omitted, the app uses the first non-empty line as the title.
+- Saved texts appear in a library list with a short body preview and sentence progress.
+- Users can delete saved texts from the library.
+
+### Sentence Reader
+- The reader displays one sentence at a time in a large centered reading layout.
+- Text is segmented with sentence-level Natural Language tokenization, with punctuation-based fallback for texts the tokenizer cannot segment.
+- The reader opens paused at the saved sentence position.
+- Controls include play/pause, previous sentence, next sentence, and restart from the first sentence.
+- Progress is shown as current sentence count, total sentence count, and a progress bar.
+
+### Automatic Advancement
+- Playback advances through sentences automatically.
+- Reading speed is controlled by a WPM slider from 80 to 400 WPM, defaulting to 180 WPM.
+- Each sentence display duration is estimated from word count, with a minimum display time of 1.2 seconds.
+- Playback stops at the final sentence.
+
+## Data and Storage
+- SwiftData stores saved texts locally.
+- Stored fields include title, body, creation date, update date, and current sentence index.
+- The current sentence position is saved as the user advances through the text.
+- No cloud sync, file import, dictionary, translation, vocabulary, or AI assistance is included in the MVP.
 
 ---
 

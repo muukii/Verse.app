@@ -18,6 +18,7 @@ on:
           - Tone
           - PhotosOrganizer
           - HearAugment
+          - PolyReader
           - VoiceRecorder
           - HelloWorld
 
@@ -86,6 +87,7 @@ jobs:
             printf 'Tone\tapp.muukii.tone\tTone.ipa\tTone-manifest.plist\n'
             printf 'PhotosOrganizer\tapp.muukii.PhotosOrganizer\tPhotosOrganizer.ipa\tPhotosOrganizer-manifest.plist\n'
             printf 'HearAugment\tapp.muukii.hearaugment\tHearAugment.ipa\tHearAugment-manifest.plist\n'
+            printf 'PolyReader\tapp.muukii.polyreader\tPolyReader.ipa\tPolyReader-manifest.plist\n'
             printf 'VoiceRecorder\tapp.muukii.voicerecorder\tVoiceRecorder.ipa\tVoiceRecorder-manifest.plist\n'
             printf 'HelloWorld\tapp.muukii.helloworld\tHelloWorld.ipa\tHelloWorld-manifest.plist\n'
           } > ./build/all-adhoc-apps.tsv
