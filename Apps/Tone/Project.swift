@@ -68,7 +68,7 @@ let project = Project(
       dependencies: [
         .sdk(name: "CloudKit", type: .framework),
 
-        .target(name: "ActivityContent"),
+        .target(name: "ToneActivityContent"),
         .target(name: "AppService"),
         .target(name: "LiveActivity"),
         .target(name: "UIComponents"),
@@ -127,7 +127,7 @@ let project = Project(
         "com.apple.security.application-groups": ["group.app.muukii.tone"],
       ]),
       dependencies: [
-        .target(name: "ActivityContent"),
+        .target(name: "ToneActivityContent"),
       ],
       settings: .settings(base: .base.merging([
         "APPLICATION_EXTENSION_API_ONLY": "YES",
@@ -142,7 +142,7 @@ let project = Project(
       deploymentTargets: .app,
       buildableFolders: ["Sources/AppService"],
       dependencies: [
-        .target(name: "ActivityContent"),
+        .target(name: "ToneActivityContent"),
         .external(name: "Alamofire"),
         .external(name: "ConcurrencyTaskManager"),
         .external(name: "StateGraph"),
@@ -153,10 +153,10 @@ let project = Project(
     ),
 
     .target(
-      name: "ActivityContent",
+      name: "ToneActivityContent",
       destinations: [.iPhone],
       product: .framework,
-      bundleId: "app.muukii.tone.ActivityContent",
+      bundleId: "app.muukii.tone.ToneActivityContent",
       deploymentTargets: .app,
       infoPlist: .default,
       buildableFolders: ["Sources/ActivityContent"],
