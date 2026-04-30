@@ -252,10 +252,13 @@ HearAugment is a SwiftUI iPhone and iPad audio AR prototype inspired by real-tim
 - The source node renders a stereo float format so mono microphone input can feed stereo processors such as panning, ping-pong delay, stereo reverb, and width effects.
 - Shows current listening state, elapsed listening time, selected chain, enabled effect count, and any audio-session errors.
 - Stops live listening automatically when the app enters the background.
+- Below the Start/Stop control, a **Bypass** toggle disables every effect at once for an instant dry reference, and a **Hold to Compare** button momentarily flips the bypass state while pressed and restores it on release. Both controls are only active while listening.
 
 ### 2. Serial Effect Chains
 - Provides built-in chain presets such as Clean Leveler, Focus Stack, Wide Room, Tape Accelerator, Reverse Bloom, Mod Lab, Lo-Fi Tunnel, Motion Field, Divergence Bloom, Gravity Tail, and Tape Riser.
-- Each preset is a serial list of effect nodes. Users can add nodes, remove nodes, enable or disable nodes, and move nodes up or down to change the processing order.
+- Each preset is a serial list of effect nodes. Users can add nodes, remove nodes, enable or disable nodes, and reorder nodes by dragging the row handle to change the processing order.
+- Each effect row is collapsed by default and shows a drag handle, icon, name, **Solo** button, **Mute** toggle, and an expand chevron. Tapping the row title or the chevron expands the row to reveal Amount / Parameter A / Parameter B sliders and a Remove button. Expansion state is per-session and is cleared when a preset is selected.
+- The Solo headphones button on each row temporarily isolates one or more effects: while any effects are soloed, only those effects are audible regardless of their Mute state. A "Solo: N / Clear" banner appears at the top of the chain panel while solo is active, and selecting a preset or removing a soloed node clears the solo state. Solo state is not persisted.
 - The effect library includes high pass, low pass, tilt EQ, presence EQ, compressor, noise gate, soft clip, wave folder, bit crusher, tremolo, ring mod, panner, auto pan, vibrato, chorus, flanger, phaser, slap delay, accelerating delay, tape riser delay, ping-pong delay, reverse grains, room reverb, stereo reverb, shimmer, comb resonator, space widener, long bloom, and converge bloom.
 - Reverb is implemented in C++ with feedback comb filters and all-pass diffusion. Stereo reverb uses separate left/right tanks with cross-feed and width processing.
 - Long Bloom uses a longer C++ feedback-comb and all-pass tank to make tails continue for several seconds before decaying.

@@ -38,6 +38,13 @@ final class HearAugmentViewModel {
 
   private(set) var inputDevices: [AudioInputDevice] = []
   private(set) var customPresets: [AudioEffectChainPreset] = []
+  private(set) var soloedEffectIDs: Set<UUID> = []
+  private(set) var expandedEffectIDs: Set<UUID> = []
+  var isBypassed: Bool = false {
+    didSet {
+      applyCurrentChain()
+    }
+  }
   var selectedAudioBufferSize: AudioBufferSizeOption = .balanced {
     didSet {
       persistAudioBufferSize()
@@ -64,6 +71,10 @@ final class HearAugmentViewModel {
     didSet {
       engine?.mainMixerNode.outputVolume = Float(outputLevel)
     }
+  }
+
+  var isAnySoloed: Bool {
+    soloedEffectIDs.isEmpty == false
   }
 
   private(set) var isPrepared = false
@@ -176,6 +187,8 @@ final class HearAugmentViewModel {
     guard let preset = allPresets.first(where: { $0.id == id }) else { return }
     isApplyingPreset = true
     selectedPresetID = preset.id
+    soloedEffectIDs.removeAll()
+    expandedEffectIDs.removeAll()
     effectChain = preset.nodes
     isApplyingPreset = false
   }
@@ -192,6 +205,8 @@ final class HearAugmentViewModel {
 
   func removeEffect(id: UUID) {
     effectChain.removeAll { $0.id == id }
+    soloedEffectIDs.remove(id)
+    expandedEffectIDs.remove(id)
   }
 
   func moveEffect(id: UUID, offset: Int) {
@@ -202,6 +217,51 @@ final class HearAugmentViewModel {
     let destinationIndex = sourceIndex + offset
     guard effectChain.indices.contains(destinationIndex) else { return }
     effectChain.swapAt(sourceIndex, destinationIndex)
+  }
+
+  func moveEffect(id: UUID, toIndex destinationIndex: Int) {
+    guard let sourceIndex = effectChain.firstIndex(where: { $0.id == id }) else { return }
+    let clampedDestination = min(max(destinationIndex, 0), effectChain.count - 1)
+    guard clampedDestination != sourceIndex else { return }
+    let node = effectChain.remove(at: sourceIndex)
+    let insertIndex = min(max(clampedDestination, 0), effectChain.count)
+    effectChain.insert(node, at: insertIndex)
+  }
+
+  func toggleSolo(id: UUID) {
+    if soloedEffectIDs.contains(id) {
+      soloedEffectIDs.remove(id)
+    } else {
+      soloedEffectIDs.insert(id)
+    }
+    applyCurrentChain()
+  }
+
+  func clearSolo() {
+    guard soloedEffectIDs.isEmpty == false else { return }
+    soloedEffectIDs.removeAll()
+    applyCurrentChain()
+  }
+
+  func isSoloed(id: UUID) -> Bool {
+    soloedEffectIDs.contains(id)
+  }
+
+  func toggleExpanded(id: UUID) {
+    if expandedEffectIDs.contains(id) {
+      expandedEffectIDs.remove(id)
+    } else {
+      expandedEffectIDs.insert(id)
+    }
+  }
+
+  func isExpanded(id: UUID) -> Bool {
+    expandedEffectIDs.contains(id)
+  }
+
+  func setBypass(_ bypassed: Bool) {
+    guard isBypassed != bypassed else { return }
+    isBypassed = bypassed
   }
 
   func saveCurrentChain(named rawName: String) {
@@ -369,7 +429,19 @@ final class HearAugmentViewModel {
     }
     let parametersA = effectChain.map { NSNumber(value: Float(min(max($0.parameterA, 0), 1))) }
     let parametersB = effectChain.map { NSNumber(value: Float(min(max($0.parameterB, 0), 1))) }
-    let enabled = effectChain.map { NSNumber(value: $0.isEnabled) }
+    let soloed = soloedEffectIDs
+    let bypassed = isBypassed
+    let enabled = effectChain.map { node -> NSNumber in
+      let value: Bool
+      if bypassed {
+        value = false
+      } else if soloed.isEmpty {
+        value = node.isEnabled
+      } else {
+        value = soloed.contains(node.id)
+      }
+      return NSNumber(value: value)
+    }
 
     effectProcessor?.update(
       withEffectTypes: effectTypes,

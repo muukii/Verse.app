@@ -86,6 +86,8 @@ private struct ListeningPanel: View {
       .buttonStyle(.borderedProminent)
       .disabled(viewModel.isPermissionDenied)
 
+      BypassControlsRow(viewModel: viewModel)
+
       if let errorMessage = viewModel.errorMessage {
         Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
           .font(.footnote)
@@ -261,6 +263,10 @@ private struct EffectChainPanel: View {
         .disabled(viewModel.canAddEffect == false)
       }
 
+      if viewModel.isAnySoloed {
+        SoloBadge(viewModel: viewModel)
+      }
+
       if viewModel.effectChain.isEmpty {
         Text("Bypass")
           .font(.subheadline)
@@ -271,6 +277,14 @@ private struct EffectChainPanel: View {
         VStack(alignment: .leading, spacing: 0) {
           ForEach(Array(viewModel.effectChain.enumerated()), id: \.element.id) { index, node in
             EffectRow(viewModel: viewModel, node: node, index: index)
+              .draggable(node) {
+                EffectDragPreview(node: node, accent: rowTint)
+              }
+              .dropDestination(for: AudioEffectNode.self) { items, _ in
+                guard let dropped = items.first else { return false }
+                viewModel.moveEffect(id: dropped.id, toIndex: index)
+                return true
+              }
 
             if index < viewModel.effectChain.count - 1 {
               Divider()
@@ -296,6 +310,113 @@ private struct EffectChainPanel: View {
     }
     .sectionSurface()
   }
+
+  private var rowTint: Color {
+    if let accentName = viewModel.selectedPreset?.accentName {
+      return hearAugmentColor(for: accentName)
+    }
+    return MuColors.primary
+  }
+}
+
+private struct SoloBadge: View {
+  let viewModel: HearAugmentViewModel
+
+  var body: some View {
+    HStack(spacing: 10) {
+      Image(systemName: "headphones.circle.fill")
+        .foregroundStyle(.yellow)
+      Text("Solo: \(viewModel.soloedEffectIDs.count)")
+        .font(.footnote.weight(.semibold))
+      Spacer(minLength: 8)
+      Button("Clear") {
+        viewModel.clearSolo()
+      }
+      .font(.footnote.weight(.semibold))
+      .buttonStyle(.borderless)
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .background(
+      Color.yellow.opacity(0.14),
+      in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+    )
+  }
+}
+
+private struct EffectDragPreview: View {
+  let node: AudioEffectNode
+  let accent: Color
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Image(systemName: node.type.symbolName)
+        .foregroundStyle(accent)
+      Text(node.type.title)
+        .font(.subheadline.weight(.semibold))
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .background(
+      .thinMaterial,
+      in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+    )
+  }
+}
+
+private struct BypassControlsRow: View {
+  let viewModel: HearAugmentViewModel
+  @State private var isComparePressed = false
+  @State private var savedBypassState = false
+
+  var body: some View {
+    HStack(spacing: 10) {
+      Button {
+        viewModel.setBypass(!viewModel.isBypassed)
+      } label: {
+        Label(
+          viewModel.isBypassed ? "Bypassed" : "Bypass",
+          systemImage: viewModel.isBypassed ? "bolt.slash.fill" : "bolt.fill"
+        )
+        .frame(maxWidth: .infinity, minHeight: 36)
+      }
+      .buttonStyle(.bordered)
+      .tint(viewModel.isBypassed ? .orange : .primary)
+      .disabled(viewModel.isListening == false)
+
+      Label(
+        isComparePressed ? "Comparing" : "Hold to Compare",
+        systemImage: "arrow.left.arrow.right.square"
+      )
+      .font(.subheadline)
+      .frame(maxWidth: .infinity, minHeight: 36)
+      .padding(.horizontal, 10)
+      .background(
+        (isComparePressed ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)),
+        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+      )
+      .overlay {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+          .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+      }
+      .contentShape(Rectangle())
+      .opacity(viewModel.isListening ? 1 : 0.4)
+      .gesture(
+        DragGesture(minimumDistance: 0)
+          .onChanged { _ in
+            guard viewModel.isListening, isComparePressed == false else { return }
+            isComparePressed = true
+            savedBypassState = viewModel.isBypassed
+            viewModel.setBypass(!savedBypassState)
+          }
+          .onEnded { _ in
+            guard isComparePressed else { return }
+            isComparePressed = false
+            viewModel.setBypass(savedBypassState)
+          }
+      )
+    }
+  }
 }
 
 private struct EffectRow: View {
@@ -304,60 +425,83 @@ private struct EffectRow: View {
   let index: Int
 
   var body: some View {
+    let isExpanded = viewModel.isExpanded(id: node.id)
+    let isSoloed = viewModel.isSoloed(id: node.id)
+
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 10) {
+        Image(systemName: "line.3.horizontal")
+          .font(.system(size: 14, weight: .semibold))
+          .foregroundStyle(.secondary)
+          .frame(width: 22, height: 30)
+          .accessibilityLabel("Drag to reorder")
+
         Image(systemName: node.type.symbolName)
           .font(.system(size: 18, weight: .semibold))
           .foregroundStyle(rowTint)
           .frame(width: 24, height: 24)
 
-        VStack(alignment: .leading, spacing: 2) {
-          Text(node.type.title)
-            .font(.headline)
-          Text(node.type.subtitle)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+        Button {
+          viewModel.toggleExpanded(id: node.id)
+        } label: {
+          VStack(alignment: .leading, spacing: 2) {
+            Text(node.type.title)
+              .font(.headline)
+              .foregroundStyle(.primary)
+            Text(node.type.subtitle)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
 
-        Spacer(minLength: 8)
+        soloButton(isSoloed: isSoloed)
 
         Toggle("", isOn: enabledBinding)
           .labelsHidden()
+          .accessibilityLabel("Enabled")
 
-        iconButton("chevron.up", "Move Up") {
-          viewModel.moveEffect(id: node.id, offset: -1)
-        }
-        .disabled(index == 0)
-
-        iconButton("chevron.down", "Move Down") {
-          viewModel.moveEffect(id: node.id, offset: 1)
-        }
-        .disabled(index >= viewModel.effectChain.count - 1)
-
-        iconButton("trash", "Remove") {
-          viewModel.removeEffect(id: node.id)
+        iconButton(
+          isExpanded ? "chevron.up" : "chevron.down",
+          isExpanded ? "Collapse" : "Expand"
+        ) {
+          viewModel.toggleExpanded(id: node.id)
         }
       }
 
-      parameterSlider(
-        title: "Amount",
-        value: doubleBinding(\.amount),
-        displayValue: percentText(node.amount)
-      )
+      if isExpanded {
+        parameterSlider(
+          title: "Amount",
+          value: doubleBinding(\.amount),
+          displayValue: percentText(node.amount)
+        )
 
-      parameterSlider(
-        title: node.type.parameterAName,
-        value: doubleBinding(\.parameterA),
-        displayValue: percentText(node.parameterA)
-      )
+        parameterSlider(
+          title: node.type.parameterAName,
+          value: doubleBinding(\.parameterA),
+          displayValue: percentText(node.parameterA)
+        )
 
-      parameterSlider(
-        title: node.type.parameterBName,
-        value: doubleBinding(\.parameterB),
-        displayValue: percentText(node.parameterB)
-      )
+        parameterSlider(
+          title: node.type.parameterBName,
+          value: doubleBinding(\.parameterB),
+          displayValue: percentText(node.parameterB)
+        )
+
+        Button(role: .destructive) {
+          viewModel.removeEffect(id: node.id)
+        } label: {
+          Label("Remove Effect", systemImage: "trash")
+            .font(.footnote.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: 32)
+        }
+        .buttonStyle(.bordered)
+        .padding(.top, 4)
+      }
     }
-    .padding(.vertical, 14)
+    .padding(.vertical, 12)
   }
 
   private var rowTint: Color {
@@ -405,6 +549,19 @@ private struct EffectRow: View {
 
       Slider(value: value, in: 0...1)
     }
+  }
+
+  private func soloButton(isSoloed: Bool) -> some View {
+    Button {
+      viewModel.toggleSolo(id: node.id)
+    } label: {
+      Image(systemName: isSoloed ? "headphones.circle.fill" : "headphones.circle")
+        .font(.system(size: 22, weight: .semibold))
+        .foregroundStyle(isSoloed ? Color.yellow : Color.secondary)
+        .frame(width: 30, height: 30)
+    }
+    .buttonStyle(.borderless)
+    .accessibilityLabel(isSoloed ? "Unsolo" : "Solo")
   }
 
   private func iconButton(

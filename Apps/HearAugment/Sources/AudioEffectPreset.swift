@@ -1,4 +1,6 @@
+import CoreTransferable
 import Foundation
+import UniformTypeIdentifiers
 
 nonisolated enum AudioEffectType: Int, CaseIterable, Identifiable, Codable, Hashable, Sendable {
   case highPass = 1
@@ -475,6 +477,16 @@ nonisolated struct AudioEffectNode: Identifiable, Codable, Hashable, Sendable {
     self.parameterA = parameterA ?? type.defaultParameterA
     self.parameterB = parameterB ?? type.defaultParameterB
   }
+}
+
+nonisolated extension AudioEffectNode: Transferable {
+  static var transferRepresentation: some TransferRepresentation {
+    CodableRepresentation(contentType: .hearAugmentEffectNode)
+  }
+}
+
+nonisolated extension UTType {
+  static let hearAugmentEffectNode = UTType(exportedAs: "app.muukii.hearaugment.effectNode")
 }
 
 nonisolated struct AudioEffectChainPreset: Identifiable, Codable, Hashable, Sendable {
