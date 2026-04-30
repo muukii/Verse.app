@@ -1,4 +1,4 @@
-import ActivityContent
+import ToneActivityContent
 import ActivityKit
 import AppIntents
 import SwiftUI

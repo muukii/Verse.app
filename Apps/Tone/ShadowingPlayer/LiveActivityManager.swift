@@ -1,6 +1,6 @@
 import Foundation
 import ActivityKit
-import ActivityContent
+import ToneActivityContent
 import Combine
 import AppService
 import StateGraph

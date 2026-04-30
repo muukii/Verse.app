@@ -57,7 +57,7 @@ struct SettingsView: View {
 }
 
 import ActivityKit
-import ActivityContent
+import ToneActivityContent
 
 // @MainActor
 // final class ActivityManager: ObservableObject {
