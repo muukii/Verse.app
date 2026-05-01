@@ -1206,18 +1206,19 @@ struct LowLevelEffectEngine::Impl {
   }
 
   void processTapeRiserDelay(EffectRuntime &runtime, const EffectDescriptor &descriptor) {
-    // Feedback delay where the feedback path is pitch-shifted upward via a 2-grain
-    // crossfade. Each loop through the delay = +delayTime in time, +pitchSemitones in
-    // pitch, ×feedback in level. With feedback near 0.7+ you get many audible repeats
-    // climbing in pitch.
+    // Feedback delay where the feedback path is pitch-shifted via a 2-grain
+    // crossfade. Each loop = +delayTime in time, +pitchSemitones in pitch,
+    // ×feedback in level. Negative pitchSemitones produces descending (dub-style)
+    // echoes; the granular read pointer simply lags the write pointer instead of
+    // catching it. parameterC center (0.5) is unity (no shift) → pure feedback delay.
     //
     // parameterA = Time (delay length, 50–1000 ms)
     // parameterB = Feedback (0 → ~0.92, the residual control)
-    // parameterC = Rise (0.5 → 12 semitones up per loop)
+    // parameterC = Pitch (−12 → +12 semitones per loop)
     const float delaySeconds = lerp(0.05f, 1.0f, descriptor.parameterA);
     const float delaySamples = delaySeconds * sampleRate;
     const float feedback = lerp(0.0f, 0.92f, descriptor.parameterB);
-    const float pitchSemitones = lerp(0.5f, 12.0f, descriptor.parameterC);
+    const float pitchSemitones = lerp(-12.0f, 12.0f, descriptor.parameterC);
     const float pitchRatio = std::pow(2.0f, pitchSemitones / 12.0f);
     const float wetGain = descriptor.amount;
     const float grainSeconds = 0.06f;

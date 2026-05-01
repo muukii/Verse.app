@@ -259,7 +259,8 @@ HearAugment is a SwiftUI iPhone and iPad audio AR prototype inspired by real-tim
 - The C++ input ring keeps about 2.5 seconds of microphone frames as underrun protection; this capacity is separate from the low-latency input tap buffer.
 - The source node renders a stereo float format so mono microphone input can feed stereo processors such as panning, ping-pong delay, stereo reverb, and width effects.
 - Shows current listening state, elapsed listening time, selected chain, enabled effect count, and any audio-session errors.
-- Stops live listening automatically when the app enters the background.
+- Continues live listening when the app moves to the background or the screen is locked, declared via the `audio` `UIBackgroundModes` capability so the engine and microphone remain active.
+- Recovers from audio-session interruptions (phone calls, Siri, alarms, other audio apps grabbing the session): when the interruption ends and the system grants resumption, listening restarts automatically if the user had not manually stopped it.
 - Below the Start/Stop control, a **Bypass** toggle disables every effect at once for an instant dry reference, and a **Hold to Compare** button momentarily flips the bypass state while pressed and restores it on release. Both controls are only active while listening.
 
 ### 2. Serial Effect Chains
@@ -303,7 +304,7 @@ HearAugment is a SwiftUI iPhone and iPad audio AR prototype inspired by real-tim
 - The app is presented as a creative audio AR prototype, not a medical hearing device.
 
 ## Limitations
-- No recording, session history, cloud sync, or background listening yet.
+- No recording, session history, or cloud sync yet.
 - The chain can contain up to 16 editable nodes in the UI and the C++ engine clamps incoming chains to 24 nodes.
 - Final input/output routing is controlled by iOS and connected hardware.
 - The app is not intended to diagnose, treat, or compensate for hearing loss.

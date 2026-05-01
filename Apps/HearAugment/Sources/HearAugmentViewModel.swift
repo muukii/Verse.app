@@ -35,11 +35,14 @@ final class HearAugmentViewModel {
   private var effectProcessor: LowLevelEffectProcessorObjC?
   private var clockTask: Task<Void, Never>?
   private var isApplyingPreset = false
+  private var shouldResumeAfterInterruption = false
 
   private(set) var inputDevices: [AudioInputDevice] = []
   private(set) var customPresets: [AudioEffectChainPreset] = []
   private(set) var soloedEffectIDs: Set<UUID> = []
   private(set) var expandedEffectIDs: Set<UUID> = []
+  private(set) var previewKind: AudioEffectKind?
+  private let previewNodeID = UUID()
   var isBypassed: Bool = false {
     didSet {
       applyCurrentChain()
@@ -193,9 +196,21 @@ final class HearAugmentViewModel {
     isApplyingPreset = false
   }
 
-  func addEffect(_ type: AudioEffectType) {
+  func addEffect(_ type: AudioEffectKind) {
     guard canAddEffect else { return }
     effectChain.append(AudioEffectNode(type: type))
+  }
+
+  func setPreview(kind: AudioEffectKind?) {
+    guard previewKind != kind else { return }
+    previewKind = kind
+    applyCurrentChain()
+  }
+
+  func commitPreview() {
+    guard let kind = previewKind, canAddEffect else { return }
+    previewKind = nil
+    effectChain.append(AudioEffectNode(type: kind))
   }
 
   func replaceEffect(_ node: AudioEffectNode) {
@@ -293,7 +308,31 @@ final class HearAugmentViewModel {
     }
   }
 
+  func handleInterruption(_ notification: Notification) {
+    guard
+      let info = notification.userInfo,
+      let typeRaw = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+      let type = AVAudioSession.InterruptionType(rawValue: typeRaw)
+    else { return }
+
+    switch type {
+    case .began:
+      shouldResumeAfterInterruption = isListening
+    case .ended:
+      let optionsRaw = info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+      let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw)
+      let resume = options.contains(.shouldResume) && shouldResumeAfterInterruption
+      shouldResumeAfterInterruption = false
+      if resume {
+        Task { await startListening() }
+      }
+    @unknown default:
+      break
+    }
+  }
+
   func stopListening(restoreDiscovery: Bool = true) {
+    shouldResumeAfterInterruption = false
     clockTask?.cancel()
     clockTask = nil
 
@@ -422,20 +461,34 @@ final class HearAugmentViewModel {
   }
 
   private func applyCurrentChain() {
+    // Append a preview node when the user is auditioning an effect from the
+    // browser. The preview is always audible (ignores Solo) so the user can
+    // hear what they are picking; Bypass still cuts everything.
+    let chainNodes: [AudioEffectNode]
+    if let previewKind {
+      chainNodes = effectChain + [AudioEffectNode(id: previewNodeID, type: previewKind)]
+    } else {
+      chainNodes = effectChain
+    }
+
     let clampedIntensity = min(max(intensity, 0), 1)
-    let effectTypes = effectChain.map { NSNumber(value: $0.type.rawValue) }
-    let amounts = effectChain.map { node in
+    let effectTypes = chainNodes.map { NSNumber(value: $0.type.id) }
+    let amounts = chainNodes.map { node in
       NSNumber(value: Float(min(max(node.amount * clampedIntensity, 0), 1)))
     }
-    let parametersA = effectChain.map { NSNumber(value: Float(min(max($0.parameterA, 0), 1))) }
-    let parametersB = effectChain.map { NSNumber(value: Float(min(max($0.parameterB, 0), 1))) }
-    let parametersC = effectChain.map { NSNumber(value: Float(min(max($0.parameterC, 0), 1))) }
+    let parametersA = chainNodes.map { NSNumber(value: Float(min(max($0.parameterA, 0), 1))) }
+    let parametersB = chainNodes.map { NSNumber(value: Float(min(max($0.parameterB, 0), 1))) }
+    let parametersC = chainNodes.map { NSNumber(value: Float(min(max($0.parameterC, 0), 1))) }
     let soloed = soloedEffectIDs
     let bypassed = isBypassed
-    let enabled = effectChain.map { node -> NSNumber in
+    let previewID = previewNodeID
+    let isPreviewing = previewKind != nil
+    let enabled = chainNodes.map { node -> NSNumber in
       let value: Bool
       if bypassed {
         value = false
+      } else if isPreviewing && node.id == previewID {
+        value = true
       } else if soloed.isEmpty {
         value = node.isEnabled
       } else {
@@ -466,13 +519,13 @@ final class HearAugmentViewModel {
   }
 
   private func loadAudioBufferSize() {
-    let rawValue = UserDefaults.standard.integer(forKey: audioBufferSizeStoreKey)
-    guard let option = AudioBufferSizeOption(rawValue: rawValue) else { return }
+    let storedFrameCount = AVAudioFrameCount(UserDefaults.standard.integer(forKey: audioBufferSizeStoreKey))
+    guard let option = AudioBufferSizeOption.with(frameCount: storedFrameCount) else { return }
     selectedAudioBufferSize = option
   }
 
   private func persistAudioBufferSize() {
-    UserDefaults.standard.set(selectedAudioBufferSize.rawValue, forKey: audioBufferSizeStoreKey)
+    UserDefaults.standard.set(Int(selectedAudioBufferSize.frameCount), forKey: audioBufferSizeStoreKey)
   }
 
   private func loadCustomPresets() {

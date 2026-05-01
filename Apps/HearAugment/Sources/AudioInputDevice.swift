@@ -10,34 +10,43 @@ struct AudioInputDevice: Identifiable, Hashable {
 
   init(port: AVAudioSessionPortDescription) {
     id = port.uid
-    name = Self.displayName(for: port)
-    detail = Self.detail(for: port.portType)
-    isBuiltIn = port.portType == .builtInMic
-    isBluetooth = port.portType == .bluetoothHFP || port.portType == .bluetoothLE
-  }
 
-  private static func displayName(for port: AVAudioSessionPortDescription) -> String {
-    if port.portType == .builtInMic {
-      return "Device Microphone"
-    }
+    name = {
+      switch port.portType {
+      case .builtInMic:
+        return "Device Microphone"
+      default:
+        return port.portName
+      }
+    }()
 
-    return port.portName
-  }
+    detail = {
+      switch port.portType {
+      case .builtInMic:
+        return "Built-in input"
+      case .bluetoothHFP, .bluetoothLE:
+        return "Bluetooth input"
+      case .headsetMic:
+        return "Headset input"
+      case .usbAudio:
+        return "USB input"
+      case .lineIn:
+        return "Line input"
+      default:
+        return port.portType.rawValue
+      }
+    }()
 
-  private static func detail(for portType: AVAudioSession.Port) -> String {
-    switch portType {
+    switch port.portType {
     case .builtInMic:
-      return "Built-in input"
+      isBuiltIn = true
+      isBluetooth = false
     case .bluetoothHFP, .bluetoothLE:
-      return "Bluetooth input"
-    case .headsetMic:
-      return "Headset input"
-    case .usbAudio:
-      return "USB input"
-    case .lineIn:
-      return "Line input"
+      isBuiltIn = false
+      isBluetooth = true
     default:
-      return portType.rawValue
+      isBuiltIn = false
+      isBluetooth = false
     }
   }
 }

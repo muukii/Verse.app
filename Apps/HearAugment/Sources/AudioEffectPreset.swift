@@ -2,545 +2,424 @@ import CoreTransferable
 import Foundation
 import UniformTypeIdentifiers
 
-nonisolated enum AudioEffectType: Int, CaseIterable, Identifiable, Codable, Hashable, Sendable {
-  case highPass = 1
-  case lowPass
-  case tiltEQ
-  case presenceEQ
-  case compressor
-  case noiseGate
-  case softClip
-  case waveFolder
-  case bitCrusher
-  case tremolo
-  case ringMod
-  case panner
-  case autoPan
-  case vibrato
-  case chorus
-  case flanger
-  case phaser
-  case slapDelay
-  case acceleratingDelay
-  case pingPongDelay
-  case reverse
-  case roomReverb
-  case stereoReverb
-  case shimmer
-  case combResonator
-  case spaceWidener
-  case longBloom
-  case convergingBloom
-  case tapeRiserDelay
-  case stereoDelay
+// MARK: - Parameter Display Format
 
-  var id: Int {
-    rawValue
-  }
+nonisolated enum ParameterDisplayFormat: Sendable, Hashable {
+  case percent
+  case milliseconds(lower: Double, upper: Double)
+  case semitones(lower: Double, upper: Double)
 
-  var title: String {
+  func format(value: Double) -> String {
+    let clamped = min(max(value, 0), 1)
     switch self {
-    case .highPass:
-      return "High Pass"
-    case .lowPass:
-      return "Low Pass"
-    case .tiltEQ:
-      return "Tilt EQ"
-    case .presenceEQ:
-      return "Presence EQ"
-    case .compressor:
-      return "Compressor"
-    case .noiseGate:
-      return "Noise Gate"
-    case .softClip:
-      return "Soft Clip"
-    case .waveFolder:
-      return "Wave Folder"
-    case .bitCrusher:
-      return "Bit Crusher"
-    case .tremolo:
-      return "Tremolo"
-    case .ringMod:
-      return "Ring Mod"
-    case .panner:
-      return "Panner"
-    case .autoPan:
-      return "Auto Pan"
-    case .vibrato:
-      return "Vibrato"
-    case .chorus:
-      return "Chorus"
-    case .flanger:
-      return "Flanger"
-    case .phaser:
-      return "Phaser"
-    case .slapDelay:
-      return "Slap Delay"
-    case .acceleratingDelay:
-      return "Accel Delay"
-    case .tapeRiserDelay:
-      return "Tape Riser"
-    case .pingPongDelay:
-      return "Ping Pong"
-    case .reverse:
-      return "Reverse"
-    case .roomReverb:
-      return "Room Reverb"
-    case .stereoReverb:
-      return "Stereo Reverb"
-    case .shimmer:
-      return "Shimmer"
-    case .combResonator:
-      return "Comb Resonator"
-    case .spaceWidener:
-      return "Space Widener"
-    case .longBloom:
-      return "Long Bloom"
-    case .convergingBloom:
-      return "Converge Bloom"
-    case .stereoDelay:
-      return "Stereo Delay"
-    }
-  }
-
-  var subtitle: String {
-    switch self {
-    case .highPass:
-      return "Low-cut cleanup"
-    case .lowPass:
-      return "High-cut smoothing"
-    case .tiltEQ:
-      return "Dark to bright balance"
-    case .presenceEQ:
-      return "Speech detail lift"
-    case .compressor:
-      return "Fast level control"
-    case .noiseGate:
-      return "Quiet sound reduction"
-    case .softClip:
-      return "Analog-style drive"
-    case .waveFolder:
-      return "Folded harmonic edge"
-    case .bitCrusher:
-      return "Reduced resolution"
-    case .tremolo:
-      return "Amplitude motion"
-    case .ringMod:
-      return "Metallic modulation"
-    case .panner:
-      return "Static stereo position"
-    case .autoPan:
-      return "Moving stereo position"
-    case .vibrato:
-      return "Pitch wobble"
-    case .chorus:
-      return "Thick modulated doubles"
-    case .flanger:
-      return "Short comb sweep"
-    case .phaser:
-      return "All-pass sweep"
-    case .slapDelay:
-      return "Short feedback echo"
-    case .acceleratingDelay:
-      return "Repeats get faster"
-    case .tapeRiserDelay:
-      return "Pitch-rising tape delay"
-    case .pingPongDelay:
-      return "Cross-channel echoes"
-    case .reverse:
-      return "Backward grains"
-    case .roomReverb:
-      return "Compact reflection tank"
-    case .stereoReverb:
-      return "Wide cross-fed tail"
-    case .shimmer:
-      return "Bright diffuse bloom"
-    case .combResonator:
-      return "Tuned resonant echo"
-    case .spaceWidener:
-      return "Mid-side width"
-    case .longBloom:
-      return "Long expanding decay"
-    case .convergingBloom:
-      return "Wide tail returns center"
-    case .stereoDelay:
-      return "L/R offset feedback echo"
-    }
-  }
-
-  var symbolName: String {
-    switch self {
-    case .highPass:
-      return "line.diagonal"
-    case .lowPass:
-      return "line.diagonal.arrow"
-    case .tiltEQ:
-      return "slider.horizontal.below.square.and.square.filled"
-    case .presenceEQ:
-      return "person.wave.2"
-    case .compressor:
-      return "arrow.down.right.and.arrow.up.left"
-    case .noiseGate:
-      return "speaker.slash"
-    case .softClip:
-      return "waveform.path.ecg"
-    case .waveFolder:
-      return "alternatingcurrent"
-    case .bitCrusher:
-      return "square.grid.3x3"
-    case .tremolo:
-      return "waveform"
-    case .ringMod:
-      return "circle.hexagongrid"
-    case .panner:
-      return "dot.arrowtriangles.up.right.down.left.circle"
-    case .autoPan:
-      return "arrow.left.and.right.circle"
-    case .vibrato:
-      return "water.waves"
-    case .chorus:
-      return "person.2.wave.2"
-    case .flanger:
-      return "waveform.path"
-    case .phaser:
-      return "circle.dotted.circle"
-    case .slapDelay:
-      return "metronome"
-    case .acceleratingDelay:
-      return "forward.end"
-    case .tapeRiserDelay:
-      return "arrow.up.forward.circle"
-    case .pingPongDelay:
-      return "arrow.left.arrow.right"
-    case .reverse:
-      return "backward.end"
-    case .roomReverb:
-      return "smallcircle.filled.circle"
-    case .stereoReverb:
-      return "dot.radiowaves.left.and.right"
-    case .shimmer:
-      return "sparkles"
-    case .combResonator:
-      return "tuningfork"
-    case .spaceWidener:
-      return "arrow.up.left.and.arrow.down.right"
-    case .longBloom:
-      return "sparkles"
-    case .convergingBloom:
-      return "arrow.down.forward.and.arrow.up.backward.circle"
-    case .stereoDelay:
-      return "rectangle.split.2x1"
-    }
-  }
-
-  var parameterAName: String {
-    switch self {
-    case .highPass, .lowPass:
-      return "Frequency"
-    case .tiltEQ:
-      return "Tilt"
-    case .presenceEQ:
-      return "Focus"
-    case .compressor, .noiseGate:
-      return "Threshold"
-    case .softClip, .waveFolder:
-      return "Drive"
-    case .bitCrusher:
-      return "Bits"
-    case .tremolo, .ringMod, .autoPan, .vibrato, .chorus, .flanger, .phaser:
-      return "Rate"
-    case .panner:
-      return "Position"
-    case .slapDelay, .acceleratingDelay, .tapeRiserDelay, .pingPongDelay, .stereoDelay:
-      return "Time"
-    case .reverse:
-      return "Grain"
-    case .roomReverb, .stereoReverb, .shimmer, .longBloom:
-      return "Size"
-    case .combResonator:
-      return "Tune"
-    case .spaceWidener:
-      return "Width"
-    case .convergingBloom:
-      return "Spread"
-    }
-  }
-
-  var parameterBName: String {
-    switch self {
-    case .highPass, .lowPass:
-      return "Resonance"
-    case .tiltEQ, .presenceEQ:
-      return "Air"
-    case .compressor:
-      return "Ratio"
-    case .noiseGate:
-      return "Floor"
-    case .softClip, .waveFolder:
-      return "Tone"
-    case .bitCrusher:
-      return "Rate"
-    case .tremolo:
-      return "Shape"
-    case .ringMod:
-      return "Blend"
-    case .panner:
-      return "Gain"
-    case .autoPan:
-      return "Width"
-    case .vibrato, .chorus, .flanger:
-      return "Depth"
-    case .phaser:
-      return "Feedback"
-    case .slapDelay, .pingPongDelay, .stereoDelay:
-      return "Feedback"
-    case .acceleratingDelay:
-      return "Acceleration"
-    case .tapeRiserDelay:
-      return "Feedback"
-    case .reverse:
-      return "Smear"
-    case .roomReverb, .stereoReverb, .shimmer, .longBloom:
-      return "Damping"
-    case .combResonator:
-      return "Feedback"
-    case .spaceWidener:
-      return "Bass Mono"
-    case .convergingBloom:
-      return "Gravity"
-    }
-  }
-
-  var parameterAFormat: ParameterDisplayFormat {
-    switch self {
-    case .slapDelay:
-      return .milliseconds(lower: 55, upper: 520)
-    case .acceleratingDelay:
-      return .milliseconds(lower: 160, upper: 900)
-    case .pingPongDelay:
-      return .milliseconds(lower: 85, upper: 720)
-    case .tapeRiserDelay:
-      return .milliseconds(lower: 50, upper: 1000)
-    case .stereoDelay:
-      return .milliseconds(lower: 50, upper: 800)
-    case .reverse:
-      return .milliseconds(lower: 80, upper: 1050)
-    default:
-      return .percent
-    }
-  }
-
-  var parameterBFormat: ParameterDisplayFormat {
-    switch self {
-    case .reverse:
-      return .milliseconds(lower: 12, upper: 260)
-    default:
-      return .percent
-    }
-  }
-
-  func parameterADisplay(value: Double) -> String {
-    parameterAFormat.format(value: value)
-  }
-
-  func parameterBDisplay(value: Double) -> String {
-    parameterBFormat.format(value: value)
-  }
-
-  var parameterCName: String? {
-    switch self {
-    case .tapeRiserDelay:
-      return "Rise"
-    case .stereoDelay:
-      return "Spread"
-    default:
-      return nil
-    }
-  }
-
-  var defaultParameterC: Double {
-    switch self {
-    case .tapeRiserDelay:
-      return 0.5
-    case .stereoDelay:
-      return 0.6
-    default:
-      return 0.5
-    }
-  }
-
-  var parameterCFormat: ParameterDisplayFormat {
-    switch self {
-    case .tapeRiserDelay:
-      return .semitones(lower: 0.5, upper: 12.0)
-    default:
-      return .percent
-    }
-  }
-
-  func parameterCDisplay(value: Double) -> String {
-    parameterCFormat.format(value: value)
-  }
-
-  var defaultAmount: Double {
-    switch self {
-    case .highPass, .lowPass, .tiltEQ, .presenceEQ:
-      return 0.55
-    case .compressor:
-      return 0.7
-    case .noiseGate:
-      return 0.35
-    case .softClip, .waveFolder:
-      return 0.42
-    case .bitCrusher:
-      return 0.28
-    case .tremolo, .ringMod:
-      return 0.45
-    case .panner, .autoPan, .spaceWidener:
-      return 0.65
-    case .longBloom, .convergingBloom:
-      return 0.68
-    case .vibrato, .chorus, .flanger, .phaser:
-      return 0.48
-    case .slapDelay, .acceleratingDelay, .tapeRiserDelay, .pingPongDelay:
-      return 0.52
-    case .stereoDelay:
-      return 0.6
-    case .reverse:
-      return 0.62
-    case .roomReverb, .stereoReverb, .shimmer:
-      return 0.44
-    case .combResonator:
-      return 0.38
-    }
-  }
-
-  var defaultParameterA: Double {
-    switch self {
-    case .highPass:
-      return 0.24
-    case .lowPass:
-      return 0.72
-    case .tiltEQ, .presenceEQ:
-      return 0.58
-    case .compressor:
-      return 0.34
-    case .noiseGate:
-      return 0.28
-    case .softClip, .waveFolder:
-      return 0.42
-    case .bitCrusher:
-      return 0.35
-    case .tremolo:
-      return 0.38
-    case .ringMod:
-      return 0.46
-    case .panner:
-      return 0.5
-    case .autoPan:
-      return 0.32
-    case .vibrato:
-      return 0.25
-    case .chorus:
-      return 0.28
-    case .flanger:
-      return 0.36
-    case .phaser:
-      return 0.34
-    case .slapDelay:
-      return 0.34
-    case .acceleratingDelay:
-      return 0.58
-    case .tapeRiserDelay:
-      return 0.66
-    case .pingPongDelay:
-      return 0.44
-    case .reverse:
-      return 0.36
-    case .roomReverb:
-      return 0.42
-    case .stereoReverb:
-      return 0.62
-    case .shimmer:
-      return 0.7
-    case .combResonator:
-      return 0.46
-    case .spaceWidener:
-      return 0.58
-    case .longBloom:
-      return 0.82
-    case .convergingBloom:
-      return 0.74
-    case .stereoDelay:
-      return 0.42
-    }
-  }
-
-  var defaultParameterB: Double {
-    switch self {
-    case .highPass, .lowPass:
-      return 0.25
-    case .tiltEQ:
-      return 0.48
-    case .presenceEQ:
-      return 0.6
-    case .compressor:
-      return 0.52
-    case .noiseGate:
-      return 0.38
-    case .softClip, .waveFolder:
-      return 0.5
-    case .bitCrusher:
-      return 0.22
-    case .tremolo:
-      return 0.45
-    case .ringMod:
-      return 0.55
-    case .panner:
-      return 0.72
-    case .autoPan:
-      return 0.78
-    case .vibrato:
-      return 0.45
-    case .chorus:
-      return 0.56
-    case .flanger:
-      return 0.62
-    case .phaser:
-      return 0.54
-    case .slapDelay:
-      return 0.46
-    case .acceleratingDelay:
-      return 0.7
-    case .tapeRiserDelay:
-      return 0.68
-    case .pingPongDelay:
-      return 0.55
-    case .reverse:
-      return 0.42
-    case .roomReverb:
-      return 0.48
-    case .stereoReverb:
-      return 0.38
-    case .shimmer:
-      return 0.32
-    case .combResonator:
-      return 0.62
-    case .spaceWidener:
-      return 0.45
-    case .longBloom:
-      return 0.48
-    case .convergingBloom:
-      return 0.64
-    case .stereoDelay:
-      return 0.55
+    case .percent:
+      return "\(Int((clamped * 100).rounded()))%"
+    case .milliseconds(let lower, let upper):
+      let ms = Int((lower + (upper - lower) * clamped).rounded())
+      return "\(ms) ms"
+    case .semitones(let lower, let upper):
+      let st = lower + (upper - lower) * clamped
+      return String(format: "%+.1f st", st)
     }
   }
 }
 
-nonisolated struct AudioEffectNode: Identifiable, Codable, Hashable, Sendable {
+// MARK: - Parameter Metadata
+
+nonisolated struct ParameterMetadata: Sendable, Hashable {
+  let name: String
+  let defaultValue: Double
+  let format: ParameterDisplayFormat
+
+  func display(value: Double) -> String {
+    format.format(value: value)
+  }
+}
+
+// MARK: - Audio Effect Kind
+
+/// Identity + metadata for one effect type. Each kind is declared as a static
+/// constant. The integer `id` stays in sync with the C++ engine's `EffectType`
+/// enum and is the persisted key for stored presets.
+nonisolated struct AudioEffectKind: Sendable, Identifiable {
+  let id: Int
+  let title: String
+  let subtitle: String
+  let symbolName: String
+  let amount: ParameterMetadata
+  let parameterA: ParameterMetadata
+  let parameterB: ParameterMetadata
+  let parameterC: ParameterMetadata?
+}
+
+nonisolated extension AudioEffectKind: Hashable {
+  static func == (lhs: AudioEffectKind, rhs: AudioEffectKind) -> Bool {
+    lhs.id == rhs.id
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine(id)
+  }
+}
+
+nonisolated extension AudioEffectKind {
+  static let allCases: [AudioEffectKind] = [
+    .highPass, .lowPass, .tiltEQ, .presenceEQ, .compressor, .noiseGate,
+    .softClip, .waveFolder, .bitCrusher, .tremolo, .ringMod, .panner,
+    .autoPan, .vibrato, .chorus, .flanger, .phaser, .slapDelay,
+    .acceleratingDelay, .pingPongDelay, .reverse, .roomReverb, .stereoReverb,
+    .shimmer, .combResonator, .spaceWidener, .longBloom, .convergingBloom,
+    .tapeRiserDelay, .stereoDelay,
+  ]
+
+  private static let byID: [Int: AudioEffectKind] = Dictionary(
+    uniqueKeysWithValues: allCases.map { ($0.id, $0) }
+  )
+
+  static func with(id: Int) -> AudioEffectKind? {
+    byID[id]
+  }
+}
+
+// MARK: - Audio Effect Kind Cases
+
+nonisolated extension AudioEffectKind {
+  static let highPass = AudioEffectKind(
+    id: 1,
+    title: "High Pass",
+    subtitle: "Low-cut cleanup",
+    symbolName: "line.diagonal",
+    amount: .init(name: "Amount", defaultValue: 0.55, format: .percent),
+    parameterA: .init(name: "Frequency", defaultValue: 0.24, format: .percent),
+    parameterB: .init(name: "Resonance", defaultValue: 0.25, format: .percent),
+    parameterC: nil
+  )
+
+  static let lowPass = AudioEffectKind(
+    id: 2,
+    title: "Low Pass",
+    subtitle: "High-cut smoothing",
+    symbolName: "line.diagonal.arrow",
+    amount: .init(name: "Amount", defaultValue: 0.55, format: .percent),
+    parameterA: .init(name: "Frequency", defaultValue: 0.72, format: .percent),
+    parameterB: .init(name: "Resonance", defaultValue: 0.25, format: .percent),
+    parameterC: nil
+  )
+
+  static let tiltEQ = AudioEffectKind(
+    id: 3,
+    title: "Tilt EQ",
+    subtitle: "Dark to bright balance",
+    symbolName: "slider.horizontal.below.square.and.square.filled",
+    amount: .init(name: "Amount", defaultValue: 0.55, format: .percent),
+    parameterA: .init(name: "Tilt", defaultValue: 0.58, format: .percent),
+    parameterB: .init(name: "Air", defaultValue: 0.48, format: .percent),
+    parameterC: nil
+  )
+
+  static let presenceEQ = AudioEffectKind(
+    id: 4,
+    title: "Presence EQ",
+    subtitle: "Speech detail lift",
+    symbolName: "person.wave.2",
+    amount: .init(name: "Amount", defaultValue: 0.55, format: .percent),
+    parameterA: .init(name: "Focus", defaultValue: 0.58, format: .percent),
+    parameterB: .init(name: "Air", defaultValue: 0.6, format: .percent),
+    parameterC: nil
+  )
+
+  static let compressor = AudioEffectKind(
+    id: 5,
+    title: "Compressor",
+    subtitle: "Fast level control",
+    symbolName: "arrow.down.right.and.arrow.up.left",
+    amount: .init(name: "Amount", defaultValue: 0.7, format: .percent),
+    parameterA: .init(name: "Threshold", defaultValue: 0.34, format: .percent),
+    parameterB: .init(name: "Ratio", defaultValue: 0.52, format: .percent),
+    parameterC: nil
+  )
+
+  static let noiseGate = AudioEffectKind(
+    id: 6,
+    title: "Noise Gate",
+    subtitle: "Quiet sound reduction",
+    symbolName: "speaker.slash",
+    amount: .init(name: "Amount", defaultValue: 0.35, format: .percent),
+    parameterA: .init(name: "Threshold", defaultValue: 0.28, format: .percent),
+    parameterB: .init(name: "Floor", defaultValue: 0.38, format: .percent),
+    parameterC: nil
+  )
+
+  static let softClip = AudioEffectKind(
+    id: 7,
+    title: "Soft Clip",
+    subtitle: "Analog-style drive",
+    symbolName: "waveform.path.ecg",
+    amount: .init(name: "Amount", defaultValue: 0.42, format: .percent),
+    parameterA: .init(name: "Drive", defaultValue: 0.42, format: .percent),
+    parameterB: .init(name: "Tone", defaultValue: 0.5, format: .percent),
+    parameterC: nil
+  )
+
+  static let waveFolder = AudioEffectKind(
+    id: 8,
+    title: "Wave Folder",
+    subtitle: "Folded harmonic edge",
+    symbolName: "alternatingcurrent",
+    amount: .init(name: "Amount", defaultValue: 0.42, format: .percent),
+    parameterA: .init(name: "Drive", defaultValue: 0.42, format: .percent),
+    parameterB: .init(name: "Tone", defaultValue: 0.5, format: .percent),
+    parameterC: nil
+  )
+
+  static let bitCrusher = AudioEffectKind(
+    id: 9,
+    title: "Bit Crusher",
+    subtitle: "Reduced resolution",
+    symbolName: "square.grid.3x3",
+    amount: .init(name: "Amount", defaultValue: 0.28, format: .percent),
+    parameterA: .init(name: "Bits", defaultValue: 0.35, format: .percent),
+    parameterB: .init(name: "Rate", defaultValue: 0.22, format: .percent),
+    parameterC: nil
+  )
+
+  static let tremolo = AudioEffectKind(
+    id: 10,
+    title: "Tremolo",
+    subtitle: "Amplitude motion",
+    symbolName: "waveform",
+    amount: .init(name: "Amount", defaultValue: 0.45, format: .percent),
+    parameterA: .init(name: "Rate", defaultValue: 0.38, format: .percent),
+    parameterB: .init(name: "Shape", defaultValue: 0.45, format: .percent),
+    parameterC: nil
+  )
+
+  static let ringMod = AudioEffectKind(
+    id: 11,
+    title: "Ring Mod",
+    subtitle: "Metallic modulation",
+    symbolName: "circle.hexagongrid",
+    amount: .init(name: "Amount", defaultValue: 0.45, format: .percent),
+    parameterA: .init(name: "Rate", defaultValue: 0.46, format: .percent),
+    parameterB: .init(name: "Blend", defaultValue: 0.55, format: .percent),
+    parameterC: nil
+  )
+
+  static let panner = AudioEffectKind(
+    id: 12,
+    title: "Panner",
+    subtitle: "Static stereo position",
+    symbolName: "dot.arrowtriangles.up.right.down.left.circle",
+    amount: .init(name: "Amount", defaultValue: 0.65, format: .percent),
+    parameterA: .init(name: "Position", defaultValue: 0.5, format: .percent),
+    parameterB: .init(name: "Gain", defaultValue: 0.72, format: .percent),
+    parameterC: nil
+  )
+
+  static let autoPan = AudioEffectKind(
+    id: 13,
+    title: "Auto Pan",
+    subtitle: "Moving stereo position",
+    symbolName: "arrow.left.and.right.circle",
+    amount: .init(name: "Amount", defaultValue: 0.65, format: .percent),
+    parameterA: .init(name: "Rate", defaultValue: 0.32, format: .percent),
+    parameterB: .init(name: "Width", defaultValue: 0.78, format: .percent),
+    parameterC: nil
+  )
+
+  static let vibrato = AudioEffectKind(
+    id: 14,
+    title: "Vibrato",
+    subtitle: "Pitch wobble",
+    symbolName: "water.waves",
+    amount: .init(name: "Amount", defaultValue: 0.48, format: .percent),
+    parameterA: .init(name: "Rate", defaultValue: 0.25, format: .percent),
+    parameterB: .init(name: "Depth", defaultValue: 0.45, format: .percent),
+    parameterC: nil
+  )
+
+  static let chorus = AudioEffectKind(
+    id: 15,
+    title: "Chorus",
+    subtitle: "Thick modulated doubles",
+    symbolName: "person.2.wave.2",
+    amount: .init(name: "Amount", defaultValue: 0.48, format: .percent),
+    parameterA: .init(name: "Rate", defaultValue: 0.28, format: .percent),
+    parameterB: .init(name: "Depth", defaultValue: 0.56, format: .percent),
+    parameterC: nil
+  )
+
+  static let flanger = AudioEffectKind(
+    id: 16,
+    title: "Flanger",
+    subtitle: "Short comb sweep",
+    symbolName: "waveform.path",
+    amount: .init(name: "Amount", defaultValue: 0.48, format: .percent),
+    parameterA: .init(name: "Rate", defaultValue: 0.36, format: .percent),
+    parameterB: .init(name: "Depth", defaultValue: 0.62, format: .percent),
+    parameterC: nil
+  )
+
+  static let phaser = AudioEffectKind(
+    id: 17,
+    title: "Phaser",
+    subtitle: "All-pass sweep",
+    symbolName: "circle.dotted.circle",
+    amount: .init(name: "Amount", defaultValue: 0.48, format: .percent),
+    parameterA: .init(name: "Rate", defaultValue: 0.34, format: .percent),
+    parameterB: .init(name: "Feedback", defaultValue: 0.54, format: .percent),
+    parameterC: nil
+  )
+
+  static let slapDelay = AudioEffectKind(
+    id: 18,
+    title: "Slap Delay",
+    subtitle: "Short feedback echo",
+    symbolName: "metronome",
+    amount: .init(name: "Amount", defaultValue: 0.52, format: .percent),
+    parameterA: .init(name: "Time", defaultValue: 0.34, format: .milliseconds(lower: 55, upper: 520)),
+    parameterB: .init(name: "Feedback", defaultValue: 0.46, format: .percent),
+    parameterC: nil
+  )
+
+  static let acceleratingDelay = AudioEffectKind(
+    id: 19,
+    title: "Accel Delay",
+    subtitle: "Repeats get faster",
+    symbolName: "forward.end",
+    amount: .init(name: "Amount", defaultValue: 0.52, format: .percent),
+    parameterA: .init(name: "Time", defaultValue: 0.58, format: .milliseconds(lower: 160, upper: 900)),
+    parameterB: .init(name: "Acceleration", defaultValue: 0.7, format: .percent),
+    parameterC: nil
+  )
+
+  static let pingPongDelay = AudioEffectKind(
+    id: 20,
+    title: "Ping Pong",
+    subtitle: "Cross-channel echoes",
+    symbolName: "arrow.left.arrow.right",
+    amount: .init(name: "Amount", defaultValue: 0.52, format: .percent),
+    parameterA: .init(name: "Time", defaultValue: 0.44, format: .milliseconds(lower: 85, upper: 720)),
+    parameterB: .init(name: "Feedback", defaultValue: 0.55, format: .percent),
+    parameterC: nil
+  )
+
+  static let reverse = AudioEffectKind(
+    id: 21,
+    title: "Reverse",
+    subtitle: "Backward grains",
+    symbolName: "backward.end",
+    amount: .init(name: "Amount", defaultValue: 0.62, format: .percent),
+    parameterA: .init(name: "Grain", defaultValue: 0.36, format: .milliseconds(lower: 80, upper: 1050)),
+    parameterB: .init(name: "Smear", defaultValue: 0.42, format: .milliseconds(lower: 12, upper: 260)),
+    parameterC: nil
+  )
+
+  static let roomReverb = AudioEffectKind(
+    id: 22,
+    title: "Room Reverb",
+    subtitle: "Compact reflection tank",
+    symbolName: "smallcircle.filled.circle",
+    amount: .init(name: "Amount", defaultValue: 0.44, format: .percent),
+    parameterA: .init(name: "Size", defaultValue: 0.42, format: .percent),
+    parameterB: .init(name: "Damping", defaultValue: 0.48, format: .percent),
+    parameterC: nil
+  )
+
+  static let stereoReverb = AudioEffectKind(
+    id: 23,
+    title: "Stereo Reverb",
+    subtitle: "Wide cross-fed tail",
+    symbolName: "dot.radiowaves.left.and.right",
+    amount: .init(name: "Amount", defaultValue: 0.44, format: .percent),
+    parameterA: .init(name: "Size", defaultValue: 0.62, format: .percent),
+    parameterB: .init(name: "Damping", defaultValue: 0.38, format: .percent),
+    parameterC: nil
+  )
+
+  static let shimmer = AudioEffectKind(
+    id: 24,
+    title: "Shimmer",
+    subtitle: "Bright diffuse bloom",
+    symbolName: "sparkles",
+    amount: .init(name: "Amount", defaultValue: 0.44, format: .percent),
+    parameterA: .init(name: "Size", defaultValue: 0.7, format: .percent),
+    parameterB: .init(name: "Damping", defaultValue: 0.32, format: .percent),
+    parameterC: nil
+  )
+
+  static let combResonator = AudioEffectKind(
+    id: 25,
+    title: "Comb Resonator",
+    subtitle: "Tuned resonant echo",
+    symbolName: "tuningfork",
+    amount: .init(name: "Amount", defaultValue: 0.38, format: .percent),
+    parameterA: .init(name: "Tune", defaultValue: 0.46, format: .percent),
+    parameterB: .init(name: "Feedback", defaultValue: 0.62, format: .percent),
+    parameterC: nil
+  )
+
+  static let spaceWidener = AudioEffectKind(
+    id: 26,
+    title: "Space Widener",
+    subtitle: "Mid-side width",
+    symbolName: "arrow.up.left.and.arrow.down.right",
+    amount: .init(name: "Amount", defaultValue: 0.65, format: .percent),
+    parameterA: .init(name: "Width", defaultValue: 0.58, format: .percent),
+    parameterB: .init(name: "Bass Mono", defaultValue: 0.45, format: .percent),
+    parameterC: nil
+  )
+
+  static let longBloom = AudioEffectKind(
+    id: 27,
+    title: "Long Bloom",
+    subtitle: "Long expanding decay",
+    symbolName: "sparkles",
+    amount: .init(name: "Amount", defaultValue: 0.68, format: .percent),
+    parameterA: .init(name: "Size", defaultValue: 0.82, format: .percent),
+    parameterB: .init(name: "Damping", defaultValue: 0.48, format: .percent),
+    parameterC: nil
+  )
+
+  static let convergingBloom = AudioEffectKind(
+    id: 28,
+    title: "Converge Bloom",
+    subtitle: "Wide tail returns center",
+    symbolName: "arrow.down.forward.and.arrow.up.backward.circle",
+    amount: .init(name: "Amount", defaultValue: 0.68, format: .percent),
+    parameterA: .init(name: "Spread", defaultValue: 0.74, format: .percent),
+    parameterB: .init(name: "Gravity", defaultValue: 0.64, format: .percent),
+    parameterC: nil
+  )
+
+  static let tapeRiserDelay = AudioEffectKind(
+    id: 29,
+    title: "Tape Riser",
+    subtitle: "Pitch-shifting tape delay",
+    symbolName: "arrow.up.forward.circle",
+    amount: .init(name: "Amount", defaultValue: 0.52, format: .percent),
+    parameterA: .init(name: "Time", defaultValue: 0.66, format: .milliseconds(lower: 50, upper: 1000)),
+    parameterB: .init(name: "Feedback", defaultValue: 0.68, format: .percent),
+    parameterC: .init(name: "Pitch", defaultValue: 0.65, format: .semitones(lower: -12.0, upper: 12.0))
+  )
+
+  static let stereoDelay = AudioEffectKind(
+    id: 30,
+    title: "Stereo Delay",
+    subtitle: "L/R offset feedback echo",
+    symbolName: "rectangle.split.2x1",
+    amount: .init(name: "Amount", defaultValue: 0.6, format: .percent),
+    parameterA: .init(name: "Time", defaultValue: 0.42, format: .milliseconds(lower: 50, upper: 800)),
+    parameterB: .init(name: "Feedback", defaultValue: 0.55, format: .percent),
+    parameterC: .init(name: "Spread", defaultValue: 0.6, format: .percent)
+  )
+}
+
+// MARK: - Audio Effect Node
+
+nonisolated struct AudioEffectNode: Identifiable, Hashable, Sendable {
   var id: UUID
-  var type: AudioEffectType
+  var type: AudioEffectKind
   var isEnabled: Bool
   var amount: Double
   var parameterA: Double
@@ -549,7 +428,7 @@ nonisolated struct AudioEffectNode: Identifiable, Codable, Hashable, Sendable {
 
   init(
     id: UUID = UUID(),
-    type: AudioEffectType,
+    type: AudioEffectKind,
     isEnabled: Bool = true,
     amount: Double? = nil,
     parameterA: Double? = nil,
@@ -559,25 +438,52 @@ nonisolated struct AudioEffectNode: Identifiable, Codable, Hashable, Sendable {
     self.id = id
     self.type = type
     self.isEnabled = isEnabled
-    self.amount = amount ?? type.defaultAmount
-    self.parameterA = parameterA ?? type.defaultParameterA
-    self.parameterB = parameterB ?? type.defaultParameterB
-    self.parameterC = parameterC ?? type.defaultParameterC
+    self.amount = amount ?? type.amount.defaultValue
+    self.parameterA = parameterA ?? type.parameterA.defaultValue
+    self.parameterB = parameterB ?? type.parameterB.defaultValue
+    self.parameterC = parameterC ?? type.parameterC?.defaultValue ?? 0.5
   }
+}
 
+nonisolated extension AudioEffectNode: Codable {
+  /// JSON layout is unchanged from when `type` was an `Int`-rawvalue enum: the
+  /// kind id is stored under the `"type"` key. New `parameterC` field is
+  /// optional so older stored presets decode cleanly.
   private enum CodingKeys: String, CodingKey {
     case id, type, isEnabled, amount, parameterA, parameterB, parameterC
   }
 
   init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
+    let typeID = try container.decode(Int.self, forKey: .type)
+    guard let type = AudioEffectKind.with(id: typeID) else {
+      throw DecodingError.dataCorruptedError(
+        forKey: .type,
+        in: container,
+        debugDescription: "Unknown effect kind id \(typeID)"
+      )
+    }
+
     self.id = try container.decode(UUID.self, forKey: .id)
-    self.type = try container.decode(AudioEffectType.self, forKey: .type)
+    self.type = type
     self.isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
     self.amount = try container.decode(Double.self, forKey: .amount)
     self.parameterA = try container.decode(Double.self, forKey: .parameterA)
     self.parameterB = try container.decode(Double.self, forKey: .parameterB)
-    self.parameterC = try container.decodeIfPresent(Double.self, forKey: .parameterC) ?? type.defaultParameterC
+    self.parameterC = try container.decodeIfPresent(Double.self, forKey: .parameterC)
+      ?? type.parameterC?.defaultValue
+      ?? 0.5
+  }
+
+  func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(id, forKey: .id)
+    try container.encode(type.id, forKey: .type)
+    try container.encode(isEnabled, forKey: .isEnabled)
+    try container.encode(amount, forKey: .amount)
+    try container.encode(parameterA, forKey: .parameterA)
+    try container.encode(parameterB, forKey: .parameterB)
+    try container.encode(parameterC, forKey: .parameterC)
   }
 }
 
@@ -590,6 +496,8 @@ nonisolated extension AudioEffectNode: Transferable {
 nonisolated extension UTType {
   static let hearAugmentEffectNode = UTType(exportedAs: "app.muukii.hearaugment.effectNode")
 }
+
+// MARK: - Audio Effect Chain Preset
 
 nonisolated struct AudioEffectChainPreset: Identifiable, Codable, Hashable, Sendable {
   enum Kind: String, Codable, Hashable, Sendable {
@@ -768,26 +676,3 @@ nonisolated struct AudioEffectChainPreset: Identifiable, Codable, Hashable, Send
     )
   }
 }
-
-// MARK: - Parameter Display Format
-
-nonisolated enum ParameterDisplayFormat: Sendable {
-  case percent
-  case milliseconds(lower: Double, upper: Double)
-  case semitones(lower: Double, upper: Double)
-
-  func format(value: Double) -> String {
-    let clamped = min(max(value, 0), 1)
-    switch self {
-    case .percent:
-      return "\(Int((clamped * 100).rounded()))%"
-    case .milliseconds(let lower, let upper):
-      let ms = Int((lower + (upper - lower) * clamped).rounded())
-      return "\(ms) ms"
-    case .semitones(let lower, let upper):
-      let st = lower + (upper - lower) * clamped
-      return String(format: "%.1f st", st)
-    }
-  }
-}
-

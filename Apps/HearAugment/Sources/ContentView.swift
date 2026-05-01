@@ -28,7 +28,38 @@ struct ContentView: View {
       .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
         viewModel.refreshAudioRoute()
       }
+      .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
+        viewModel.handleInterruption(notification)
+      }
+      .safeAreaInset(edge: .bottom, spacing: 0) {
+        ListeningTransportBar(viewModel: viewModel)
+      }
     }
+  }
+}
+
+fileprivate struct ListeningTransportBar: View {
+  let viewModel: HearAugmentViewModel
+
+  var body: some View {
+    Button {
+      Task {
+        await viewModel.toggleListening()
+      }
+    } label: {
+      Label(
+        viewModel.isListening ? "Stop Listening" : "Start Listening",
+        systemImage: viewModel.isListening ? "stop.fill" : "ear.and.waveform"
+      )
+      .frame(maxWidth: .infinity, minHeight: 48)
+    }
+    .buttonStyle(.borderedProminent)
+    .tint(viewModel.isListening ? .red : .accentColor)
+    .disabled(viewModel.isPermissionDenied)
+    .padding(.horizontal, 20)
+    .padding(.top, 12)
+    .padding(.bottom, 8)
+    .background(.bar)
   }
 }
 
@@ -65,20 +96,6 @@ fileprivate struct ListeningPanel: View {
           .font(.system(.title2, design: .rounded, weight: .semibold))
           .monospacedDigit()
       }
-
-      Button {
-        Task {
-          await viewModel.toggleListening()
-        }
-      } label: {
-        Label(
-          viewModel.isListening ? "Stop Listening" : "Start Listening",
-          systemImage: viewModel.isListening ? "stop.fill" : "ear.and.waveform"
-        )
-        .frame(maxWidth: .infinity, minHeight: 48)
-      }
-      .buttonStyle(.borderedProminent)
-      .disabled(viewModel.isPermissionDenied)
 
       BypassControlsRow(viewModel: viewModel)
 
@@ -239,20 +256,15 @@ fileprivate struct PresetButton: View {
 fileprivate struct EffectChainPanel: View {
   let viewModel: HearAugmentViewModel
   @State private var customPresetName = ""
+  @State private var isShowingBrowser = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       HStack(spacing: 12) {
         sectionTitle("Effect Chain", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
         Spacer()
-        Menu {
-          ForEach(AudioEffectType.allCases) { type in
-            Button {
-              viewModel.addEffect(type)
-            } label: {
-              Label(type.title, systemImage: type.symbolName)
-            }
-          }
+        Button {
+          isShowingBrowser = true
         } label: {
           Label("Add", systemImage: "plus")
         }
@@ -306,6 +318,9 @@ fileprivate struct EffectChainPanel: View {
       }
     }
     .sectionSurface()
+    .sheet(isPresented: $isShowingBrowser) {
+      EffectBrowserSheet(viewModel: viewModel)
+    }
   }
 
   private var rowTint: Color {
@@ -358,6 +373,115 @@ fileprivate struct EffectDragPreview: View {
       .thinMaterial,
       in: RoundedRectangle(cornerRadius: 8, style: .continuous)
     )
+  }
+}
+
+fileprivate struct EffectBrowserSheet: View {
+  let viewModel: HearAugmentViewModel
+  @Environment(\.dismiss) private var dismiss
+
+  private let columns = [
+    GridItem(.flexible(), spacing: 12),
+    GridItem(.flexible(), spacing: 12),
+  ]
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          if viewModel.isListening == false {
+            Label(
+              "Start listening to hear effect previews.",
+              systemImage: "ear.and.waveform"
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
+
+          LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(AudioEffectKind.allCases) { kind in
+              EffectBrowserCell(viewModel: viewModel, kind: kind)
+            }
+          }
+        }
+        .padding(20)
+      }
+      .background(MuColors.background)
+      .navigationTitle("Add Effect")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") {
+            dismiss()
+          }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Add") {
+            viewModel.commitPreview()
+            dismiss()
+          }
+          .disabled(viewModel.previewKind == nil || viewModel.canAddEffect == false)
+        }
+      }
+      .onDisappear {
+        viewModel.setPreview(kind: nil)
+      }
+    }
+  }
+}
+
+fileprivate struct EffectBrowserCell: View {
+  let viewModel: HearAugmentViewModel
+  let kind: AudioEffectKind
+
+  var body: some View {
+    let isPreviewing = viewModel.previewKind == kind
+
+    Button {
+      viewModel.setPreview(kind: isPreviewing ? nil : kind)
+    } label: {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 6) {
+          Image(systemName: kind.symbolName)
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundStyle(isPreviewing ? Color.accentColor : .secondary)
+            .frame(width: 28, height: 28)
+          Spacer(minLength: 0)
+          if isPreviewing {
+            Image(systemName: "speaker.wave.2.fill")
+              .foregroundStyle(Color.accentColor)
+          }
+        }
+
+        VStack(alignment: .leading, spacing: 3) {
+          Text(kind.title)
+            .font(.headline)
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+          Text(kind.subtitle)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+        }
+      }
+      .padding(14)
+      .frame(maxWidth: .infinity, minHeight: 110, alignment: .leading)
+      .background(
+        isPreviewing ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08),
+        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+      )
+      .overlay {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+          .stroke(
+            isPreviewing ? Color.accentColor.opacity(0.65) : Color.secondary.opacity(0.12),
+            lineWidth: 1
+          )
+      }
+    }
+    .buttonStyle(.plain)
   }
 }
 
@@ -470,28 +594,28 @@ fileprivate struct EffectRow: View {
 
       if isExpanded {
         parameterSlider(
-          title: "Amount",
+          title: node.type.amount.name,
           value: doubleBinding(\.amount),
-          displayValue: percentText(node.amount)
+          displayValue: node.type.amount.display(value: node.amount)
         )
 
         parameterSlider(
-          title: node.type.parameterAName,
+          title: node.type.parameterA.name,
           value: doubleBinding(\.parameterA),
-          displayValue: node.type.parameterADisplay(value: node.parameterA)
+          displayValue: node.type.parameterA.display(value: node.parameterA)
         )
 
         parameterSlider(
-          title: node.type.parameterBName,
+          title: node.type.parameterB.name,
           value: doubleBinding(\.parameterB),
-          displayValue: node.type.parameterBDisplay(value: node.parameterB)
+          displayValue: node.type.parameterB.display(value: node.parameterB)
         )
 
-        if let parameterCName = node.type.parameterCName {
+        if let parameterC = node.type.parameterC {
           parameterSlider(
-            title: parameterCName,
+            title: parameterC.name,
             value: doubleBinding(\.parameterC),
-            displayValue: node.type.parameterCDisplay(value: node.parameterC)
+            displayValue: parameterC.display(value: node.parameterC)
           )
         }
 
@@ -752,10 +876,6 @@ private func sliderRow(
 private func sectionTitle(_ title: String, systemImage: String) -> some View {
   Label(title, systemImage: systemImage)
     .font(.headline)
-}
-
-private func percentText(_ value: Double) -> String {
-  "\(Int((value * 100).rounded()))%"
 }
 
 private func hearAugmentColor(for accentName: String) -> Color {

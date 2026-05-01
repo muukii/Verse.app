@@ -1,56 +1,57 @@
 import AVFoundation
 import Foundation
 
-nonisolated enum AudioBufferSizeOption: Int, CaseIterable, Identifiable, Codable, Hashable, Sendable {
-  case lowLatency = 128
-  case balanced = 256
-  case stable = 512
-  case extraStable = 1024
+nonisolated struct AudioBufferSizeOption: Sendable, Identifiable, Hashable {
+  let frameCount: AVAudioFrameCount
+  let title: String
+  let subtitle: String
 
-  var id: Int {
-    rawValue
-  }
-
-  var frameCount: AVAudioFrameCount {
-    AVAudioFrameCount(rawValue)
-  }
-
-  var title: String {
-    switch self {
-    case .lowLatency:
-      return "128"
-    case .balanced:
-      return "256"
-    case .stable:
-      return "512"
-    case .extraStable:
-      return "1024"
-    }
-  }
-
-  var subtitle: String {
-    switch self {
-    case .lowLatency:
-      return "Lowest latency"
-    case .balanced:
-      return "Balanced"
-    case .stable:
-      return "Stable"
-    case .extraStable:
-      return "Most stable"
-    }
-  }
+  var id: AVAudioFrameCount { frameCount }
 
   var maximumFrameCount: Int {
-    max(rawValue * 4, 4_096)
+    max(Int(frameCount) * 4, 4_096)
   }
 
   func preferredDuration(sampleRate: Double) -> TimeInterval {
-    Double(rawValue) / max(sampleRate, 1)
+    Double(frameCount) / max(sampleRate, 1)
   }
 
   func latencyText(sampleRate: Double) -> String {
     let milliseconds = preferredDuration(sampleRate: sampleRate) * 1_000
     return String(format: "%.1f ms @ %.0f Hz", milliseconds, sampleRate)
+  }
+}
+
+nonisolated extension AudioBufferSizeOption {
+  static let lowLatency = AudioBufferSizeOption(
+    frameCount: 128,
+    title: "128",
+    subtitle: "Lowest latency"
+  )
+
+  static let balanced = AudioBufferSizeOption(
+    frameCount: 256,
+    title: "256",
+    subtitle: "Balanced"
+  )
+
+  static let stable = AudioBufferSizeOption(
+    frameCount: 512,
+    title: "512",
+    subtitle: "Stable"
+  )
+
+  static let extraStable = AudioBufferSizeOption(
+    frameCount: 1024,
+    title: "1024",
+    subtitle: "Most stable"
+  )
+
+  static let allCases: [AudioBufferSizeOption] = [
+    .lowLatency, .balanced, .stable, .extraStable,
+  ]
+
+  static func with(frameCount: AVAudioFrameCount) -> AudioBufferSizeOption? {
+    allCases.first(where: { $0.frameCount == frameCount })
   }
 }
