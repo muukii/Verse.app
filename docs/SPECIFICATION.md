@@ -2,7 +2,7 @@
 
 ## Ad Hoc OTA Install Page
 - Pushes to the `main` branch run the Ad Hoc workflow automatically; manual runs can still publish all apps or a selected app from `main`.
-- The workflow exports Ad Hoc IPAs for Verse, Tone, PhotosOrganizer, HearAugment, PolyReader, VoiceRecorder, and HelloWorld.
+- The workflow exports Ad Hoc IPAs for Verse, Tone, PhotosOrganizer, AmbientLight, HearAugment, PolyReader, VoiceRecorder, and HelloWorld.
 - Builds are published to the single `adhoc-latest` GitHub release so the release list does not grow per branch.
 - GitHub Pages serves `docs/install.html` as the shared install page for the latest `main` Ad Hoc builds.
 - Each app has its own install action backed by an `itms-services` manifest in the `adhoc-latest` GitHub release.
@@ -406,6 +406,45 @@ PhotosOrganizer is a SwiftUI utility app for iPhone and iPad that scans the user
 - Minimum deployment target: iOS 26.2.
 - Uses PhotoKit for library access and writes.
 - Uses ImageIO for HEIF encoding and `avif.swift` for AVIF encoding.
+
+---
+
+# AmbientLight (Calm Light) - Product Specification
+
+## Overview
+
+AmbientLight is a SwiftUI iPhone app, displayed to users as Calm Light, that turns the device screen into a full-screen HDR ambient light with animated organic color patterns.
+
+## Core Features
+
+### Ambient Display
+- Shows a full-screen animated light pattern on a black background.
+- Uses SwiftUI stitchable Metal shaders for GPU-rendered effects.
+- Enables high dynamic range rendering where supported by the display.
+- Hides the status bar and forces dark appearance for an uninterrupted light surface.
+- Disables the device idle timer while the app is active so the light remains on; idle timer behavior is restored when the app becomes inactive or enters the background.
+
+### Patterns
+- Includes selectable ambient patterns:
+  - Ambient Fog
+  - Aurora
+  - Plasma
+  - Fire
+  - Smoke
+- The last selected pattern page is stored locally and restored on next launch.
+
+### Interaction
+- Long-press anywhere on the display to enter pattern switcher mode.
+- In switcher mode, horizontal scrolling is enabled and each pattern is shown with side margins for browsing.
+- Tap while in switcher mode to return to full-screen display mode.
+- Tap the display to reveal a temporary matrix control overlay for pattern-specific two-axis parameter adjustment.
+- The matrix control hides automatically after a short delay, and remains visible while the user is dragging it.
+
+## Platform and Integrations
+- Target platform: iPhone.
+- Minimum deployment target follows the MuApps shared iOS app target.
+- Bundle identifier: `app.muukii.ambientlight`.
+- User-facing display name: Calm Light.
 
 ---
 
