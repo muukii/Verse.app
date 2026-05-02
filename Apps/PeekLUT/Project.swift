@@ -35,7 +35,6 @@ let project = Project(
       deploymentTargets: .app,
       infoPlist: appInfoPlist,
       buildableFolders: ["Sources"],
-      resources: ["Resources/**"],
       dependencies: [
         .project(target: "MuDesignSystem", path: "../../Shared"),
       ],

@@ -10,40 +10,8 @@ final class LUTCatalog: ObservableObject {
   var all: [LUT] { bundled + userLUTs }
 
   init() {
-    loadBundledSync()
+    bundled = BuiltinLUTs.all()
     loadUserLUTsSync()
-  }
-
-  // MARK: - Bundled
-
-  private func loadBundledSync() {
-    var urls = Bundle.main.urls(forResourcesWithExtension: "cube", subdirectory: nil) ?? []
-    if let nested = Bundle.main.urls(
-      forResourcesWithExtension: "cube",
-      subdirectory: "SampleLUTs"
-    ) {
-      urls.append(contentsOf: nested)
-    }
-    var seen = Set<String>()
-    urls = urls.filter { seen.insert($0.path).inserted }
-    if urls.isEmpty { return }
-    var result: [LUT] = []
-    for url in urls.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-      let name = url.deletingPathExtension().lastPathComponent
-      do {
-        let text = try String(contentsOf: url, encoding: .utf8)
-        let lut = try CubeLUTParser.parse(
-          text: text,
-          name: name,
-          id: "bundled:\(name)",
-          source: .bundled(name)
-        )
-        result.append(lut)
-      } catch {
-        print("[PeekLUT] Failed to parse bundled LUT \(name): \(error)")
-      }
-    }
-    bundled = result
   }
 
   // MARK: - User imported
