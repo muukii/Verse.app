@@ -816,6 +816,7 @@ fileprivate struct InputPanel: View {
       } else {
         routeRow(title: "Selected", value: viewModel.selectedInputName)
         routeRow(title: "Active Input", value: viewModel.activeInputName)
+        routeRow(title: "Channels", value: viewModel.inputChannelDescription)
         routeRow(title: "Output", value: viewModel.outputRouteName)
       }
     }

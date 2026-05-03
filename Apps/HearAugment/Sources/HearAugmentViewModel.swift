@@ -88,6 +88,7 @@ final class HearAugmentViewModel {
   private(set) var activeInputName = "No Input"
   private(set) var isHeadphoneOutput = false
   private(set) var errorMessage: String?
+  private(set) var inputChannelCount: Int = 0
 
   init() {
     loadCustomPresets()
@@ -134,6 +135,15 @@ final class HearAugmentViewModel {
   var audioBufferDescription: String {
     let sampleRate = session.sampleRate > 0 ? session.sampleRate : 48_000
     return "\(selectedAudioBufferSize.frameCount) frames / \(selectedAudioBufferSize.latencyText(sampleRate: sampleRate))"
+  }
+
+  var inputChannelDescription: String {
+    switch inputChannelCount {
+    case 0: return "—"
+    case 1: return "Mono"
+    case 2: return "Stereo"
+    default: return "\(inputChannelCount) ch"
+    }
   }
 
   func prepare() async {
@@ -347,6 +357,7 @@ final class HearAugmentViewModel {
     effectProcessor = nil
     isListening = false
     elapsedTime = 0
+    inputChannelCount = 0
 
     if restoreDiscovery {
       restoreDiscoverySessionIfIdle()
@@ -370,6 +381,7 @@ final class HearAugmentViewModel {
       guard inputFormat.channelCount > 0 else {
         throw AudioError.unavailableInputFormat
       }
+      inputChannelCount = Int(inputFormat.channelCount)
 
       let outputChannelCount = max(Int(inputFormat.channelCount), 2)
       guard let outputFormat = AVAudioFormat(
@@ -458,6 +470,29 @@ final class HearAugmentViewModel {
   private func applyPreferredInput(id: String) throws {
     guard let port = inputPorts.first(where: { $0.uid == id }) else { return }
     try session.setPreferredInput(port)
+    applyStereoConfiguration(for: port)
+  }
+
+  /// Requests a stereo capture path on the given input port. The built-in mic on
+  /// recent iPhones exposes a data source whose `supportedPolarPatterns`
+  /// include `.stereo`; selecting that source plus the matching polar pattern,
+  /// the device orientation, and a 2-channel preference is what actually
+  /// produces a 2 ch input format on the engine side. Each step is best-effort:
+  /// older devices, Bluetooth, and USB inputs silently fall back to whatever
+  /// they natively support, and the engine handles mono returns by mirroring L
+  /// to R.
+  private func applyStereoConfiguration(for port: AVAudioSessionPortDescription) {
+    if port.portType == .builtInMic, let dataSources = port.dataSources {
+      let stereoSource = dataSources.first { source in
+        source.supportedPolarPatterns?.contains(.stereo) == true
+      }
+      if let stereoSource {
+        try? stereoSource.setPreferredPolarPattern(.stereo)
+        try? port.setPreferredDataSource(stereoSource)
+      }
+    }
+    try? session.setPreferredInputOrientation(.portrait)
+    try? session.setPreferredInputNumberOfChannels(2)
   }
 
   private func applyCurrentChain() {

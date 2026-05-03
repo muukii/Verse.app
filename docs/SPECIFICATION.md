@@ -296,7 +296,8 @@ HearAugment is a SwiftUI iPhone and iPad audio AR prototype inspired by real-tim
 ### 5. Audio Route
 - Lists available audio input devices from `AVAudioSession`.
 - Allows input selection while listening is stopped.
-- Shows selected input, active input route, and output route.
+- Shows selected input, active input route, captured channel layout (Mono / Stereo / N ch), and output route.
+- When the selected input is the built-in microphone, the app requests a stereo capture path: it picks a data source whose supported polar patterns include `.stereo`, sets that polar pattern, sets the input orientation to portrait, and asks the session for two preferred input channels. Inputs that do not support stereo (older iPhones, Bluetooth, USB headsets, and most external interfaces) silently fall back to whatever channel layout they natively provide; the engine handles a mono return by mirroring the single channel to both stereo output channels.
 - Warns when headphones or AirPods are not connected to reduce feedback risk.
 
 ### 6. Hearing Safety
