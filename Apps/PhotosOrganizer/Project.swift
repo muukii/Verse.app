@@ -48,6 +48,7 @@ let project = Project(
       settings: .settings(
         base: .appTarget.merging([
           "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
+          "OTHER_LDFLAGS": "$(inherited) -lc++",
         ]),
         configurations: [
           .debug(name: "Debug"),
