@@ -13,8 +13,20 @@ permissions:
 
 jobs:
   build-ios:
-    name: Build iOS
+    name: Build ${{ matrix.app }}
     runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - Verse
+          - Tone
+          - PhotosOrganizer
+          - AmbientLight
+          - HearAugment
+          - PolyReader
+          - VoiceRecorder
+          - HelloWorld
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,11 +50,11 @@ jobs:
       - name: Generate Xcode workspace with Tuist
         run: tuist generate --no-open
 
-      - name: Build iOS
+      - name: Build ${{ matrix.app }}
         run: |
           set -o pipefail && xcodebuild \
             -workspace MuApps.xcworkspace \
-            -scheme Verse \
+            -scheme ${{ matrix.app }} \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             -skipMacroValidation \
